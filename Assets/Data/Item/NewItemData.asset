@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a9e60a0dda033594cbfa100b3e09b505, type: 3}
   m_Name: NewItemData
   m_EditorClassIdentifier: Assembly-CSharp::ItemDataAsset
-  Amount: 0
+  amount: 0
   itemName: New Item
   itemIcon: {fileID: 0}
-  itemWeight: 0
+  itemWeight: 0.5
+  itemPrefab: {fileID: 1409878918793333826, guid: 19ab15537cc681f408faa303032dd81d, type: 3}

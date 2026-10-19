@@ -25,7 +25,6 @@ public class PlayerController : MonoBehaviour
 
     private void StatusSetUp()
     {
-        // PlayerDataAssetから初期値を反映
         if (PlayerData != null)
         {
             _maxHealth = PlayerData.MaxHealth;
@@ -43,6 +42,23 @@ public class PlayerController : MonoBehaviour
                 {
                     Inventory[i] = PlayerData.Inventory[i];
                 }
+            }
+        }
+    }
+
+    // インベントリの状態を PlayerDataAsset（ScriptableObject）へ保存・同期する
+    public void SaveInventoryToData()
+    {
+        if (PlayerData != null)
+        {
+            if (PlayerData.Inventory == null || PlayerData.Inventory.Length < 3)
+            {
+                PlayerData.Inventory = new ItemDataAsset[3];
+            }
+
+            for (int i = 0; i < 3; i++)
+            {
+                PlayerData.Inventory[i] = Inventory[i];
             }
         }
     }

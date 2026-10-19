@@ -1,3 +1,4 @@
+using NUnit.Framework.Internal.Execution;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,6 +17,13 @@ public class MapGenerator : MonoBehaviour
     [Header("バス設定")]
     public GameObject busPrefab;
     public float busOffsetDistance = 10f;
+
+    [Header("スクラップ自動配置設定")]
+    [SerializeField] private List<ItemDataAsset> scrapDataList; // 配置するスクラップのデータ候補
+    [Range(0f, 1f)]
+    [SerializeField] private float scrapSpawnChance = 0.7f;     // 各部屋にスクラップが湧く確率 (70%)
+    [SerializeField] private int minScrapPerRoom = 1;           // 1部屋あたりの最小個数
+    [SerializeField] private int maxScrapPerRoom = 3;           // 1部屋あたりの最大個数
 
     public class GeneratedRoom
     {
@@ -55,7 +63,6 @@ public class MapGenerator : MonoBehaviour
         int retry = 0;
         bool success = false;
 
-        // 目標数に到達するまで、または最大リトライ回数に達するまでループ
         while (retry < maxRetryCount && !success)
         {
             retry++;
@@ -71,10 +78,8 @@ public class MapGenerator : MonoBehaviour
         }
     }
 
-    // 1回分の生成トライアル
     private bool TryGenerateMapOnce()
     {
-        // 既存の生成物をすべてクリア
         foreach (Transform child in transform)
         {
             Destroy(child.gameObject);
@@ -166,16 +171,71 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        // 目標数に到達できたか判定
         if (spawnedRoomList.Count >= targetRoomCount)
         {
             SpawnBusAtOuterDoor();
+
+            // --- ★ マップ生成成功時にスクラップをランダム配置する ---
+            SpawnRandomScraps();
+            // --------------------------------------------------
+
             UpdateGizmoDrawer();
             Debug.Log($"[MAP] マップ生成成功！ (生成数: {spawnedRoomList.Count}個)");
             return true;
         }
 
-        return false; // 失敗したので再試行する
+        return false;
+    }
+
+    // 各部屋にランダムでスクラップを生成するメソッド
+    private void SpawnRandomScraps()
+    {
+        if (scrapDataList == null || scrapDataList.Count == 0) return;
+
+        foreach (var room in spawnedRoomList)
+        {
+            if (room.gridPos == Vector2Int.zero) continue;
+
+            if (Random.value <= scrapSpawnChance)
+            {
+                int count = Random.Range(minScrapPerRoom, maxScrapPerRoom + 1);
+                for (int i = 0; i < count; i++)
+                {
+                    float offsetX = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
+                    float offsetZ = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
+                    Vector3 spawnPos = room.worldPos + new Vector3(offsetX, 0.5f, offsetZ);
+
+                    ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
+
+                    // ★ アセットがプレハブを持っていればそれを使用、なければ汎用プレハブを使用
+                    GameObject prefabToUse = randomScrapData.ItemPrefab;
+                    GameObject scrapObj;
+
+                    if (prefabToUse != null)
+                    {
+                        scrapObj = Instantiate(prefabToUse, spawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0), transform);
+                    }
+                    else
+                    {
+                        // フォールバック用の簡易キューブ
+                        scrapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        scrapObj.transform.position = spawnPos;
+                        scrapObj.transform.localScale = Vector3.one * 0.4f;
+                        scrapObj.AddComponent<Rigidbody>();
+                        scrapObj.AddComponent<BoxCollider>();
+                        scrapObj.transform.SetParent(transform);
+                    }
+
+                    Item worldItem = scrapObj.GetComponent<Item>();
+                    if (worldItem == null)
+                    {
+                        worldItem = scrapObj.AddComponent<Item>();
+                    }
+                    worldItem.SetItemData(randomScrapData);
+                }
+            }
+        }
+        Debug.Log("[MAP] マップ上のスクラップランダム配置完了（各アセットのプレハブ参照）");
     }
 
     private void UpdateGizmoDrawer()
@@ -266,7 +326,7 @@ public class MapGenerator : MonoBehaviour
         return candidates;
     }
 
-    private (bool top, bool bottom, bool left, bool right) GetRotatedDoors(MapChipData chip, int angle)
+    private (bool top, bool bottom, bool left, bool right) GetRotatedungeonsDoors(MapChipData chip, int angle)
     {
         bool t = chip.hasTopDoor;
         bool b = chip.hasBottomDoor;
@@ -284,5 +344,10 @@ public class MapGenerator : MonoBehaviour
         }
 
         return (t, b, l, r);
+    }
+
+    private (bool top, bool bottom, bool left, bool right) GetRotatedDoors(MapChipData chip, int angle)
+    {
+        return GetRotatedungeonsDoors(chip, angle);
     }
 }

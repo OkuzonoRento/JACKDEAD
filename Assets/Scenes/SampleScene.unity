@@ -588,6 +588,11 @@ MonoBehaviour:
   maxRetryCount: 50
   busPrefab: {fileID: 8509179848261848091, guid: 468dbc9214131d8498429dfbecde4461, type: 3}
   busOffsetDistance: 4
+  scrapDataList:
+  - {fileID: 11400000, guid: 93646bb0b9c2d11439a92105631b8bc9, type: 2}
+  scrapSpawnChance: 0.7
+  minScrapPerRoom: 1
+  maxScrapPerRoom: 3
 --- !u!4 &1871857289
 Transform:
   m_ObjectHideFlags: 0
@@ -663,9 +668,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2574542091673538010}
+  - component: {fileID: 6510030111815441595}
   - component: {fileID: 6134311109476015887}
   - component: {fileID: 6510030111815441596}
-  - component: {fileID: 6510030111815441595}
+  - component: {fileID: 6510030111815441597}
   m_Layer: 0
   m_Name: PlayerData
   m_TagString: Untagged
@@ -729,6 +735,26 @@ MonoBehaviour:
   normalFOV: 60
   sprintFOV: 85
   fovChangeSpeed: 8
+--- !u!114 &6510030111815441597
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6510030111815441594}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b09deaed151da1440b994a15dadea8f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInteraction
+  playerInputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  playerController: {fileID: 0}
+  cameraTransform: {fileID: 0}
+  interactRange: 3
+  interactableLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  baseThrowForce: 8
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
