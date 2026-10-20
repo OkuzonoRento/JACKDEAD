@@ -1,29 +1,35 @@
-using NUnit.Framework.Internal.Execution;
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerInteraction : MonoBehaviour
 {
-    [Header("Input Actions ƒAƒZƒbƒg")]
+    [Header("Input Actions ã‚¢ã‚»ãƒƒãƒˆ")]
     [SerializeField] private InputActionAsset playerInputActions;
 
-    [Header("QÆ")]
+    [Header("å‚ç…§")]
     [SerializeField] private PlayerController playerController;
     [SerializeField] private Transform cameraTransform;
 
-    [Header("ƒŒƒCƒLƒƒƒXƒgEƒCƒ“ƒ^ƒ‰ƒNƒgİ’è")]
+    [Header("ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆãƒ»ã‚¤ãƒ³ã‚¿ãƒ©ã‚¯ãƒˆè¨­å®š")]
     [SerializeField] private float interactRange = 3.0f;
     [SerializeField] private LayerMask interactableLayer;
 
-    [Header("“Š±iQƒL[jİ’è")]
+    [Header("æŠ•æ“²ï¼ˆQã‚­ãƒ¼ï¼‰è¨­å®š")]
     [SerializeField] private float baseThrowForce = 8.0f;
+
+    [Header("é¸æŠã‚¹ãƒ­ãƒƒãƒˆï¼ˆ0ã€œ2ï¼‰")]
+    [SerializeField] private int selectedSlotIndex = 0;
 
     private InputAction interactAction;
     private InputAction dropAction;
+    private InputAction slot1Action; // â˜… è¿½åŠ 
+    private InputAction slot2Action; // â˜… è¿½åŠ 
+    private InputAction slot3Action; // â˜… è¿½åŠ 
 
     private IInteractable currentInteractable;
     private float currentHoldTimer = 0f;
     private bool isHolding = false;
+    private bool hasInteractedThisPress = false;
 
     private void Awake()
     {
@@ -40,6 +46,12 @@ public class PlayerInteraction : MonoBehaviour
             {
                 interactAction = map.FindAction("Interact");
                 dropAction = map.FindAction("Drop");
+
+                // â˜… New Input Systemã‹ã‚‰ã‚¹ãƒ­ãƒƒãƒˆé¸æŠã‚¢ã‚¯ã‚·ãƒ§ãƒ³ã‚’å–å¾—
+                slot1Action = map.FindAction("SelectSlot1");
+                slot2Action = map.FindAction("SelectSlot2");
+                slot3Action = map.FindAction("SelectSlot3");
+
                 map.Enable();
             }
         }
@@ -52,12 +64,45 @@ public class PlayerInteraction : MonoBehaviour
 
     private void Update()
     {
+        HandleSlotSelection(); // æ–°ä»•æ§˜ã®ã‚¹ãƒ­ãƒƒãƒˆé¸æŠå‡¦ç†
         CheckTarget();
         HandleHoldInteraction();
 
         if (dropAction != null && dropAction.triggered)
         {
-            DropItem();
+            DropSelectedItem();
+        }
+    }
+
+    // --- New Input System ã‚’ç”¨ã„ãŸã‚¹ãƒ­ãƒƒãƒˆé¸æŠ ---
+    private void HandleSlotSelection()
+    {
+        // 1, 2, 3 ã‚­ãƒ¼ã®ã‚¢ã‚¯ã‚·ãƒ§ãƒ³ãŒãƒˆãƒªã‚¬ãƒ¼ã•ã‚ŒãŸã‹ãƒã‚§ãƒƒã‚¯
+        if (slot1Action != null && slot1Action.triggered)
+        {
+            selectedSlotIndex = 0;
+            Debug.Log("[ã‚¹ãƒ­ãƒƒãƒˆ] 1ã‚’é¸æŠ");
+        }
+        if (slot2Action != null && slot2Action.triggered)
+        {
+            selectedSlotIndex = 1;
+            Debug.Log("[ã‚¹ãƒ­ãƒƒãƒˆ] 2ã‚’é¸æŠ");
+        }
+        if (slot3Action != null && slot3Action.triggered)
+        {
+            selectedSlotIndex = 2;
+            Debug.Log("[ã‚¹ãƒ­ãƒƒãƒˆ] 3ã‚’é¸æŠ");
+        }
+
+        // ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã§ã®åˆ‡ã‚Šæ›¿ãˆï¼ˆå¾“æ¥é€šã‚Šã€ã‚ã‚‹ã„ã¯å¿…è¦ã«å¿œã˜ã¦èª¿æ•´ï¼‰
+        float scrollY = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
+        if (scrollY > 0f)
+        {
+            selectedSlotIndex = (selectedSlotIndex - 1 + 3) % 3;
+        }
+        else if (scrollY < 0f)
+        {
+            selectedSlotIndex = (selectedSlotIndex + 1) % 3;
         }
     }
 
@@ -92,6 +137,15 @@ public class PlayerInteraction : MonoBehaviour
             return;
         }
 
+        if (hasInteractedThisPress)
+        {
+            if (!interactAction.IsPressed())
+            {
+                hasInteractedThisPress = false;
+            }
+            return;
+        }
+
         float requiredTime = currentInteractable.GetHoldTime();
 
         if (interactAction.IsPressed())
@@ -102,6 +156,7 @@ public class PlayerInteraction : MonoBehaviour
             if (currentHoldTimer >= requiredTime)
             {
                 currentInteractable.OnInteract(this);
+                hasInteractedThisPress = true;
                 ResetHold();
             }
         }
@@ -117,7 +172,6 @@ public class PlayerInteraction : MonoBehaviour
         currentHoldTimer = 0f;
     }
 
-    // ƒAƒCƒeƒ€‚ğE‚¤ˆ— • PlayerDataAsset‚Ö‚Ì“¯Šú
     public bool TryPickupItem(ItemDataAsset item)
     {
         if (playerController == null || item == null) return false;
@@ -127,75 +181,65 @@ public class PlayerInteraction : MonoBehaviour
             if (playerController.Inventory[i] == null)
             {
                 playerController.Inventory[i] = item;
-
-                // PlayerDataAsset ‘¤‚Ö•Û‘¶‚ğ”½‰f
                 playerController.SaveInventoryToData();
-
-                Debug.Log($"[ƒCƒ“ƒxƒ“ƒgƒŠ] Slot {i} ‚É {item.ItemName} ‚ğŠi”[‚µ‚Ü‚µ‚½iƒf[ƒ^•Û‘¶Š®—¹j");
+                Debug.Log($"[ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª] Slot {i} ã« {item.ItemName} ã‚’æ ¼ç´ã—ã¾ã—ãŸ");
                 return true;
             }
         }
 
-        Debug.LogWarning("[ƒCƒ“ƒxƒ“ƒgƒŠ] –”t‚Å‚·I");
+        Debug.LogWarning("[ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª] æº€æ¯ã§ã™ï¼");
         return false;
     }
 
-    // QƒL[FItemDataAsset“à‚ÌƒvƒŒƒnƒu‚ğQÆ‚µ‚Ä¶¬‚µAd‚³‚Å”ò‚Î‚·
-    private void DropItem()
+    private void DropSelectedItem()
     {
         if (playerController == null) return;
 
-        for (int i = playerController.Inventory.Length - 1; i >= 0; i--)
+        ItemDataAsset itemToDrop = playerController.Inventory[selectedSlotIndex];
+        if (itemToDrop != null)
         {
-            ItemDataAsset itemToDrop = playerController.Inventory[i];
-            if (itemToDrop != null)
+            playerController.Inventory[selectedSlotIndex] = null;
+            playerController.SaveInventoryToData();
+
+            GameObject prefabToSpawn = itemToDrop.ItemPrefab;
+            Vector3 spawnPos = cameraTransform.position + cameraTransform.forward * 0.8f;
+
+            GameObject droppedObj;
+            if (prefabToSpawn != null)
             {
-                // ƒCƒ“ƒxƒ“ƒgƒŠ‚©‚çíœ • ƒf[ƒ^‚Ì“¯Šú
-                playerController.Inventory[i] = null;
-                playerController.SaveInventoryToData();
-
-                // ItemDataAsset ‚ª‚Á‚Ä‚¢‚éƒvƒŒƒnƒu‚ğƒXƒ|[ƒ“i–¢İ’è‚Ìê‡‚ÍƒGƒ‰[‰ñ”ğ‚ÌƒtƒH[ƒ‹ƒoƒbƒNˆ—j
-                GameObject prefabToSpawn = itemToDrop.ItemPrefab;
-                Vector3 spawnPos = cameraTransform.position + cameraTransform.forward * 0.8f;
-
-                GameObject droppedObj;
-                if (prefabToSpawn != null)
-                {
-                    droppedObj = Instantiate(prefabToSpawn, spawnPos, cameraTransform.rotation);
-                }
-                else
-                {
-                    // ƒvƒŒƒnƒu‚ª–¢İ’è‚Ìê‡‚Ìƒ_ƒ~[¶¬
-                    droppedObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    droppedObj.transform.position = spawnPos;
-                    droppedObj.transform.localScale = Vector3.one * 0.4f;
-                    droppedObj.AddComponent<Rigidbody>();
-                    droppedObj.AddComponent<BoxCollider>();
-                }
-
-                // WorldItem ƒRƒ“ƒ|[ƒlƒ“ƒg‚Éƒf[ƒ^‚ğƒZƒbƒg
-                Item worldItem = droppedObj.GetComponent<Item>();
-                if (worldItem == null)
-                {
-                    worldItem = droppedObj.AddComponent<Item>();
-                }
-                worldItem.SetItemData(itemToDrop);
-
-                // d‚³iItemWeightj‚É‚æ‚é“Š±‹——£‚ÌŒvZ
-                Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
-                if (rb != null)
-                {
-                    float weightFactor = Mathf.Clamp(1.0f / (1.0f + itemToDrop.ItemWeight * 0.5f), 0.1f, 1.0f);
-                    float finalForce = baseThrowForce * weightFactor;
-
-                    Vector3 throwDir = (cameraTransform.forward + Vector3.up * 0.2f).normalized;
-                    rb.AddForce(throwDir * finalForce, ForceMode.Impulse);
-
-                    Debug.Log($"[Q] {itemToDrop.ItemName} (d‚³: {itemToDrop.ItemWeight}kg) ‚ğ“Š‚°‚Ü‚µ‚½");
-                }
-
-                break;
+                droppedObj = Instantiate(prefabToSpawn, spawnPos, cameraTransform.rotation);
             }
+            else
+            {
+                droppedObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                droppedObj.transform.position = spawnPos;
+                droppedObj.transform.localScale = Vector3.one * 0.4f;
+                droppedObj.AddComponent<Rigidbody>();
+                droppedObj.AddComponent<BoxCollider>();
+            }
+
+            Item worldItem = droppedObj.GetComponent<Item>();
+            if (worldItem == null)
+            {
+                worldItem = droppedObj.AddComponent<Item>();
+            }
+            worldItem.SetItemData(itemToDrop);
+
+            Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                float weightFactor = Mathf.Clamp(1.0f / (1.0f + itemToDrop.ItemWeight * 0.5f), 0.1f, 1.0f);
+                float finalForce = baseThrowForce * weightFactor;
+
+                Vector3 throwDir = (cameraTransform.forward + Vector3.up * 0.2f).normalized;
+                rb.AddForce(throwDir * finalForce, ForceMode.Impulse);
+
+                Debug.Log($"[Q] ã‚¹ãƒ­ãƒƒãƒˆ {selectedSlotIndex + 1} ã® {itemToDrop.ItemName} ã‚’æŠ•ã’ã¾ã—ãŸ");
+            }
+        }
+        else
+        {
+            Debug.Log($"[Q] ã‚¹ãƒ­ãƒƒãƒˆ {selectedSlotIndex + 1} ã¯ç©ºã§ã™ã€‚");
         }
     }
 }

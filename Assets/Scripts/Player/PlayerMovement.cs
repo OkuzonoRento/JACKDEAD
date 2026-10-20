@@ -7,12 +7,30 @@ public class PlayerMovement : MonoBehaviour
     [Header("Input Actions アセット")]
     [SerializeField] private InputActionAsset playerInputActions;
 
+    [Header("プレイヤーコントローラー参照")]
+    [SerializeField] private PlayerController playerController;
+
     [Header("移動パラメータ")]
     [SerializeField] private float walkSpeed = 5f;
     [SerializeField] private float sprintSpeed = 8f;
     [SerializeField] private float crouchSpeed = 2.5f;
     [SerializeField] private float jumpHeight = 1.2f;
     [SerializeField] private float gravity = -9.81f * 2f;
+
+    [Header("スタミナパラメータ")]
+    [SerializeField] private float maxStamina = 100f;
+    [SerializeField] private float staminaDrainRate = 20f;     // ダッシュ時の1秒あたりの消費量
+
+    [Header("スタミナ回復パラメータ")]
+    [SerializeField] private float normalRecoveryRate = 8f;   // 通常時（歩き・移動中）の回復速度
+    [SerializeField] private float idleRecoveryRate = 18f;     // 停止中（止まっているとき）の回復速度
+    [SerializeField] private float crouchRecoveryRate = 30f;  // しゃがみ中の回復速度
+
+    [Header("スタミナ枯渇ペナルティ設定")]
+    [SerializeField] private float staminaThresholdToResume = 30f; // 再びダッシュ可能になるまでの回復閾値 (例: 30%)
+    private bool isExhausted = false; // スタミナが完全に切れてバテた状態か
+
+    private float currentStamina;
 
     [Header("視点操作パラメータ")]
     [SerializeField] private Transform cameraTransform;
@@ -28,10 +46,10 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float heightChangeSpeed = 10f;
 
     [Header("ダッシュ時の視野角 (FOV) 演出")]
-    [SerializeField] private Camera targetCamera;         // 視野角を変更するカメラ
-    [SerializeField] private float normalFOV = 60f;        // 通常時のFOV
-    [SerializeField] private float sprintFOV = 75f;        // ダッシュ時のFOV
-    [SerializeField] private float fovChangeSpeed = 8f;    // FOVが切り替わるスピード
+    [SerializeField] private Camera targetCamera;
+    [SerializeField] private float normalFOV = 60f;
+    [SerializeField] private float sprintFOV = 75f;
+    [SerializeField] private float fovChangeSpeed = 8f;
 
     private CharacterController controller;
     private InputAction moveAction;
@@ -47,9 +65,14 @@ public class PlayerMovement : MonoBehaviour
 
     private float cameraPitch = 0f;
 
+    public float CurrentStamina => currentStamina;
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+        if (playerController == null) playerController = GetComponent<PlayerController>();
+
+        currentStamina = maxStamina;
 
         if (cameraTransform == null && Camera.main != null)
         {
@@ -130,7 +153,63 @@ public class PlayerMovement : MonoBehaviour
         }
 
         bool isCrouching = crouchAction != null && crouchAction.IsPressed();
-        bool isSprinting = sprintAction != null && sprintAction.IsPressed() && !isCrouching && moveInput.y > 0; // 前進中のみダッシュ可能にする場合
+        bool isMoving = moveInput.sqrMagnitude > 0.01f;
+        bool isIdling = !isMoving;
+
+        // --- スタミナ枯渇（Exhausted）の判定更新 ---
+        if (isExhausted)
+        {
+            // 一定割合（例: 30%）まで回復するまではダッシュ不可状態を維持
+            if (currentStamina >= staminaThresholdToResume)
+            {
+                isExhausted = false;
+            }
+        }
+
+        // ダッシュ可能条件：スタミナ切れを起こしておらず、スタミナが残っており、前進中で、しゃがんでいない
+        bool canSprint = !isExhausted && currentStamina > 0f && moveInput.y > 0;
+        bool isSprinting = sprintAction != null && sprintAction.IsPressed() && !isCrouching && canSprint;
+
+        // --- スタミナの消費と状態別回復 ---
+        if (isSprinting)
+        {
+            // インベントリの総重量に応じた消費倍率
+            float totalWeight = playerController != null ? playerController.GetTotalInventoryWeight() : 0f;
+            float weightMultiplier = 1.0f + (totalWeight * 0.1f);
+
+            currentStamina -= staminaDrainRate * weightMultiplier * Time.deltaTime;
+
+            if (currentStamina <= 0f)
+            {
+                currentStamina = 0f;
+                isExhausted = true; // スタミナ完全枯渇フラグをON
+                Debug.Log("[スタミナ] スタミナが完全に切れました！息切れ状態（一定まで回復するまでダッシュ不可）");
+            }
+        }
+        else
+        {
+            // 非ダッシュ時の回復（状態によって速度を変更）
+            float recoveryRate = normalRecoveryRate; // デフォルト（歩き・移動中）
+
+            if (isCrouching)
+            {
+                // しゃがみ中でも「移動しているかどうか」で速度を分ける
+                if (isMoving)
+                {
+                    recoveryRate = normalRecoveryRate; // しゃがみ歩き中は通常速度（歩き中と同じ）
+                }
+                else
+                {
+                    recoveryRate = crouchRecoveryRate; // 止まってしゃがんでいるときは最速回復
+                }
+            }
+            else if (isIdling)
+            {
+                recoveryRate = idleRecoveryRate;     // 立ち止まっている時は通常回復
+            }
+
+            currentStamina = Mathf.Clamp(currentStamina + recoveryRate * Time.deltaTime, 0f, maxStamina);
+        }
 
         float currentSpeed = walkSpeed;
         if (isSprinting) currentSpeed = sprintSpeed;
@@ -149,7 +228,7 @@ public class PlayerMovement : MonoBehaviour
             cameraTransform.localPosition = camPos;
         }
 
-        // ---ダッシュ時の視野角（FOV）変化 ---
+        // --- ダッシュ時の視野角（FOV）変化 ---
         if (targetCamera != null)
         {
             float targetFOV = isSprinting ? sprintFOV : normalFOV;

@@ -18,12 +18,12 @@ public class MapGenerator : MonoBehaviour
     public GameObject busPrefab;
     public float busOffsetDistance = 10f;
 
+    [Header("経済・ノルマ設定")]
+    [SerializeField] private int currentMapQuota = 1000;      // マップ（レベル）ごとのノルマ金額
+    [SerializeField] private float quotaMultiplier = 2.5f;    // ノルマに対する総額の倍率（2.5倍）
+
     [Header("スクラップ自動配置設定")]
     [SerializeField] private List<ItemDataAsset> scrapDataList; // 配置するスクラップのデータ候補
-    [Range(0f, 1f)]
-    [SerializeField] private float scrapSpawnChance = 0.7f;     // 各部屋にスクラップが湧く確率 (70%)
-    [SerializeField] private int minScrapPerRoom = 1;           // 1部屋あたりの最小個数
-    [SerializeField] private int maxScrapPerRoom = 3;           // 1部屋あたりの最大個数
 
     public class GeneratedRoom
     {
@@ -173,11 +173,11 @@ public class MapGenerator : MonoBehaviour
 
         if (spawnedRoomList.Count >= targetRoomCount)
         {
+            // 1. まずバスを生成する（これにより spawnedBusGridPos が確定します）
             SpawnBusAtOuterDoor();
 
-            // --- ★ マップ生成成功時にスクラップをランダム配置する ---
+            // 2. その後、バス周辺の部屋を除外してスクラップを配置する
             SpawnRandomScraps();
-            // --------------------------------------------------
 
             UpdateGizmoDrawer();
             Debug.Log($"[MAP] マップ生成成功！ (生成数: {spawnedRoomList.Count}個)");
@@ -187,55 +187,111 @@ public class MapGenerator : MonoBehaviour
         return false;
     }
 
-    // 各部屋にランダムでスクラップを生成するメソッド
+    // ノルマ金額の2.5倍相当のスクラップを、バス周辺を除いた部屋の床面に綺麗に配置するメソッド
     private void SpawnRandomScraps()
     {
         if (scrapDataList == null || scrapDataList.Count == 0) return;
 
-        foreach (var room in spawnedRoomList)
+        // 目標総価値 = ノルマ金額 × 2.5倍
+        float targetTotalValue = currentMapQuota * quotaMultiplier;
+        float currentTotalValue = 0f;
+
+        // ★ バスが生成された部屋、およびスタート部屋(0,0)以外の部屋を候補にする
+        List<GeneratedRoom> availableRooms = spawnedRoomList.FindAll(r =>
+            r.gridPos != Vector2Int.zero && (!spawnedBusGridPos.HasValue || r.gridPos != spawnedBusGridPos.Value)
+        );
+
+        // もし除外した結果候補がなくなってしまった場合のフォールバック
+        if (availableRooms.Count == 0)
         {
-            if (room.gridPos == Vector2Int.zero) continue;
-
-            if (Random.value <= scrapSpawnChance)
-            {
-                int count = Random.Range(minScrapPerRoom, maxScrapPerRoom + 1);
-                for (int i = 0; i < count; i++)
-                {
-                    float offsetX = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
-                    float offsetZ = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
-                    Vector3 spawnPos = room.worldPos + new Vector3(offsetX, 0.5f, offsetZ);
-
-                    ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
-
-                    // ★ アセットがプレハブを持っていればそれを使用、なければ汎用プレハブを使用
-                    GameObject prefabToUse = randomScrapData.ItemPrefab;
-                    GameObject scrapObj;
-
-                    if (prefabToUse != null)
-                    {
-                        scrapObj = Instantiate(prefabToUse, spawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0), transform);
-                    }
-                    else
-                    {
-                        // フォールバック用の簡易キューブ
-                        scrapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                        scrapObj.transform.position = spawnPos;
-                        scrapObj.transform.localScale = Vector3.one * 0.4f;
-                        scrapObj.AddComponent<Rigidbody>();
-                        scrapObj.AddComponent<BoxCollider>();
-                        scrapObj.transform.SetParent(transform);
-                    }
-
-                    Item worldItem = scrapObj.GetComponent<Item>();
-                    if (worldItem == null)
-                    {
-                        worldItem = scrapObj.AddComponent<Item>();
-                    }
-                    worldItem.SetItemData(randomScrapData);
-                }
-            }
+            availableRooms = spawnedRoomList.FindAll(r => r.gridPos != Vector2Int.zero);
+            if (availableRooms.Count == 0) availableRooms = spawnedRoomList;
         }
-        Debug.Log("[MAP] マップ上のスクラップランダム配置完了（各アセットのプレハブ参照）");
+
+        int safetyCounter = 0;
+        int maxLoop = 300; // 無限ループ防止
+
+        while (currentTotalValue < targetTotalValue && safetyCounter < maxLoop)
+        {
+            safetyCounter++;
+
+            // ランダムな部屋を選択
+            GeneratedRoom targetRoom = availableRooms[Random.Range(0, availableRooms.Count)];
+
+            // 部屋の範囲内でランダムなオフセット（壁へのめり込みを防ぐため中心寄りに調整）
+            float offsetX = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
+            float offsetZ = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
+
+            // 上空5mから下に向けてレイキャストを飛ばし、実際の「床の高さ」を正確に取得する
+            Vector3 rayOrigin = targetRoom.worldPos + new Vector3(offsetX, 5.0f, offsetZ);
+            Vector3 finalSpawnPos = targetRoom.worldPos + new Vector3(offsetX, 0.5f, offsetZ); // フォールバック用
+
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 10f))
+            {
+                // 床の表面から少しだけ上に浮かせて配置（埋まり・浮きを防止）
+                finalSpawnPos = hit.point + new Vector3(0f, 0.1f, 0f);
+            }
+
+            // ランダムにスクラップデータを選択
+            ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
+
+            GameObject prefabToUse = randomScrapData.ItemPrefab;
+            GameObject scrapObj;
+
+            if (prefabToUse != null)
+            {
+                scrapObj = Instantiate(prefabToUse, finalSpawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0), transform);
+            }
+            else
+            {
+                // プレハブがない場合のフォールバック用キューブ
+                scrapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                scrapObj.transform.position = finalSpawnPos;
+                scrapObj.transform.localScale = Vector3.one * 0.4f;
+                scrapObj.AddComponent<Rigidbody>();
+                scrapObj.AddComponent<BoxCollider>();
+                scrapObj.transform.SetParent(transform);
+            }
+
+            // Itemコンポーネントの設定
+            Item worldItem = scrapObj.GetComponent<Item>();
+            if (worldItem == null)
+            {
+                worldItem = scrapObj.AddComponent<Item>();
+            }
+            worldItem.SetItemData(randomScrapData);
+
+            // ItemDataAsset の Amount（価格）を総価値に加算
+            int itemVal = randomScrapData.Amount > 0 ? randomScrapData.Amount : 50;
+            currentTotalValue += itemVal;
+        }
+
+        Debug.Log($"[MAP] ノルマ連動スクラップ配置完了（バス周辺除外）！ 目標価値: {targetTotalValue}, 生成総価値: {currentTotalValue}");
+    }
+
+    // 指定したワールド座標（バスの生成位置）にプレイヤーを強制移動させるメソッド
+    private void SpawnPlayerAtPosition(Vector3 targetPosition)
+    {
+        PlayerController player = FindAnyObjectByType<PlayerController>();
+        if (player == null)
+        {
+            Debug.LogWarning("[MAP] シーン内に PlayerController が見つかりませんでした！");
+            return;
+        }
+
+        CharacterController charController = player.GetComponent<CharacterController>();
+        if (charController != null)
+        {
+            charController.enabled = false;
+            player.transform.position = targetPosition;
+            charController.enabled = true;
+        }
+        else
+        {
+            player.transform.position = targetPosition;
+        }
+
+        Debug.Log($"[MAP] プレイヤーをバスの生成位置 ({targetPosition}) にスポーンさせました。");
     }
 
     private void UpdateGizmoDrawer()
@@ -297,6 +353,9 @@ public class MapGenerator : MonoBehaviour
 
             spawnedBusGridPos = selected.room.gridPos;
             spawnedBusDirection = selected.dir;
+
+            // バスが生成された位置から少し浮かせた座標にプレイヤーをスポーンさせる
+            SpawnPlayerAtPosition(selected.pos + new Vector3(0f, 1f, 0f));
         }
     }
 
