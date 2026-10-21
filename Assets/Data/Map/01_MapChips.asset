@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d4d4a6306b45ff498b5b7010812ff31, type: 3}
+  m_Name: 01_MapChips
+  m_EditorClassIdentifier: Assembly-CSharp::MapChipData
+  chipName: 
+  chipPrefab: {fileID: 4387282307018004876, guid: a07d38df1b7ca774db9a2cb50aab14ba, type: 3}
+  hasTopDoor: 1
+  hasBottomDoor: 1
+  hasLeftDoor: 1
+  hasRightDoor: 1
+  allowRotation: 0
