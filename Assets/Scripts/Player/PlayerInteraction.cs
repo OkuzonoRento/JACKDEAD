@@ -1,162 +1,179 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using TMPro;
 
 public class PlayerInteraction : MonoBehaviour
 {
-    [Header("Input Actions アセット")]
-    [SerializeField] private InputActionAsset playerInputActions;
-
-    [Header("参照")]
+    [Header("プレイヤーコントローラー参照")]
     [SerializeField] private PlayerController playerController;
-    [SerializeField] private Transform cameraTransform;
 
-    [Header("レイキャスト・インタラクト設定")]
+    [Header("インタラクト設定")]
     [SerializeField] private float interactRange = 3.0f;
     [SerializeField] private LayerMask interactableLayer;
+    [SerializeField] private Transform cameraTransform;
 
-    [Header("投擲（Qキー）設定")]
-    [SerializeField] private float baseThrowForce = 8.0f;
+    [Header("UI参照 (TextMeshPro版)")]
+    [SerializeField] private GameObject promptCanvasObj;
+    [SerializeField] private RectTransform promptRectTransform;
+    [SerializeField] private TextMeshProUGUI promptText;
+    [SerializeField] private Image radialProgressBar;
+    [SerializeField] private GameObject holdUIObj;
 
-    [Header("選択スロット（0〜2）")]
-    [SerializeField] private int selectedSlotIndex = 0;
+    [Header("表示オフセット")]
+    [SerializeField] private Vector3 worldOffset = new Vector3(0f, 0.75f, 0f);
 
-    private InputAction interactAction;
-    private InputAction dropAction;
-    private InputAction slot1Action; // ★ 追加
-    private InputAction slot2Action; // ★ 追加
-    private InputAction slot3Action; // ★ 追加
-
-    private IInteractable currentInteractable;
-    private float currentHoldTimer = 0f;
+    [Header("デフォルト長押し設定（フォールバック用）")]
+    [SerializeField] private float defaultRequiredHoldTime = 1.0f;
+    private float currentHoldTime = 0f;
     private bool isHolding = false;
-    private bool hasInteractedThisPress = false;
+
+    private Item currentLookedItem;
+    private Camera mainCamera;
+
+    private InputActionAsset playerInputActions;
+    private InputAction interactAction;
+    private InputAction useAction;
+    private InputAction dropAction;
 
     private void Awake()
     {
-        if (playerController == null) playerController = GetComponent<PlayerController>();
-        if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+        mainCamera = Camera.main;
+        if (cameraTransform == null && mainCamera != null)
+        {
+            cameraTransform = mainCamera.transform;
+        }
+
+        if (playerController == null)
+        {
+            playerController = GetComponent<PlayerController>();
+        }
     }
 
     private void OnEnable()
     {
+        if (playerController != null)
+        {
+            playerInputActions = playerController.PlayerInputActionsAsset;
+        }
+
         if (playerInputActions != null)
         {
             var map = playerInputActions.FindActionMap("Player");
             if (map != null)
             {
                 interactAction = map.FindAction("Interact");
+                useAction = map.FindAction("Use");
                 dropAction = map.FindAction("Drop");
-
-                // ★ New Input Systemからスロット選択アクションを取得
-                slot1Action = map.FindAction("SelectSlot1");
-                slot2Action = map.FindAction("SelectSlot2");
-                slot3Action = map.FindAction("SelectSlot3");
-
-                map.Enable();
             }
         }
-    }
-
-    private void OnDisable()
-    {
-        playerInputActions?.FindActionMap("Player")?.Disable();
     }
 
     private void Update()
     {
-        HandleSlotSelection(); // 新仕様のスロット選択処理
-        CheckTarget();
-        HandleHoldInteraction();
+        CheckForItems();
+        HandleInteractionInput();
+        HandleItemDropInput();
 
-        if (dropAction != null && dropAction.triggered)
+        if (currentLookedItem != null && promptCanvasObj != null && promptCanvasObj.activeSelf)
         {
-            DropSelectedItem();
+            UpdateUIPosition(currentLookedItem.transform.position + worldOffset);
         }
     }
 
-    // --- New Input System を用いたスロット選択 ---
-    private void HandleSlotSelection()
+    private void CheckForItems()
     {
-        // 1, 2, 3 キーのアクションがトリガーされたかチェック
-        if (slot1Action != null && slot1Action.triggered)
-        {
-            selectedSlotIndex = 0;
-            Debug.Log("[スロット] 1を選択");
-        }
-        if (slot2Action != null && slot2Action.triggered)
-        {
-            selectedSlotIndex = 1;
-            Debug.Log("[スロット] 2を選択");
-        }
-        if (slot3Action != null && slot3Action.triggered)
-        {
-            selectedSlotIndex = 2;
-            Debug.Log("[スロット] 3を選択");
-        }
-
-        // マウスホイールでの切り替え（従来通り、あるいは必要に応じて調整）
-        float scrollY = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
-        if (scrollY > 0f)
-        {
-            selectedSlotIndex = (selectedSlotIndex - 1 + 3) % 3;
-        }
-        else if (scrollY < 0f)
-        {
-            selectedSlotIndex = (selectedSlotIndex + 1) % 3;
-        }
-    }
-
-    private void CheckTarget()
-    {
-        if (cameraTransform == null) return;
+        if (isHolding && currentLookedItem != null) return;
 
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableLayer))
         {
-            var interactable = hit.collider.GetComponent<IInteractable>();
-            if (interactable != null)
+            Item item = hit.collider.GetComponent<Item>();
+            if (item != null)
             {
-                if (currentInteractable != interactable)
-                {
-                    currentInteractable = interactable;
-                    ResetHold();
-                }
+                currentLookedItem = item;
+                ShowItemPrompt(item);
                 return;
             }
         }
 
-        currentInteractable = null;
-        ResetHold();
+        if (!isHolding)
+        {
+            ClearItemPrompt();
+        }
     }
 
-    private void HandleHoldInteraction()
+    private void UpdateUIPosition(Vector3 worldPosition)
     {
-        if (interactAction == null || currentInteractable == null)
+        if (mainCamera == null || promptRectTransform == null) return;
+
+        Vector3 screenPoint = mainCamera.WorldToScreenPoint(worldPosition);
+
+        if (screenPoint.z < 0)
         {
-            ResetHold();
+            if (promptCanvasObj.activeSelf) promptCanvasObj.SetActive(false);
             return;
         }
 
-        if (hasInteractedThisPress)
+        if (!promptCanvasObj.activeSelf)
         {
-            if (!interactAction.IsPressed())
+            promptCanvasObj.SetActive(true);
+        }
+
+        promptRectTransform.position = screenPoint;
+    }
+
+    // インベントリに空きがあるかどうかをチェックする補助メソッド
+    private bool HasInventorySpace()
+    {
+        if (playerController == null || playerController.Inventory == null) return false;
+
+        foreach (var item in playerController.Inventory)
+        {
+            if (item == null) return true; // 1つでも空きスロットがあればtrue
+        }
+        return false;
+    }
+
+    // 交互作用（Fキー長押しで回収 ＆ Eキー単押しで使用）
+    private void HandleInteractionInput()
+    {
+        bool isInteractPressed = interactAction != null && interactAction.IsPressed();
+
+        // Fキー長押しによる回収
+        if (currentLookedItem != null && isInteractPressed)
+        {
+            // ★ インベントリに空きがない場合はホールド処理を行わずUIも表示しない
+            if (!HasInventorySpace())
             {
-                hasInteractedThisPress = false;
+                ResetHold();
+                return;
             }
-            return;
-        }
 
-        float requiredTime = currentInteractable.GetHoldTime();
-
-        if (interactAction.IsPressed())
-        {
             isHolding = true;
-            currentHoldTimer += Time.deltaTime;
+            currentHoldTime += Time.deltaTime;
 
-            if (currentHoldTimer >= requiredTime)
+            // ホールド中のみ UI（HoldUI / HoldGauge）を表示
+            if (holdUIObj != null && !holdUIObj.activeSelf)
             {
-                currentInteractable.OnInteract(this);
-                hasInteractedThisPress = true;
+                holdUIObj.SetActive(true);
+            }
+            else if (radialProgressBar != null && !radialProgressBar.gameObject.activeSelf)
+            {
+                radialProgressBar.gameObject.SetActive(true);
+            }
+
+            float targetHoldTime = (currentLookedItem.ItemData != null) ? currentLookedItem.ItemData.RequiredHoldTime : defaultRequiredHoldTime;
+            float progress = Mathf.Clamp01(currentHoldTime / targetHoldTime);
+
+            if (radialProgressBar != null)
+            {
+                radialProgressBar.fillAmount = progress;
+            }
+
+            if (currentHoldTime >= targetHoldTime)
+            {
+                CompleteInteraction(currentLookedItem);
                 ResetHold();
             }
         }
@@ -164,82 +181,97 @@ public class PlayerInteraction : MonoBehaviour
         {
             if (isHolding) ResetHold();
         }
+
+        // Eキー（Useアクション）によるアイテム使用
+        if (useAction != null && useAction.triggered)
+        {
+            if (playerController != null)
+            {
+                playerController.UseSelectedInventoryItem();
+            }
+        }
+    }
+
+    private void HandleItemDropInput()
+    {
+        if (dropAction != null && dropAction.triggered)
+        {
+            if (playerController != null)
+            {
+                playerController.DropSelectedInventoryItem(cameraTransform);
+            }
+        }
+    }
+
+    private void ShowItemPrompt(Item item)
+    {
+        if (promptCanvasObj != null && !promptCanvasObj.activeSelf)
+        {
+            promptCanvasObj.SetActive(true);
+        }
+
+        if (promptText != null && item.ItemData != null)
+        {
+            promptText.text = $"{item.ItemData.ItemName}  $  {item.ItemData.Amount}";
+        }
+
+        if (holdUIObj != null) holdUIObj.SetActive(false);
+        if (radialProgressBar != null && holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
+    }
+
+    private void ClearItemPrompt()
+    {
+        currentLookedItem = null;
+        if (promptCanvasObj != null && !isHolding) promptCanvasObj.SetActive(false);
+        ResetHold();
     }
 
     private void ResetHold()
     {
         isHolding = false;
-        currentHoldTimer = 0f;
+        currentHoldTime = 0f;
+
+        if (radialProgressBar != null)
+        {
+            radialProgressBar.fillAmount = 0f;
+            if (holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
+        }
+
+        if (holdUIObj != null)
+        {
+            holdUIObj.SetActive(false);
+        }
     }
 
-    public bool TryPickupItem(ItemDataAsset item)
+    private void CompleteInteraction(Item item)
     {
-        if (playerController == null || item == null) return false;
-
-        for (int i = 0; i < playerController.Inventory.Length; i++)
+        if (item.ItemData != null)
         {
-            if (playerController.Inventory[i] == null)
+            Debug.Log($"[インタラクト] {item.ItemData.ItemName} を回収しました！");
+
+            if (playerController != null)
             {
-                playerController.Inventory[i] = item;
-                playerController.SaveInventoryToData();
-                Debug.Log($"[インベントリ] Slot {i} に {item.ItemName} を格納しました");
-                return true;
+                bool added = false;
+                for (int i = 0; i < playerController.Inventory.Length; i++)
+                {
+                    if (playerController.Inventory[i] == null)
+                    {
+                        playerController.Inventory[i] = item.ItemData;
+                        added = true;
+                        playerController.SaveInventoryToData();
+                        break;
+                    }
+                }
+
+                if (!added)
+                {
+                    Debug.LogWarning("[インベントリ] 満杯です！");
+                    return;
+                }
             }
         }
 
-        Debug.LogWarning("[インベントリ] 満杯です！");
-        return false;
-    }
-
-    private void DropSelectedItem()
-    {
-        if (playerController == null) return;
-
-        ItemDataAsset itemToDrop = playerController.Inventory[selectedSlotIndex];
-        if (itemToDrop != null)
-        {
-            playerController.Inventory[selectedSlotIndex] = null;
-            playerController.SaveInventoryToData();
-
-            GameObject prefabToSpawn = itemToDrop.ItemPrefab;
-            Vector3 spawnPos = cameraTransform.position + cameraTransform.forward * 0.8f;
-
-            GameObject droppedObj;
-            if (prefabToSpawn != null)
-            {
-                droppedObj = Instantiate(prefabToSpawn, spawnPos, cameraTransform.rotation);
-            }
-            else
-            {
-                droppedObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                droppedObj.transform.position = spawnPos;
-                droppedObj.transform.localScale = Vector3.one * 0.4f;
-                droppedObj.AddComponent<Rigidbody>();
-                droppedObj.AddComponent<BoxCollider>();
-            }
-
-            Item worldItem = droppedObj.GetComponent<Item>();
-            if (worldItem == null)
-            {
-                worldItem = droppedObj.AddComponent<Item>();
-            }
-            worldItem.SetItemData(itemToDrop);
-
-            Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                float weightFactor = Mathf.Clamp(1.0f / (1.0f + itemToDrop.ItemWeight * 0.5f), 0.1f, 1.0f);
-                float finalForce = baseThrowForce * weightFactor;
-
-                Vector3 throwDir = (cameraTransform.forward + Vector3.up * 0.2f).normalized;
-                rb.AddForce(throwDir * finalForce, ForceMode.Impulse);
-
-                Debug.Log($"[Q] スロット {selectedSlotIndex + 1} の {itemToDrop.ItemName} を投げました");
-            }
-        }
-        else
-        {
-            Debug.Log($"[Q] スロット {selectedSlotIndex + 1} は空です。");
-        }
+        Destroy(item.gameObject);
+        ClearItemPrompt();
     }
 }
