@@ -1,30 +1,21 @@
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody))]
-public class Item : MonoBehaviour, IInteractable
+public class Item : MonoBehaviour
 {
-    [SerializeField] private ItemDataAsset itemData;
-    [SerializeField] private float quickHoldTime = 0.15f;
+    private ItemDataAsset itemData;
 
     public ItemDataAsset ItemData => itemData;
 
     public void SetItemData(ItemDataAsset data)
     {
         itemData = data;
+        // 必要であればここで見た目の初期化など
     }
 
-    public string GetInteractPrompt()
+    // 視点を合わせたときに呼び出す情報取得用プロパティ
+    public string GetInteractionPrompt()
     {
-        return itemData != null ? $"[F] {itemData.ItemName} を拾う" : "[F] 拾う";
-    }
-
-    public float GetHoldTime() => quickHoldTime;
-
-    public void OnInteract(PlayerInteraction interactor)
-    {
-        if (interactor.TryPickupItem(itemData))
-        {
-            Destroy(gameObject);
-        }
+        if (itemData == null) return "Item";
+        return $"アイテム名: {itemData.ItemName}\n売却金額: {itemData.Amount}G";
     }
 }

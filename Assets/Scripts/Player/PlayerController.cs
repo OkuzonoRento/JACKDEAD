@@ -1,9 +1,17 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Player Input Actions アセット")]
+    [SerializeField] private InputActionAsset playerInputActions;
+
     [Header("プレイヤーデータ参照")]
     public PlayerDataAsset PlayerData;
+
+    [Header("投擲設定")]
+    [SerializeField, Tooltip("アイテムを投げる際の基準となる勢い（重さで割られます）")]
+    private float baseThrowForce = 3.5f; // ← インスペクターから変更可能になりました！
 
     private float _health;
     private float _sanity;
@@ -18,11 +26,45 @@ public class PlayerController : MonoBehaviour
     [Header("インベントリ (所持アイテム)")]
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
 
-    // プロパティ（外部からの参照用）
+    [Header("選択中スロット管理")]
+    [SerializeField] private int selectedSlotIndex = 0;
+    public int SelectedSlotIndex => selectedSlotIndex;
+
+    // 外部（PlayerMovementやPlayerInteraction）から参照できるようにプロパティとして公開
+    public InputActionAsset PlayerInputActionsAsset => playerInputActions;
+
+    private InputAction slot1Action;
+    private InputAction slot2Action;
+    private InputAction slot3Action;
+
     public float Health => _health;
     public float Sanity => _sanity;
     public float Dopamine => _dopamine;
     public float Stamina => _stamina;
+
+    private void Awake()
+    {
+        if (playerInputActions != null)
+        {
+            var map = playerInputActions.FindActionMap("Player");
+            if (map != null)
+            {
+                slot1Action = map.FindAction("SelectSlot1");
+                slot2Action = map.FindAction("SelectSlot2");
+                slot3Action = map.FindAction("SelectSlot3");
+            }
+        }
+    }
+
+    private void OnEnable()
+    {
+        playerInputActions?.FindActionMap("Player")?.Enable();
+    }
+
+    private void OnDisable()
+    {
+        playerInputActions?.FindActionMap("Player")?.Disable();
+    }
 
     private void Start()
     {
@@ -57,66 +99,98 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        // テスト用：時間経過による正気度減少（マップ滞在時を想定）
-        // 肩代わりシステムやデバフのテストに活用できます
-        ConsumeSanity(Time.deltaTime * 0.15f); // 換算10分で減る調整用のベース値
+        ConsumeSanity(Time.deltaTime * 0.15f);
+        HandleSlotSelectionInput();
     }
 
-    // --- 正気度減少 ＆ ドーパミン肩代わりシステム ---
-    public void ConsumeSanity(float amount)
+    // --- スロット選択 (数字キー ＆ マウスホイール) ---
+    private void HandleSlotSelectionInput()
     {
-        if (amount <= 0) return;
+        if (slot1Action != null && slot1Action.triggered) SelectSlot(0);
+        if (slot2Action != null && slot2Action.triggered) SelectSlot(1);
+        if (slot3Action != null && slot3Action.triggered) SelectSlot(2);
 
-        // ドーパミンが溜まっている（0より大きい）場合は、正気度の代わりにドーパミンを優先消費する
-        if (_dopamine > 0f)
+        Mouse mouse = Mouse.current;
+        if (mouse != null)
         {
-            float consumeDopamine = Mathf.Min(_dopamine, amount);
-            _dopamine -= consumeDopamine;
-
-            // 減少量がドーパミンで肩書ききれなかった分があれば、残りは正気度から削る
-            float remainder = amount - consumeDopamine;
-            if (remainder > 0f)
+            float scrollValue = mouse.scroll.ReadValue().y;
+            if (scrollValue > 0f)
             {
-                _sanity = Mathf.Max(0f, _sanity - remainder);
+                int nextSlot = (selectedSlotIndex - 1 + Inventory.Length) % Inventory.Length;
+                SelectSlot(nextSlot);
             }
-
-            Debug.Log($"[正気度/ドーパミン] ドーパミンが正気度の低下を肩代わりしました！ (残Dopamine: {_dopamine:F1}, 残Sanity: {_sanity:F1})");
+            else if (scrollValue < 0f)
+            {
+                int nextSlot = (selectedSlotIndex + 1) % Inventory.Length;
+                SelectSlot(nextSlot);
+            }
         }
-        else
-        {
-            // ドーパミンがない場合は通常通り正気度が減る
-            _sanity = Mathf.Max(0f, _sanity - amount);
-        }
-
-        CheckSanityDebuffs();
     }
 
-    // 正気度が低い状態のデバフ判定
-    private void CheckSanityDebuffs()
+    public void SelectSlot(int index)
     {
-        if (_sanity < 30f)
+        if (index >= 0 && index < Inventory.Length)
         {
-            // TODO: ギャンブルの掛け金上昇やスタミナ減少ペナルティフラグを有効にする
+            selectedSlotIndex = index;
+            Debug.Log($"[インベントリ] スロット [{selectedSlotIndex + 1}] を選択しました。");
         }
     }
 
-    // 体力の増減
-    public void ModifyHealth(float amount)
+    // --- Qキー：アイテム投擲 ---
+    public void DropSelectedInventoryItem(Transform cameraTransform)
     {
-        _health = Mathf.Clamp(_health + amount, 0f, _maxHealth);
-        if (_health <= 0f)
+        if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
+
+        ItemDataAsset itemDataToDrop = Inventory[selectedSlotIndex];
+        if (itemDataToDrop == null) return;
+
+        if (itemDataToDrop.ItemPrefab != null)
         {
-            TriggerGameOver();
+            Vector3 spawnPosition = cameraTransform != null
+                ? cameraTransform.position + cameraTransform.forward * 1.2f
+                : transform.position + transform.forward * 1.5f + Vector3.up * 0.5f;
+
+            GameObject droppedObj = Instantiate(itemDataToDrop.ItemPrefab, spawnPosition, Quaternion.identity);
+            droppedObj.layer = LayerMask.NameToLayer("Items");
+
+            Item itemComp = droppedObj.GetComponent<Item>();
+            if (itemComp == null) itemComp = droppedObj.AddComponent<Item>();
+            itemComp.SetItemData(itemDataToDrop);
+
+            Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
+            if (rb == null) rb = droppedObj.AddComponent<Rigidbody>();
+
+            // インスペクターで設定した変数（baseThrowForce）を使用します
+            float weightFactor = Mathf.Max(0.1f, itemDataToDrop.ItemWeight);
+            float throwForce = baseThrowForce / weightFactor;
+
+            Vector3 throwDirection = cameraTransform != null
+                ? (cameraTransform.forward + Vector3.up * 0.2f).normalized
+                : (transform.forward + Vector3.up * 0.2f).normalized;
+
+            rb.linearVelocity = Vector3.zero;
+            rb.AddForce(throwDirection * throwForce, ForceMode.VelocityChange);
+
+            Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }
+
+        Inventory[selectedSlotIndex] = null;
+        SaveInventoryToData();
     }
 
-    // ドーパミンの増減（ギャンブル結果など）
-    public void ModifyDopamine(float amount)
+    // --- Eキー：アイテム使用 ---
+    public void UseSelectedInventoryItem()
     {
-        _dopamine = Mathf.Clamp(_dopamine + amount, 0f, _maxDopamine);
+        if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
+
+        ItemDataAsset itemDataToUse = Inventory[selectedSlotIndex];
+        if (itemDataToUse == null) return;
+
+        Debug.Log($"[インベントリ] {itemDataToUse.ItemName} を使用しました！");
+        Inventory[selectedSlotIndex] = null;
+        SaveInventoryToData();
     }
 
-    // --- インベントリの総重量を計算するメソッド ---
     public float GetTotalInventoryWeight()
     {
         float totalWeight = 0f;
@@ -130,7 +204,22 @@ public class PlayerController : MonoBehaviour
         return totalWeight;
     }
 
-    // インベントリの状態を PlayerDataAsset へ保存
+    public void ConsumeSanity(float amount)
+    {
+        if (amount <= 0) return;
+        if (_dopamine > 0f)
+        {
+            float consumeDopamine = Mathf.Min(_dopamine, amount);
+            _dopamine -= consumeDopamine;
+            float remainder = amount - consumeDopamine;
+            if (remainder > 0f) _sanity = Mathf.Max(0f, _sanity - remainder);
+        }
+        else
+        {
+            _sanity = Mathf.Max(0f, _sanity - amount);
+        }
+    }
+
     public void SaveInventoryToData()
     {
         if (PlayerData != null)
@@ -139,17 +228,10 @@ public class PlayerController : MonoBehaviour
             {
                 PlayerData.Inventory = new ItemDataAsset[3];
             }
-
             for (int i = 0; i < 3; i++)
             {
                 PlayerData.Inventory[i] = Inventory[i];
             }
         }
-    }
-
-    private void TriggerGameOver()
-    {
-        Debug.LogWarning("[GAME OVER] 体力が0になりました。ゲームオーバー処理を実行します。");
-        // TODO: ゲームオーバー画面やスクラップロスト処理
     }
 }

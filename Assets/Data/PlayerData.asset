@@ -16,7 +16,9 @@ MonoBehaviour:
   MaxStamina: 100
   MaxSanity: 100
   MaxDopamine: 100
+  MoveSpeed: 5
+  JumpPower: 5
   Inventory:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  - {fileID: 11400000, guid: 93646bb0b9c2d11439a92105631b8bc9, type: 2}
+  - {fileID: 11400000, guid: 93646bb0b9c2d11439a92105631b8bc9, type: 2}
+  - {fileID: 11400000, guid: 93646bb0b9c2d11439a92105631b8bc9, type: 2}
