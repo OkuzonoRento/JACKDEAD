@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDataAsset
   amount: 10
   itemName: Test Item1
-  itemIcon: {fileID: 0}
+  itemIcon: {fileID: 21300000, guid: b968777f1c065194c8b59b42972caaa5, type: 3}
   itemWeight: 0.1
   itemPrefab: {fileID: 1409878918793333826, guid: 19ab15537cc681f408faa303032dd81d, type: 3}
   requiredHoldTime: 0.8
