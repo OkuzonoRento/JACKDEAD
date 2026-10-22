@@ -432,7 +432,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 188416178}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -884,7 +884,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 2, z: 1}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1544,11 +1544,11 @@ RectTransform:
   - {fileID: 1121685956}
   m_Father: {fileID: 1860838569}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 50, y: -75}
-  m_SizeDelta: {x: 500, y: 25}
-  m_Pivot: {x: 0, y: 0.5}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 1, y: -300}
+  m_SizeDelta: {x: 600, y: 40}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &696255009
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3041,8 +3041,8 @@ MonoBehaviour:
   targetRoomCount: 15
   tileSize: 20
   maxRetryCount: 50
-  busPrefab: {fileID: 8509179848261848091, guid: 468dbc9214131d8498429dfbecde4461, type: 3}
-  busOffsetDistance: 10
+  busPrefab: {fileID: 1492566407503128558, guid: 7ec228188afd7b6448696607b58225ec, type: 3}
+  busOffsetDistance: 5
   currentMapQuota: 1000
   quotaMultiplier: 2.5
   scrapDataList:
@@ -3454,8 +3454,8 @@ MonoBehaviour:
   downLookLimit: 80
   standingHeight: 2
   crouchingHeight: 1
-  standingCameraY: 1
-  crouchingCameraY: 0.5
+  standingCameraY: 0.75
+  crouchingCameraY: 0.25
   heightChangeSpeed: 10
   targetCamera: {fileID: 330585545}
   normalFOV: 60
@@ -3484,7 +3484,11 @@ MonoBehaviour:
   promptText: {fileID: 1564616805}
   radialProgressBar: {fileID: 25519805}
   holdUIObj: {fileID: 445195746}
-  worldOffset: {x: 0, y: 0.75, z: 0}
+  holdUIRectTransform: {fileID: 445195747}
+  closeScale: 1.2
+  farScale: 0.6
+  scaleDistanceThreshold: 1.5
+  promptWorldOffset: {x: 0, y: 0.75, z: 0}
   defaultRequiredHoldTime: 1
 --- !u!114 &6510030111815441598
 MonoBehaviour:

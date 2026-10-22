@@ -18,10 +18,18 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private RectTransform promptRectTransform;
     [SerializeField] private TextMeshProUGUI promptText;
     [SerializeField] private Image radialProgressBar;
-    [SerializeField] private GameObject holdUIObj;
 
-    [Header("表示オフセット")]
-    [SerializeField] private Vector3 worldOffset = new Vector3(0f, 0.75f, 0f);
+    [Header("HoldUI 参照 (アイテム中心に重畳)")]
+    [SerializeField] private GameObject holdUIObj;              // HoldUIルート
+    [SerializeField] private RectTransform holdUIRectTransform; // HoldUIのRectTransform
+
+    [Header("距離に応じた固定サイズ設定")]
+    [SerializeField] private float closeScale = 1.2f;   // 近いときのサイズ
+    [SerializeField] private float farScale = 0.6f;     // 遠いときのサイズ
+    [SerializeField] private float scaleDistanceThreshold = 1.5f; // サイズを切り替える境界の距離
+
+    [Header("表示オフセット (ItemInfo用)")]
+    [SerializeField] private Vector3 promptWorldOffset = new Vector3(0f, 0.75f, 0f);
 
     [Header("デフォルト長押し設定（フォールバック用）")]
     [SerializeField] private float defaultRequiredHoldTime = 1.0f;
@@ -77,7 +85,7 @@ public class PlayerInteraction : MonoBehaviour
 
         if (currentLookedItem != null && promptCanvasObj != null && promptCanvasObj.activeSelf)
         {
-            UpdateUIPosition(currentLookedItem.transform.position + worldOffset);
+            UpdateUIPosition(currentLookedItem);
         }
     }
 
@@ -103,57 +111,79 @@ public class PlayerInteraction : MonoBehaviour
         }
     }
 
-    private void UpdateUIPosition(Vector3 worldPosition)
+    private void UpdateUIPosition(Item targetItem)
     {
-        if (mainCamera == null || promptRectTransform == null) return;
+        if (mainCamera == null || targetItem == null) return;
 
-        Vector3 screenPoint = mainCamera.WorldToScreenPoint(worldPosition);
-
-        if (screenPoint.z < 0)
+        // 1. テキスト（ItemInfo）はアイテムの頭上に配置
+        if (promptRectTransform != null)
         {
-            if (promptCanvasObj.activeSelf) promptCanvasObj.SetActive(false);
-            return;
+            Vector3 textWorldPos = targetItem.transform.position + promptWorldOffset;
+            Vector3 textScreenPoint = mainCamera.WorldToScreenPoint(textWorldPos);
+
+            if (textScreenPoint.z >= 0)
+            {
+                if (!promptCanvasObj.activeSelf) promptCanvasObj.SetActive(true);
+                promptRectTransform.position = textScreenPoint;
+            }
+            else
+            {
+                if (promptCanvasObj.activeSelf) promptCanvasObj.SetActive(false);
+                return;
+            }
         }
 
-        if (!promptCanvasObj.activeSelf)
+        // 2. HoldUI はアイテムの正確な中心点に配置
+        if (holdUIRectTransform != null)
         {
-            promptCanvasObj.SetActive(true);
-        }
+            Collider col = targetItem.GetComponent<Collider>();
+            Vector3 centerWorldPos = col != null ? col.bounds.center : targetItem.transform.position;
 
-        promptRectTransform.position = screenPoint;
+            Vector3 centerScreenPoint = mainCamera.WorldToScreenPoint(centerWorldPos);
+
+            if (centerScreenPoint.z >= 0)
+            {
+                holdUIRectTransform.position = centerScreenPoint;
+
+                float distance = Vector3.Distance(cameraTransform.position, centerWorldPos);
+                float targetScale = distance <= scaleDistanceThreshold ? closeScale : farScale;
+
+                holdUIRectTransform.localScale = new Vector3(targetScale, targetScale, 1f);
+            }
+        }
     }
 
-    // インベントリに空きがあるかどうかをチェックする補助メソッド
     private bool HasInventorySpace()
     {
         if (playerController == null || playerController.Inventory == null) return false;
 
         foreach (var item in playerController.Inventory)
         {
-            if (item == null) return true; // 1つでも空きスロットがあればtrue
+            if (item == null) return true;
         }
         return false;
     }
 
-    // 交互作用（Fキー長押しで回収 ＆ Eキー単押しで使用）
     private void HandleInteractionInput()
     {
         bool isInteractPressed = interactAction != null && interactAction.IsPressed();
 
-        // Fキー長押しによる回収
         if (currentLookedItem != null && isInteractPressed)
         {
-            // ★ インベントリに空きがない場合はホールド処理を行わずUIも表示しない
             if (!HasInventorySpace())
             {
                 ResetHold();
                 return;
             }
 
-            isHolding = true;
+            if (!isHolding)
+            {
+                isHolding = true;
+                currentHoldTime = 0f;
+            }
+
             currentHoldTime += Time.deltaTime;
 
-            // ホールド中のみ UI（HoldUI / HoldGauge）を表示
             if (holdUIObj != null && !holdUIObj.activeSelf)
             {
                 holdUIObj.SetActive(true);
@@ -182,7 +212,6 @@ public class PlayerInteraction : MonoBehaviour
             if (isHolding) ResetHold();
         }
 
-        // Eキー（Useアクション）によるアイテム使用
         if (useAction != null && useAction.triggered)
         {
             if (playerController != null)
@@ -252,18 +281,33 @@ public class PlayerInteraction : MonoBehaviour
             if (playerController != null)
             {
                 bool added = false;
-                for (int i = 0; i < playerController.Inventory.Length; i++)
+
+                // ★ 1. まず現在選択しているスロットが空いているか確認して優先的に格納
+                int selectedSlot = playerController.SelectedSlotIndex;
+                if (playerController.Inventory[selectedSlot] == null)
                 {
-                    if (playerController.Inventory[i] == null)
+                    playerController.Inventory[selectedSlot] = item.ItemData;
+                    added = true;
+                }
+                else
+                {
+                    // ★ 2. 選択中スロットが埋まっている場合は、他の空きスロットを探す
+                    for (int i = 0; i < playerController.Inventory.Length; i++)
                     {
-                        playerController.Inventory[i] = item.ItemData;
-                        added = true;
-                        playerController.SaveInventoryToData();
-                        break;
+                        if (playerController.Inventory[i] == null)
+                        {
+                            playerController.Inventory[i] = item.ItemData;
+                            added = true;
+                            break;
+                        }
                     }
                 }
 
-                if (!added)
+                if (added)
+                {
+                    playerController.SaveInventoryToData();
+                }
+                else
                 {
                     Debug.LogWarning("[インベントリ] 満杯です！");
                     return;
