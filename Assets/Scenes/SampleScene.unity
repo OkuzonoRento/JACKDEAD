@@ -2704,8 +2704,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: New Text
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 3931e951e9f66bc47bdf59d77546cf74, type: 2}
+  m_sharedMaterial: {fileID: 4353226486538454168, guid: 3931e951e9f66bc47bdf59d77546cf74, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -3038,11 +3038,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 5fc47ae796a00c7419054a46959a94ba, type: 2}
   - {fileID: 11400000, guid: 13bbf1f578dca804abf9b3eb86b2f1da, type: 2}
   - {fileID: 11400000, guid: 7e6ef1e99e607374a9a10361ac8f945b, type: 2}
-  targetRoomCount: 15
+  targetRoomCount: 60
   tileSize: 20
   maxRetryCount: 50
   busPrefab: {fileID: 1492566407503128558, guid: 7ec228188afd7b6448696607b58225ec, type: 3}
-  busOffsetDistance: 5
+  busOffsetDistance: 20
+  busYRotationOffset: -90
   currentMapQuota: 1000
   quotaMultiplier: 2.5
   scrapDataList:
