@@ -44,7 +44,6 @@ public class DisplayTextManager : MonoBehaviour
         }
 
         // 2. プレイヤーがバス内に入った（乗った）場合
-        // ※ プレイヤー自身、またはPlayerControllerを持つオブジェクトが対象
         PlayerController player = other.GetComponent<PlayerController>();
         if (player != null || other.CompareTag("Player"))
         {
@@ -81,10 +80,15 @@ public class DisplayTextManager : MonoBehaviour
             if (mapGenerator == null) return;
         }
 
+        if (playerController == null)
+        {
+            playerController = FindAnyObjectByType<PlayerController>();
+        }
+
         // 1. ノルマ金額の取得
         int currentQuota = mapGenerator.CurrentMapQuota;
 
-        // 2. 収入の計算
+        // 2. 収入の計算（所持金 ＋ バス内スクラップ ＋ インベントリ）
         int totalIncome = CalculateTotalIncome();
 
         // 3. 残り返済額の計算（ノルマ - 収入）
@@ -125,6 +129,12 @@ public class DisplayTextManager : MonoBehaviour
                     total += itemData.Amount;
                 }
             }
+        }
+
+        // C. 【プレイヤーがバスに乗っている場合のみ】プレイヤーの所持金も収入として合算する
+        if (isPlayerInBus && playerController != null)
+        {
+            total += playerController.PlayerMoney;
         }
 
         return total;

@@ -45,7 +45,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float fovChangeSpeed = 8f;
 
     private CharacterController controller;
-    private InputActionAsset playerInputActions; // PlayerControllerから取得
+    private InputActionAsset playerInputActions;
     private InputAction moveAction;
     private InputAction lookAction;
     private InputAction jumpAction;
@@ -91,7 +91,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnEnable()
     {
-        // PlayerController経由でInputActionsを取得してセットアップ
         if (playerController != null)
         {
             playerInputActions = playerController.PlayerInputActionsAsset;
@@ -115,7 +114,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnDisable()
     {
-        // アセット自体はPlayerControllerが管理するため、マップの無効化のみ行う
         if (playerInputActions != null)
         {
             playerInputActions.FindActionMap("Player")?.Disable();
@@ -154,9 +152,62 @@ public class PlayerMovement : MonoBehaviour
             moveInput = moveAction.ReadValue<Vector2>();
         }
 
-        bool isCrouching = crouchAction != null && crouchAction.IsPressed();
+        bool isCrouchingInput = crouchAction != null && crouchAction.IsPressed();
         bool isMoving = moveInput.sqrMagnitude > 0.01f;
         bool isIdling = !isMoving;
+
+        // --- ★ カプセルの5方向から正確な天井判定 ＆ 個別のデバッグレイ描画 ---
+        bool canStandUp = true;
+        if (!isCrouchingInput) // 立ち上がろうとした場合
+        {
+            Vector3 capsuleTop = transform.position + controller.center + Vector3.up * (controller.height * 0.5f);
+            float neededHeight = standingHeight - controller.height;
+
+            if (neededHeight > 0.01f)
+            {
+                float checkDistance = neededHeight + 0.15f;
+                float radius = Mathf.Max(0.1f, controller.radius - 0.05f);
+
+                Vector3 posCenter = capsuleTop;
+                Vector3 posForward = capsuleTop + transform.forward * radius;
+                Vector3 posBack = capsuleTop - transform.forward * radius;
+                Vector3 posLeft = capsuleTop - transform.right * radius;
+                Vector3 posRight = capsuleTop + transform.right * radius;
+
+                bool hitCenter = Physics.Raycast(posCenter, Vector3.up, checkDistance);
+                bool hitForward = Physics.Raycast(posForward, Vector3.up, checkDistance);
+                bool hitBack = Physics.Raycast(posBack, Vector3.up, checkDistance);
+                bool hitLeft = Physics.Raycast(posLeft, Vector3.up, checkDistance);
+                bool hitRight = Physics.Raycast(posRight, Vector3.up, checkDistance);
+
+                // 5本それぞれの位置から個別にデバッグレイを表示（ヒットしていれば緑、安全なら赤）
+                Debug.DrawRay(posCenter, Vector3.up * checkDistance, hitCenter ? Color.green : Color.red);
+                Debug.DrawRay(posForward, Vector3.up * checkDistance, hitForward ? Color.green : Color.red);
+                Debug.DrawRay(posBack, Vector3.up * checkDistance, hitBack ? Color.green : Color.red);
+                Debug.DrawRay(posLeft, Vector3.up * checkDistance, hitLeft ? Color.green : Color.red);
+                Debug.DrawRay(posRight, Vector3.up * checkDistance, hitRight ? Color.green : Color.red);
+
+                if (hitCenter || hitForward || hitBack || hitLeft || hitRight)
+                {
+                    canStandUp = false; // どこかの端が天井や机に当たっているため立ち上がれない
+                }
+            }
+        }
+        else
+        {
+            // しゃがみ中のデバッグ表示（黄色で5本表示）
+            Vector3 capsuleTop = transform.position + controller.center + Vector3.up * (controller.height * 0.5f);
+            float radius = Mathf.Max(0.1f, controller.radius - 0.05f);
+            float checkDist = standingHeight - crouchingHeight + 0.15f;
+
+            Debug.DrawRay(capsuleTop, Vector3.up * checkDist, Color.yellow);
+            Debug.DrawRay(capsuleTop + transform.forward * radius, Vector3.up * checkDist, Color.yellow);
+            Debug.DrawRay(capsuleTop - transform.forward * radius, Vector3.up * checkDist, Color.yellow);
+            Debug.DrawRay(capsuleTop - transform.right * radius, Vector3.up * checkDist, Color.yellow);
+            Debug.DrawRay(capsuleTop + transform.right * radius, Vector3.up * checkDist, Color.yellow);
+        }
+
+        bool isCrouching = isCrouchingInput || !canStandUp;
 
         if (isExhausted)
         {

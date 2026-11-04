@@ -1516,6 +1516,10 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -6505494680676671688, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
+      propertyPath: m_Layer
+      value: 7
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
       propertyPath: m_Name
       value: Truck
@@ -1578,6 +1582,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2305710386019513194}
+    - targetCorrespondingSourceObject: {fileID: -6505494680676671688, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 4126063817316777942}
+    - targetCorrespondingSourceObject: {fileID: -6505494680676671688, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5425619684484124005}
     - targetCorrespondingSourceObject: {fileID: -7029948723529949830, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5289851180130809629}
@@ -1685,3 +1695,43 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -7508996325782254577, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
+--- !u!1 &4449582693570069895 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -6505494680676671688, guid: 6cfa3d26728a4ed40baf758d6048a430, type: 3}
+  m_PrefabInstance: {fileID: 1763089902186699455}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &4126063817316777942
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4449582693570069895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fed2ff986b197ff4a8b3f150d271c48e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DepartureLever
+  requiredHoldTime: 2
+  leverPromptName: "\u51FA\u767A\u30EC\u30D0\u30FC"
+--- !u!135 &5425619684484124005
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4449582693570069895}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.075
+  m_Center: {x: 0, y: 0, z: 0}

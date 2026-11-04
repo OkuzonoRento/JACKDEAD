@@ -26,6 +26,10 @@ public class PlayerController : MonoBehaviour
     [Header("インベントリ (所持アイテム)")]
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
 
+    [Header("経済・所持金")]
+    [SerializeField] private int playerMoney = 0;
+    public int PlayerMoney => playerMoney;
+
     [Header("選択中スロット管理")]
     [SerializeField] private int selectedSlotIndex = 0;
     public int SelectedSlotIndex => selectedSlotIndex;
@@ -86,6 +90,8 @@ public class PlayerController : MonoBehaviour
 
             _maxStamina = PlayerData.MaxStamina;
             _stamina = PlayerData.MaxStamina;
+
+            playerMoney = PlayerData.PlayerMoney;
 
             if (PlayerData.Inventory != null && PlayerData.Inventory.Length >= 3)
             {
@@ -217,6 +223,20 @@ public class PlayerController : MonoBehaviour
         else
         {
             _sanity = Mathf.Max(0f, _sanity - amount);
+        }
+    }
+
+    public void AddMoney(int amount)
+    {
+        playerMoney += amount;
+        SaveMoneyToData();
+    }
+
+    public void SaveMoneyToData()
+    {
+        if (PlayerData != null)
+        {
+            PlayerData.PlayerMoney = playerMoney;
         }
     }
 
