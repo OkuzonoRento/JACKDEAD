@@ -28,17 +28,18 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private float farScale = 0.6f;
     [SerializeField] private float scaleDistanceThreshold = 1.5f;
 
-    [Header("表示オフセット (ItemInfo用)")]
+    [Header("表示オフセット")]
     [SerializeField] private Vector3 promptWorldOffset = new Vector3(0f, 0.75f, 0f);
 
     [Header("デフォルト長押し設定（フォールバック用）")]
     [SerializeField] private float defaultRequiredHoldTime = 1.0f;
     private float currentHoldTime = 0f;
     private bool isHolding = false;
-    private bool hasTriggeredAction = false; // ★ 長押し完了後の連続発火を防ぐフラグ
+    private bool hasTriggeredAction = false;
 
-    private Item currentLookedItem;
-    private DepartureLever currentLookedLever;
+    // 個別のオブジェクトではなく、IInteractableインターフェースで共通管理
+    private IInteractable currentInteractable;
+    private Transform currentInteractableTransform;
     private Camera mainCamera;
 
     private InputActionAsset playerInputActions;
@@ -85,45 +86,34 @@ public class PlayerInteraction : MonoBehaviour
         HandleInteractionInput();
         HandleItemDropInput();
 
-        if (currentLookedItem != null && promptCanvasObj != null && promptCanvasObj.activeSelf)
+        if (currentInteractable != null && currentInteractableTransform != null && promptCanvasObj != null && promptCanvasObj.activeSelf)
         {
-            UpdateUIPosition(currentLookedItem.transform, promptWorldOffset);
-        }
-        else if (currentLookedLever != null && promptCanvasObj != null && promptCanvasObj.activeSelf)
-        {
-            UpdateUIPosition(currentLookedLever.transform, promptWorldOffset);
+            UpdateUIPosition(currentInteractableTransform, promptWorldOffset);
         }
     }
 
+    // ★ 今後は新しいオブジェクトを追加しても、ここをいじる必要は一切ありません！
     private void CheckForInteractables()
     {
-        if (isHolding && (currentLookedItem != null || currentLookedLever != null)) return;
+        if (isHolding && currentInteractable != null) return;
 
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableLayer))
         {
-            Item item = hit.collider.GetComponent<Item>();
-            if (item != null)
+            // ぶつかったオブジェクトから IInteractable を持っているか一括で探す
+            IInteractable interactable = hit.collider.GetComponent<IInteractable>();
+            if (interactable != null)
             {
-                currentLookedItem = item;
-                currentLookedLever = null;
-                ShowItemPrompt(item);
-                return;
-            }
-
-            DepartureLever lever = hit.collider.GetComponent<DepartureLever>();
-            if (lever != null)
-            {
-                currentLookedLever = lever;
-                currentLookedItem = null;
-                ShowLeverPrompt(lever);
+                currentInteractable = interactable;
+                currentInteractableTransform = hit.collider.transform;
+                ShowPrompt(interactable);
                 return;
             }
         }
 
         if (!isHolding)
         {
-            ClearItemPrompt();
+            ClearPrompt();
         }
     }
 
@@ -147,43 +137,13 @@ public class PlayerInteraction : MonoBehaviour
                 return;
             }
         }
-
-        if (holdUIRectTransform != null)
-        {
-            Collider col = targetTransform.GetComponent<Collider>();
-            Vector3 centerWorldPos = col != null ? col.bounds.center : targetTransform.position;
-
-            Vector3 centerScreenPoint = mainCamera.WorldToScreenPoint(centerWorldPos);
-
-            if (centerScreenPoint.z >= 0)
-            {
-                holdUIRectTransform.position = centerScreenPoint;
-
-                float distance = Vector3.Distance(cameraTransform.position, centerWorldPos);
-                float targetScale = distance <= scaleDistanceThreshold ? closeScale : farScale;
-
-                holdUIRectTransform.localScale = new Vector3(targetScale, targetScale, 1f);
-            }
-        }
-    }
-
-    private bool HasInventorySpace()
-    {
-        if (playerController == null || playerController.Inventory == null) return false;
-
-        foreach (var item in playerController.Inventory)
-        {
-            if (item == null) return true;
-        }
-        return false;
     }
 
     private void HandleInteractionInput()
     {
         bool isInteractPressed = interactAction != null && interactAction.IsPressed();
-        bool hasTarget = (currentLookedItem != null || currentLookedLever != null);
+        bool hasTarget = (currentInteractable != null);
 
-        // キーが離されたらトリガーフラグをリセット
         if (!isInteractPressed)
         {
             hasTriggeredAction = false;
@@ -191,13 +151,8 @@ public class PlayerInteraction : MonoBehaviour
 
         if (hasTarget && isInteractPressed && !hasTriggeredAction)
         {
-            if (currentLookedItem != null && !HasInventorySpace())
-            {
-                ResetHold();
-                return;
-            }
-
-            if (currentLookedLever != null && !currentLookedLever.CanInteract())
+            // インタラクト条件を満たしているかチェック
+            if (!currentInteractable.CanInteract())
             {
                 ResetHold();
                 return;
@@ -211,25 +166,12 @@ public class PlayerInteraction : MonoBehaviour
 
             currentHoldTime += Time.deltaTime;
 
-            if (holdUIObj != null && !holdUIObj.activeSelf)
-            {
-                holdUIObj.SetActive(true);
-            }
-            else if (radialProgressBar != null && !radialProgressBar.gameObject.activeSelf)
+            if (radialProgressBar != null && !radialProgressBar.gameObject.activeSelf)
             {
                 radialProgressBar.gameObject.SetActive(true);
             }
 
-            float targetHoldTime = defaultRequiredHoldTime;
-            if (currentLookedItem != null && currentLookedItem.ItemData != null)
-            {
-                targetHoldTime = currentLookedItem.ItemData.RequiredHoldTime;
-            }
-            else if (currentLookedLever != null)
-            {
-                targetHoldTime = currentLookedLever.RequiredHoldTime;
-            }
-
+            float targetHoldTime = currentInteractable.GetHoldTime();
             float progress = Mathf.Clamp01(currentHoldTime / targetHoldTime);
 
             if (radialProgressBar != null)
@@ -239,16 +181,12 @@ public class PlayerInteraction : MonoBehaviour
 
             if (currentHoldTime >= targetHoldTime)
             {
-                hasTriggeredAction = true; // ★ 一度完了したらキーを離すまで再発火させない
+                hasTriggeredAction = true;
 
-                if (currentLookedItem != null)
-                {
-                    CompleteInteraction(currentLookedItem);
-                }
-                else if (currentLookedLever != null)
-                {
-                    CompleteLeverInteraction(currentLookedLever);
-                }
+                // インタラクト実行！
+                currentInteractable.OnInteract();
+                ClearPrompt();
+
                 ResetHold();
             }
         }
@@ -280,23 +218,7 @@ public class PlayerInteraction : MonoBehaviour
         }
     }
 
-    private void ShowItemPrompt(Item item)
-    {
-        if (promptCanvasObj != null && !promptCanvasObj.activeSelf)
-        {
-            promptCanvasObj.SetActive(true);
-        }
-
-        if (promptText != null && item.ItemData != null)
-        {
-            promptText.text = $"{item.ItemData.ItemName}  $  {item.ItemData.Amount}";
-        }
-
-        if (holdUIObj != null) holdUIObj.SetActive(false);
-        if (radialProgressBar != null && holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
-    }
-
-    private void ShowLeverPrompt(DepartureLever lever)
+    private void ShowPrompt(IInteractable interactable)
     {
         if (promptCanvasObj != null && !promptCanvasObj.activeSelf)
         {
@@ -305,17 +227,16 @@ public class PlayerInteraction : MonoBehaviour
 
         if (promptText != null)
         {
-            promptText.text = lever.LeverPromptName;
+            promptText.text = interactable.GetInteractPrompt();
         }
 
         if (holdUIObj != null) holdUIObj.SetActive(false);
-        if (radialProgressBar != null && holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
     }
 
-    private void ClearItemPrompt()
+    private void ClearPrompt()
     {
-        currentLookedItem = null;
-        currentLookedLever = null;
+        currentInteractable = null;
+        currentInteractableTransform = null;
         if (promptCanvasObj != null && !isHolding) promptCanvasObj.SetActive(false);
         ResetHold();
     }
@@ -328,62 +249,12 @@ public class PlayerInteraction : MonoBehaviour
         if (radialProgressBar != null)
         {
             radialProgressBar.fillAmount = 0f;
-            if (holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
+            radialProgressBar.gameObject.SetActive(false);
         }
 
         if (holdUIObj != null)
         {
             holdUIObj.SetActive(false);
         }
-    }
-
-    private void CompleteInteraction(Item item)
-    {
-        if (item.ItemData != null)
-        {
-            Debug.Log($"[インタラクト] {item.ItemData.ItemName} を回収しました！");
-
-            if (playerController != null)
-            {
-                bool added = false;
-                int selectedSlot = playerController.SelectedSlotIndex;
-                if (playerController.Inventory[selectedSlot] == null)
-                {
-                    playerController.Inventory[selectedSlot] = item.ItemData;
-                    added = true;
-                }
-                else
-                {
-                    for (int i = 0; i < playerController.Inventory.Length; i++)
-                    {
-                        if (playerController.Inventory[i] == null)
-                        {
-                            playerController.Inventory[i] = item.ItemData;
-                            added = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (added)
-                {
-                    playerController.SaveInventoryToData();
-                }
-                else
-                {
-                    Debug.LogWarning("[インベントリ] 満杯です！");
-                    return;
-                }
-            }
-        }
-
-        Destroy(item.gameObject);
-        ClearItemPrompt();
-    }
-
-    private void CompleteLeverInteraction(DepartureLever lever)
-    {
-        lever.OnPullLever();
-        ClearItemPrompt();
     }
 }
