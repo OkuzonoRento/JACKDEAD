@@ -197,6 +197,47 @@ public class PlayerController : MonoBehaviour
         SaveInventoryToData();
     }
 
+    // --- インベントリに空きがあるかチェック ---
+    public bool HasInventorySpace()
+    {
+        if (Inventory == null) return false;
+        foreach (var item in Inventory)
+        {
+            if (item == null) return true;
+        }
+        return false;
+    }
+
+    // --- アイテムを拾ってインベントリに格納する ---
+    public bool TryAddItem(ItemDataAsset itemData)
+    {
+        if (itemData == null || Inventory == null) return false;
+
+        // 1. 現在選択中のスロットが空いていれば優先して入れる
+        if (selectedSlotIndex >= 0 && selectedSlotIndex < Inventory.Length && Inventory[selectedSlotIndex] == null)
+        {
+            Inventory[selectedSlotIndex] = itemData;
+            SaveInventoryToData();
+            Debug.Log($"[インベントリ] 選択中スロット [{selectedSlotIndex + 1}] に {itemData.ItemName} を格納しました！");
+            return true;
+        }
+
+        // 2. 空いていなければ、先頭から空いているスロットを探して入れる
+        for (int i = 0; i < Inventory.Length; i++)
+        {
+            if (Inventory[i] == null)
+            {
+                Inventory[i] = itemData;
+                SaveInventoryToData();
+                Debug.Log($"[インベントリ] スロット [{i + 1}] に {itemData.ItemName} を格納しました！");
+                return true;
+            }
+        }
+
+        Debug.LogWarning("[インベントリ] 満杯のため拾えません！");
+        return false;
+    }
+
     public float GetTotalInventoryWeight()
     {
         float totalWeight = 0f;

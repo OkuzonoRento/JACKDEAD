@@ -269,6 +269,40 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 25519803}
   m_CullTransparentMesh: 1
+--- !u!1 &50353849 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -4737584979138136117, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+  m_PrefabInstance: {fileID: 1294669437}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &50353853
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 50353849}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
+  textureWidth: 1024
+  textureHeight: 256
+  symbolCount: 5
+  windowSymbolCount: 0.8
+  textureOffsetY: 0.5
+--- !u!114 &50353854
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 50353849}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9768d96697628364ca1191c0ca1138bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelScroller
 --- !u!1 &119709275
 GameObject:
   m_ObjectHideFlags: 0
@@ -1469,17 +1503,17 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 495288808}
-  m_LocalRotation: {x: 0.6199395, y: 0.61993945, z: 0.3401104, w: 0.3401104}
-  m_LocalPosition: {x: 0, y: 0, z: 0.025}
+  m_LocalRotation: {x: 0.6868426, y: 0.6868426, z: -0.16806932, w: -0.16806932}
+  m_LocalPosition: {x: 0, y: 0, z: 0.038}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 628251813}
-  m_LocalEulerAnglesHint: {x: 180, y: -57.5, z: -90}
+  m_LocalEulerAnglesHint: {x: 180, y: 27.5, z: -90}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.05, y: 0}
-  m_SizeDelta: {x: 1, y: 0.2}
+  m_AnchoredPosition: {x: 0.025, y: 0}
+  m_SizeDelta: {x: 0.8, y: 0.1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &495288810
 MonoBehaviour:
@@ -1528,8 +1562,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 1.5
-  m_fontSizeBase: 1.5
+  m_fontSize: 1
+  m_fontSizeBase: 1
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -1822,6 +1856,57 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 633388200}
   m_CullTransparentMesh: 1
+--- !u!1 &642371367 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -2175102350920805473, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+  m_PrefabInstance: {fileID: 1294669437}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &642371371
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 642371367}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
+  textureWidth: 1024
+  textureHeight: 256
+  symbolCount: 5
+  windowSymbolCount: 3
+  textureOffsetY: 0
+--- !u!114 &642371372
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 642371367}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
+  textureWidth: 1024
+  textureHeight: 256
+  symbolCount: 5
+  windowSymbolCount: 0.8
+  textureOffsetY: 0.5
+--- !u!114 &642371373
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 642371367}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9768d96697628364ca1191c0ca1138bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelScroller
 --- !u!1 &649144796
 GameObject:
   m_ObjectHideFlags: 0
@@ -1847,17 +1932,17 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 649144796}
-  m_LocalRotation: {x: 0.6199395, y: 0.6199395, z: 0.3401104, w: 0.3401104}
-  m_LocalPosition: {x: 0, y: 0, z: 0.025}
+  m_LocalRotation: {x: 0.6868426, y: 0.6868426, z: -0.16806932, w: -0.16806932}
+  m_LocalPosition: {x: 0, y: 0, z: 0.038}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 899840225}
-  m_LocalEulerAnglesHint: {x: 180, y: -57.5, z: -90}
+  m_LocalEulerAnglesHint: {x: 180, y: 27.5, z: -90}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.05, y: 0}
-  m_SizeDelta: {x: 1, y: 0.2}
+  m_AnchoredPosition: {x: 0.025, y: 0}
+  m_SizeDelta: {x: 0.7, y: 0.1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &649144798
 MonoBehaviour:
@@ -1906,8 +1991,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 1.5
-  m_fontSizeBase: 1.5
+  m_fontSize: 1
+  m_fontSizeBase: 1
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -2354,17 +2439,17 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 842756805}
-  m_LocalRotation: {x: 0.6199395, y: 0.61993945, z: 0.3401104, w: 0.3401104}
-  m_LocalPosition: {x: 0, y: 0, z: 0.025}
+  m_LocalRotation: {x: 0.6868426, y: 0.6868426, z: -0.16806932, w: -0.16806932}
+  m_LocalPosition: {x: 0, y: 0, z: 0.038}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 298382284}
-  m_LocalEulerAnglesHint: {x: 180, y: -57.5, z: -90}
+  m_LocalEulerAnglesHint: {x: 180, y: 27.5, z: -90}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.05, y: 0}
-  m_SizeDelta: {x: 1, y: 0.2}
+  m_AnchoredPosition: {x: 0.025, y: 0}
+  m_SizeDelta: {x: 0.8, y: 0.1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &842756807
 MonoBehaviour:
@@ -2413,8 +2498,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 1.5
-  m_fontSizeBase: 1.5
+  m_fontSize: 1
+  m_fontSizeBase: 1
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -2531,43 +2616,16 @@ MonoBehaviour:
   slotCameraPitch: 45
   cameraTransitionSpeed: 10
   reels:
-  - {fileID: 1663682373}
-  - {fileID: 1367069085}
-  - {fileID: 898717555}
-  totalSymbols: 5
+  - {fileID: 642371373}
+  - {fileID: 50353854}
+  - {fileID: 2136434394}
+  symbolSprites: []
+  stripLength: 6
+  windowSymbolCount: 0.8
+  centerFineTune: 0.025
+  rotateSprite90: 1
   payoutMultiplier: 5
---- !u!1 &898717554 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 88955971533635213, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
-  m_PrefabInstance: {fileID: 1294669437}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &898717555
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 898717554}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9768d96697628364ca1191c0ca1138bf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlotReelScroller
---- !u!114 &898717559
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 898717554}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
-  textureWidth: 128
-  textureHeight: 512
-  symbolCount: 5
+  playerController: {fileID: 0}
 --- !u!1 &899840224 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 430818098303835697, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
@@ -3288,7 +3346,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_LocalRotation.x
@@ -3300,7 +3358,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -3312,7 +3370,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
+      value: 90
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_ConstrainProportionsScale
@@ -3368,24 +3426,27 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2587458309858178015, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
       addedObject: {fileID: 628251816}
-    - targetCorrespondingSourceObject: {fileID: -1709864783686939441, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+    - targetCorrespondingSourceObject: {fileID: -2175102350920805473, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1367069085}
-    - targetCorrespondingSourceObject: {fileID: -1709864783686939441, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+      addedObject: {fileID: 642371373}
+    - targetCorrespondingSourceObject: {fileID: -2175102350920805473, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1367069089}
-    - targetCorrespondingSourceObject: {fileID: -2415244523959731602, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+      addedObject: {fileID: 642371372}
+    - targetCorrespondingSourceObject: {fileID: -2175102350920805473, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1663682373}
-    - targetCorrespondingSourceObject: {fileID: -2415244523959731602, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+      addedObject: {fileID: 642371371}
+    - targetCorrespondingSourceObject: {fileID: -4737584979138136117, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1663682377}
-    - targetCorrespondingSourceObject: {fileID: 88955971533635213, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+      addedObject: {fileID: 50353854}
+    - targetCorrespondingSourceObject: {fileID: -4737584979138136117, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 898717555}
-    - targetCorrespondingSourceObject: {fileID: 88955971533635213, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+      addedObject: {fileID: 50353853}
+    - targetCorrespondingSourceObject: {fileID: 1416295717842656667, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 898717559}
+      addedObject: {fileID: 2136434394}
+    - targetCorrespondingSourceObject: {fileID: 1416295717842656667, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2136434393}
     - targetCorrespondingSourceObject: {fileID: 758103633405855082, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       insertIndex: -1
       addedObject: {fileID: 941725176}
@@ -3469,38 +3530,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1367069084 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: -1709864783686939441, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
-  m_PrefabInstance: {fileID: 1294669437}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1367069085
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1367069084}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9768d96697628364ca1191c0ca1138bf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlotReelScroller
---- !u!114 &1367069089
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1367069084}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
-  textureWidth: 256
-  textureHeight: 768
-  symbolCount: 5
 --- !u!1 &1548730319
 GameObject:
   m_ObjectHideFlags: 0
@@ -3803,38 +3832,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1650348236}
   m_CullTransparentMesh: 1
---- !u!1 &1663682372 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: -2415244523959731602, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
-  m_PrefabInstance: {fileID: 1294669437}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1663682373
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1663682372}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9768d96697628364ca1191c0ca1138bf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlotReelScroller
---- !u!114 &1663682377
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1663682372}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
-  textureWidth: 128
-  textureHeight: 512
-  symbolCount: 5
 --- !u!1 &1768092945
 GameObject:
   m_ObjectHideFlags: 0
@@ -4322,6 +4319,40 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2037014299}
   m_CullTransparentMesh: 1
+--- !u!1 &2136434389 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1416295717842656667, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
+  m_PrefabInstance: {fileID: 1294669437}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2136434393
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2136434389}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b13edd964f79c404fa1e639e896353d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelTextureGenerator
+  textureWidth: 1024
+  textureHeight: 256
+  symbolCount: 5
+  windowSymbolCount: 0.8
+  textureOffsetY: 0.5
+--- !u!114 &2136434394
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2136434389}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9768d96697628364ca1191c0ca1138bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotReelScroller
 --- !u!4 &2574542091673538010
 Transform:
   m_ObjectHideFlags: 0
@@ -4331,7 +4362,7 @@ Transform:
   m_GameObject: {fileID: 6510030111815441594}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 10, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -4397,7 +4428,7 @@ CharacterController:
     m_Bits: 0
   m_LayerOverridePriority: 0
   m_ProvidesContacts: 0
-  m_Enabled: 0
+  m_Enabled: 1
   serializedVersion: 3
   m_Height: 2
   m_Radius: 0.5
@@ -4471,7 +4502,6 @@ MonoBehaviour:
   farScale: 0.6
   scaleDistanceThreshold: 1.5
   promptWorldOffset: {x: 0, y: 0.75, z: 0}
-  defaultRequiredHoldTime: 1
 --- !u!114 &6510030111815441598
 MonoBehaviour:
   m_ObjectHideFlags: 0

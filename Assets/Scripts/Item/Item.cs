@@ -1,21 +1,47 @@
 using UnityEngine;
 
-public class Item : MonoBehaviour
+public class Item : MonoBehaviour, IInteractable
 {
-    private ItemDataAsset itemData;
+    [SerializeField] private ItemDataAsset itemData;
 
     public ItemDataAsset ItemData => itemData;
 
     public void SetItemData(ItemDataAsset data)
     {
         itemData = data;
-        // 必要であればここで見た目の初期化など
     }
 
-    // 視点を合わせたときに呼び出す情報取得用プロパティ
-    public string GetInteractionPrompt()
+    // --- IInteractable の実装 ---
+    public string GetInteractPrompt()
     {
         if (itemData == null) return "Item";
-        return $"アイテム名: {itemData.ItemName}\n売却金額: {itemData.Amount}G";
+        return $"{itemData.ItemName}  $  {itemData.Amount}";
+    }
+
+    public float GetHoldTime()
+    {
+        return itemData != null ? itemData.RequiredHoldTime : 0.5f;
+    }
+
+    public bool CanInteract()
+    {
+        PlayerController pc = FindAnyObjectByType<PlayerController>();
+        if (pc != null)
+        {
+            return pc.HasInventorySpace();
+        }
+        return true;
+    }
+
+    public void OnInteract()
+    {
+        PlayerController pc = FindAnyObjectByType<PlayerController>();
+        if (pc != null && itemData != null)
+        {
+            if (pc.TryAddItem(itemData))
+            {
+                Destroy(gameObject);
+            }
+        }
     }
 }

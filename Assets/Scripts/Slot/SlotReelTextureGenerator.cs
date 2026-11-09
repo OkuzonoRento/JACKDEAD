@@ -2,80 +2,86 @@ using UnityEngine;
 
 public class SlotReelTextureGenerator : MonoBehaviour
 {
-    [Header("生成設定")]
-    [SerializeField] private int textureWidth = 256;   // 横幅
-    [SerializeField] private int textureHeight = 768;  // 縦の解像度
-    [SerializeField] private int symbolCount = 5;      // 図柄の総数
+    [Header("仮テクスチャ生成設定")]
+    [SerializeField] private int textureWidth = 1024;  // 横幅
+    [SerializeField] private int textureHeight = 256;  // 縦幅
+    [SerializeField] private int symbolCount = 5;      // 図柄の種類数
+    [SerializeField] private float windowSymbolCount = 3.0f; // 窓の中に並べる数
+
+    [Header("表示位置の微調整")]
+    [Range(0f, 1f)]
+    [SerializeField] private float textureOffsetY = 0.0f; // ★ ここで縦の表示位置を微調整できます
 
     private void Start()
     {
-        GenerateAndApplyTexture();
+        GenerateAndApplyTemporaryTexture();
     }
 
-    private void GenerateAndApplyTexture()
+    private void GenerateAndApplyTemporaryTexture()
     {
-        Texture2D reelTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false);
-        reelTexture.filterMode = FilterMode.Point;
-        reelTexture.wrapMode = TextureWrapMode.Repeat; // 上下ループに必須
+        Texture2D tempTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false);
+        tempTexture.filterMode = FilterMode.Point;
+        tempTexture.wrapMode = TextureWrapMode.Repeat;
 
-        int symbolHeight = textureHeight / symbolCount;
+        int symbolWidth = textureWidth / symbolCount;
         Color[] pixels = new Color[textureWidth * textureHeight];
 
-        // 背景色（暗い鉄板色）
-        Color bgColor = new Color(0.1f, 0.1f, 0.12f);
+        Color bgColor = new Color(0.12f, 0.12f, 0.15f);
         for (int i = 0; i < pixels.Length; i++)
         {
             pixels[i] = bgColor;
         }
-        reelTexture.SetPixels(pixels);
+        tempTexture.SetPixels(pixels);
 
-        // 縦方向に等間隔でシンボルを描画
         for (int s = 0; s < symbolCount; s++)
         {
-            int startY = s * symbolHeight;
-            DrawSymbol(reelTexture, startY, symbolHeight, s);
+            int startX = s * symbolWidth;
+            DrawTemporarySymbol(tempTexture, startX, symbolWidth, s);
         }
 
-        reelTexture.Apply();
+        tempTexture.Apply();
 
         Renderer rend = GetComponent<Renderer>();
         if (rend != null)
         {
-            if (rend.material.HasProperty("_BaseMap"))
+            Material mat = rend.material;
+            if (mat.HasProperty("_BaseMap"))
             {
-                rend.material.SetTexture("_BaseMap", reelTexture);
+                mat.SetTexture("_BaseMap", tempTexture);
             }
             else
             {
-                rend.material.mainTexture = reelTexture;
+                mat.mainTexture = tempTexture;
             }
 
-            // ★ 縦方向に常に「3つ」の柄が見えるようにタイル比率を設定
-            float tilingY = (float)symbolCount / 3.0f;
-            rend.material.mainTextureScale = new Vector2(1f, tilingY);
-            rend.material.mainTextureOffset = Vector2.zero;
+            float tilingX = (float)symbolCount / windowSymbolCount;
+            mat.mainTextureScale = new Vector2(tilingX, 1f);
+
+            // 縦方向の微調整オフセットを適用（X軸方向が回転軸）
+            mat.mainTextureOffset = new Vector2(textureOffsetY, 0f);
+
+            Debug.Log("[Slot] テクスチャを再生成し、オフセットを適用しました");
         }
     }
 
-    private void DrawSymbol(Texture2D tex, int startY, int height, int symbolIndex)
+    private void DrawTemporarySymbol(Texture2D tex, int startX, int width, int symbolIndex)
     {
         int marginX = 10;
         int marginY = 10;
-        Color baseColor = GetSymbolColor(symbolIndex);
+        Color symbolColor = GetSymbolColor(symbolIndex);
         Color borderColor = Color.white;
 
-        for (int y = startY + marginY; y < startY + height - marginY; y++)
+        for (int y = marginY; y < textureHeight - marginY; y++)
         {
-            for (int x = marginX; x < textureWidth - marginX; x++)
+            for (int x = startX + marginX; x < startX + width - marginX; x++)
             {
-                // 横幅いっぱいの四角形を描画
-                if (x <= marginX + 4 || x >= textureWidth - marginX - 4 || y <= startY + marginY + 4 || y >= startY + height - marginY - 4)
+                if (x <= startX + marginX + 4 || x >= startX + width - marginX - 4 || y <= marginY + 4 || y >= textureHeight - marginY - 4)
                 {
                     tex.SetPixel(x, y, borderColor);
                 }
                 else
                 {
-                    tex.SetPixel(x, y, baseColor);
+                    tex.SetPixel(x, y, symbolColor);
                 }
             }
         }
@@ -83,14 +89,14 @@ public class SlotReelTextureGenerator : MonoBehaviour
 
     private Color GetSymbolColor(int index)
     {
-        Color[] symbolColors = new Color[]
+        Color[] colors = new Color[]
         {
-            new Color(0.85f, 0.15f, 0.15f), // 赤
-            new Color(0.15f, 0.75f, 0.15f), // 緑
-            new Color(0.85f, 0.75f, 0.15f), // 黄
-            new Color(0.55f, 0.15f, 0.85f), // 紫
-            new Color(0.35f, 0.35f, 0.35f)  // 灰
+            new Color(0.9f, 0.2f, 0.2f), // 0: 赤
+            new Color(0.2f, 0.8f, 0.3f), // 1: 緑
+            new Color(0.9f, 0.8f, 0.1f), // 2: 黄
+            new Color(0.6f, 0.2f, 0.9f), // 3: 紫
+            new Color(0.2f, 0.6f, 0.9f)  // 4: 青
         };
-        return symbolColors[index % symbolColors.Length];
+        return colors[index % colors.Length];
     }
 }

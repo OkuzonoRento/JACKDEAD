@@ -21,5 +21,5 @@ MonoBehaviour:
   Inventory:
   - {fileID: 0}
   - {fileID: 0}
-  - {fileID: 0}
-  PlayerMoney: 2147483647
+  - {fileID: 11400000, guid: 4d9678a17f274644295f374a64e3dbc2, type: 2}
+  PlayerMoney: 486000
