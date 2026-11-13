@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using TMPro;
 
@@ -10,10 +11,20 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
     [SerializeField] private int customBetAmount = 1000;
 
     [Header("ボタン上のテキスト表示")]
-    [SerializeField] private TextMeshPro buttonText; // または TextMeshPro (3D) の場合は TextMeshPro に変更
+    [SerializeField] private TextMeshPro buttonText;
+
+    [Header("ボタン押し込み演出")]
+    [Tooltip("押したときにボタンが沈み込むローカル移動量")]
+    [SerializeField] private Vector3 pressLocalOffset = new Vector3(0f, -0.02f, 0f);
+    [SerializeField] private float pressDuration = 0.08f;
+
+    private Vector3 initialLocalPos;
+    private bool isAnimatingPress = false;
 
     private void Awake()
     {
+        initialLocalPos = transform.localPosition;
+
         if (slotMachine == null)
         {
             slotMachine = GetComponentInParent<SlotMachineController>();
@@ -27,7 +38,6 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
 
     private void Update()
     {
-        // 所持金の増減や状態変化に応じてテキストの色や内容をリアルタイムに更新（オプション）
         UpdateTextDisplay();
     }
 
@@ -37,7 +47,6 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
         {
             buttonText.text = $"${customBetAmount}";
 
-            // 所持金が足りない場合はテキストを灰色にするなどして「押せない状態」を視覚的に伝える
             if (slotMachine != null)
             {
                 bool canPlay = !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(customBetAmount);
@@ -46,17 +55,9 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
         }
     }
 
-    // --- IInteractable の実装 ---
-    public string GetInteractPrompt()
-    {
-        // 画面中央のUIプロンプトは出さない（空文字を返す、またはPlayerInteraction側で非表示にする）
-        return "";
-    }
+    public string GetInteractPrompt() => "";
 
-    public float GetHoldTime()
-    {
-        return 0.1f; // すぐに反応
-    }
+    public float GetHoldTime() => 0.1f;
 
     public bool CanInteract()
     {
@@ -66,9 +67,38 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
 
     public void OnInteract()
     {
-        if (slotMachine != null)
+        if (slotMachine != null && CanInteract())
         {
+            if (!isAnimatingPress)
+            {
+                StartCoroutine(AnimateButtonPress());
+            }
             slotMachine.OnPressBetButton(customBetAmount);
         }
+    }
+
+    private IEnumerator AnimateButtonPress()
+    {
+        isAnimatingPress = true;
+        Vector3 targetPos = initialLocalPos + pressLocalOffset;
+
+        float t = 0f;
+        while (t < pressDuration)
+        {
+            t += Time.deltaTime;
+            transform.localPosition = Vector3.Lerp(initialLocalPos, targetPos, t / pressDuration);
+            yield return null;
+        }
+
+        t = 0f;
+        while (t < pressDuration)
+        {
+            t += Time.deltaTime;
+            transform.localPosition = Vector3.Lerp(targetPos, initialLocalPos, t / pressDuration);
+            yield return null;
+        }
+
+        transform.localPosition = initialLocalPos;
+        isAnimatingPress = false;
     }
 }

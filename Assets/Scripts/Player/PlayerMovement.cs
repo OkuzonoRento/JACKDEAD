@@ -38,10 +38,11 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float crouchingCameraY = 0.0f;
     [SerializeField] private float heightChangeSpeed = 10f;
 
-    [Header("ダッシュ時の視野角 (FOV) 演出")]
+    [Header("ダッシュ・注視時の視野角 (FOV) 演出")]
     [SerializeField] private Camera targetCamera;
     [SerializeField] private float normalFOV = 60f;
     [SerializeField] private float sprintFOV = 75f;
+    [SerializeField] private float lockedFOV = 42f;
     [SerializeField] private float fovChangeSpeed = 8f;
 
     private CharacterController controller;
@@ -59,7 +60,19 @@ public class PlayerMovement : MonoBehaviour
 
     private float cameraPitch = 0f;
 
+    // --- スロット等の強制移動＆視点ロック用 ---
+    private bool isControlLocked = false;
+    private Vector3 lockStartPos;
+    private Vector3 lockTargetStandPos;
+    private Vector3 lockLookWorldPos;
+    private float lockStartYaw;
+    private float lockStartPitch;
+    private float lockStartFOV;
+    private float lockTransitionDuration = 0.4f;
+    private float lockTransitionElapsed = 0f;
+
     public float CurrentStamina => currentStamina;
+    public bool IsControlLocked => isControlLocked;
 
     private void Awake()
     {
@@ -126,6 +139,35 @@ public class PlayerMovement : MonoBehaviour
         Cursor.visible = false;
     }
 
+    /// <summary>
+    /// プレイヤーの操作をロックし、指定した立ち位置へ滑らかに移動させながら視野角を狭めて注視点へ向ける
+    /// </summary>
+    public void LockControlAndMoveTo(Vector3 targetStandPos, Vector3 lookWorldPos, float transitionDuration = 0.4f)
+    {
+        isControlLocked = true;
+        moveInput = Vector2.zero;
+        lookInput = Vector2.zero;
+
+        lockStartPos = transform.position;
+        lockTargetStandPos = new Vector3(targetStandPos.x, transform.position.y, targetStandPos.z);
+        lockLookWorldPos = lookWorldPos;
+
+        lockStartYaw = transform.eulerAngles.y;
+        lockStartPitch = cameraPitch;
+        lockStartFOV = targetCamera != null ? targetCamera.fieldOfView : normalFOV;
+
+        lockTransitionDuration = Mathf.Max(0.05f, transitionDuration);
+        lockTransitionElapsed = 0f;
+    }
+
+    /// <summary>
+    /// プレイヤーの移動・視点操作ロックを解除する（FOVも通常へ自動で滑らかに戻ります）
+    /// </summary>
+    public void UnlockControl()
+    {
+        isControlLocked = false;
+    }
+
     private void Update()
     {
         isGrounded = controller.isGrounded;
@@ -134,6 +176,14 @@ public class PlayerMovement : MonoBehaviour
             velocity.y = -2f;
         }
 
+        // --- ロック中（スロット稼働中）：正面位置へ移動 ＆ 視野角を狭めてリールへ固定 ---
+        if (isControlLocked)
+        {
+            UpdateLockedMovementAndLook();
+            return;
+        }
+
+        // --- 通常時の視点操作 (マウス) ---
         if (lookAction != null && cameraTransform != null)
         {
             lookInput = lookAction.ReadValue<Vector2>();
@@ -156,9 +206,9 @@ public class PlayerMovement : MonoBehaviour
         bool isMoving = moveInput.sqrMagnitude > 0.01f;
         bool isIdling = !isMoving;
 
-        // --- ★ カプセルの5方向から正確な天井判定 ＆ 個別のデバッグレイ描画 ---
+        // 5方向からの天井判定
         bool canStandUp = true;
-        if (!isCrouchingInput) // 立ち上がろうとした場合
+        if (!isCrouchingInput)
         {
             Vector3 capsuleTop = transform.position + controller.center + Vector3.up * (controller.height * 0.5f);
             float neededHeight = standingHeight - controller.height;
@@ -168,53 +218,24 @@ public class PlayerMovement : MonoBehaviour
                 float checkDistance = neededHeight + 0.15f;
                 float radius = Mathf.Max(0.1f, controller.radius - 0.05f);
 
-                Vector3 posCenter = capsuleTop;
-                Vector3 posForward = capsuleTop + transform.forward * radius;
-                Vector3 posBack = capsuleTop - transform.forward * radius;
-                Vector3 posLeft = capsuleTop - transform.right * radius;
-                Vector3 posRight = capsuleTop + transform.right * radius;
-
-                bool hitCenter = Physics.Raycast(posCenter, Vector3.up, checkDistance);
-                bool hitForward = Physics.Raycast(posForward, Vector3.up, checkDistance);
-                bool hitBack = Physics.Raycast(posBack, Vector3.up, checkDistance);
-                bool hitLeft = Physics.Raycast(posLeft, Vector3.up, checkDistance);
-                bool hitRight = Physics.Raycast(posRight, Vector3.up, checkDistance);
-
-                // 5本それぞれの位置から個別にデバッグレイを表示（ヒットしていれば緑、安全なら赤）
-                Debug.DrawRay(posCenter, Vector3.up * checkDistance, hitCenter ? Color.green : Color.red);
-                Debug.DrawRay(posForward, Vector3.up * checkDistance, hitForward ? Color.green : Color.red);
-                Debug.DrawRay(posBack, Vector3.up * checkDistance, hitBack ? Color.green : Color.red);
-                Debug.DrawRay(posLeft, Vector3.up * checkDistance, hitLeft ? Color.green : Color.red);
-                Debug.DrawRay(posRight, Vector3.up * checkDistance, hitRight ? Color.green : Color.red);
+                bool hitCenter = Physics.Raycast(capsuleTop, Vector3.up, checkDistance);
+                bool hitForward = Physics.Raycast(capsuleTop + transform.forward * radius, Vector3.up, checkDistance);
+                bool hitBack = Physics.Raycast(capsuleTop - transform.forward * radius, Vector3.up, checkDistance);
+                bool hitLeft = Physics.Raycast(capsuleTop - transform.right * radius, Vector3.up, checkDistance);
+                bool hitRight = Physics.Raycast(capsuleTop + transform.right * radius, Vector3.up, checkDistance);
 
                 if (hitCenter || hitForward || hitBack || hitLeft || hitRight)
                 {
-                    canStandUp = false; // どこかの端が天井や机に当たっているため立ち上がれない
+                    canStandUp = false;
                 }
             }
-        }
-        else
-        {
-            // しゃがみ中のデバッグ表示（黄色で5本表示）
-            Vector3 capsuleTop = transform.position + controller.center + Vector3.up * (controller.height * 0.5f);
-            float radius = Mathf.Max(0.1f, controller.radius - 0.05f);
-            float checkDist = standingHeight - crouchingHeight + 0.15f;
-
-            Debug.DrawRay(capsuleTop, Vector3.up * checkDist, Color.yellow);
-            Debug.DrawRay(capsuleTop + transform.forward * radius, Vector3.up * checkDist, Color.yellow);
-            Debug.DrawRay(capsuleTop - transform.forward * radius, Vector3.up * checkDist, Color.yellow);
-            Debug.DrawRay(capsuleTop - transform.right * radius, Vector3.up * checkDist, Color.yellow);
-            Debug.DrawRay(capsuleTop + transform.right * radius, Vector3.up * checkDist, Color.yellow);
         }
 
         bool isCrouching = isCrouchingInput || !canStandUp;
 
-        if (isExhausted)
+        if (isExhausted && currentStamina >= staminaThresholdToResume)
         {
-            if (currentStamina >= staminaThresholdToResume)
-            {
-                isExhausted = false;
-            }
+            isExhausted = false;
         }
 
         bool canSprint = !isExhausted && currentStamina > 0f && moveInput.y > 0;
@@ -231,17 +252,14 @@ public class PlayerMovement : MonoBehaviour
             {
                 currentStamina = 0f;
                 isExhausted = true;
-                Debug.Log("[スタミナ] スタミナが完全に切れました！息切れ状態");
             }
         }
         else
         {
             float recoveryRate = normalRecoveryRate;
-
             if (isCrouching)
             {
-                if (isMoving) recoveryRate = normalRecoveryRate;
-                else recoveryRate = crouchRecoveryRate;
+                recoveryRate = isMoving ? normalRecoveryRate : crouchRecoveryRate;
             }
             else if (isIdling)
             {
@@ -267,6 +285,7 @@ public class PlayerMovement : MonoBehaviour
             cameraTransform.localPosition = camPos;
         }
 
+        // ★ ロック解除後はここから通常のFOV（normalFOV）またはダッシュFOVへ滑らかに戻る
         if (targetCamera != null)
         {
             float targetFOV = isSprinting ? sprintFOV : normalFOV;
@@ -283,5 +302,66 @@ public class PlayerMovement : MonoBehaviour
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+    }
+
+    private void UpdateLockedMovementAndLook()
+    {
+        lockTransitionElapsed += Time.deltaTime;
+        float t = Mathf.Clamp01(lockTransitionElapsed / lockTransitionDuration);
+        float smoothT = t * t * (3f - 2f * t);
+
+        // 1. 立ち状態の目線高さへ滑らかに合わせる
+        controller.height = Mathf.Lerp(controller.height, standingHeight, Time.deltaTime * heightChangeSpeed);
+        if (cameraTransform != null)
+        {
+            Vector3 camPos = cameraTransform.localPosition;
+            camPos.y = Mathf.Lerp(camPos.y, standingCameraY, Time.deltaTime * heightChangeSpeed);
+            cameraTransform.localPosition = camPos;
+        }
+
+        // 2. ★ 視野角（FOV）を lockedFOV へ滑らかに狭める（ズームイン）
+        if (targetCamera != null)
+        {
+            targetCamera.fieldOfView = Mathf.Lerp(lockStartFOV, lockedFOV, smoothT);
+        }
+
+        // 3. スタミナ回復
+        currentStamina = Mathf.Clamp(currentStamina + idleRecoveryRate * Time.deltaTime, 0f, maxStamina);
+        if (isExhausted && currentStamina >= staminaThresholdToResume)
+        {
+            isExhausted = false;
+        }
+
+        // 4. スロット正面の立ち位置へ滑らかに移動
+        Vector3 desiredXZ = Vector3.Lerp(lockStartPos, lockTargetStandPos, smoothT);
+        Vector3 moveDelta = new Vector3(
+            desiredXZ.x - transform.position.x,
+            velocity.y * Time.deltaTime,
+            desiredXZ.z - transform.position.z
+        );
+
+        velocity.y += gravity * Time.deltaTime;
+        controller.Move(moveDelta);
+
+        // 5. カメラをスロット中央へ滑らかに回転
+        if (cameraTransform != null)
+        {
+            Vector3 dirToTarget = lockLookWorldPos - cameraTransform.position;
+
+            Vector3 flatDir = new Vector3(dirToTarget.x, 0f, dirToTarget.z);
+            if (flatDir.sqrMagnitude > 0.0001f)
+            {
+                float targetYaw = Mathf.Atan2(flatDir.x, flatDir.z) * Mathf.Rad2Deg;
+                float currentYaw = Mathf.LerpAngle(lockStartYaw, targetYaw, smoothT);
+                transform.rotation = Quaternion.Euler(0f, currentYaw, 0f);
+            }
+
+            float horizontalDist = new Vector2(dirToTarget.x, dirToTarget.z).magnitude;
+            float targetPitch = -Mathf.Atan2(dirToTarget.y, horizontalDist) * Mathf.Rad2Deg;
+            targetPitch = Mathf.Clamp(targetPitch, upLookLimit, downLookLimit);
+
+            cameraPitch = Mathf.LerpAngle(lockStartPitch, targetPitch, smoothT);
+            cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
+        }
     }
 }
