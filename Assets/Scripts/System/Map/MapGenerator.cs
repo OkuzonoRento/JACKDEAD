@@ -1,29 +1,101 @@
-using NUnit.Framework.Internal.Execution;
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(MapGizmoDrawer))]
 public class MapGenerator : MonoBehaviour
 {
+    [System.Serializable]
+    public class SlotSpawnCandidate
+    {
+        [Tooltip("è­˜åˆ¥ç”¨ã®åå‰")]
+        public string variantName = "Normal Slot";
+
+        [Tooltip("ã‚¹ãƒãƒ¼ãƒ³ã•ã›ã‚‹ã‚¹ãƒ­ãƒƒãƒˆãƒã‚·ãƒ³ã®ãƒ—ãƒ¬ãƒãƒ–")]
+        public GameObject slotPrefab;
+
+        [Tooltip("å‡ºç¾ç¢ºç‡ï¼ˆæ•°å€¤ãŒå¤§ãã„ã»ã©é¸ã°ã‚Œã‚„ã™ã„ï¼‰")]
+        [Min(0f)]
+        public float spawnWeight = 70f;
+    }
+
     public List<MapChipData> allMapChips;
 
-    [Header("¶¬İ’è")]
-    public int targetRoomCount = 9;
-    public float tileSize = 20f;
-    [Header("¶¬ƒŠƒgƒ‰ƒCİ’è")]
-    [Tooltip("w’è‚µ‚½”‚É“Í‚©‚È‚©‚Á‚½ê‡‚ÉÄ’§í‚·‚éÅ‘å‰ñ”")]
-    public int maxRetryCount = 50;
+    [Header("ç”Ÿæˆè¨­å®š")]
+    [SerializeField] private int targetRoomCount = 9;
+    [SerializeField] private float tileSize = 20f;
+    [Tooltip("ãƒãƒƒãƒ—ãƒãƒƒãƒ—ç”Ÿæˆæ™‚ã®Xè»¸ãƒ™ãƒ¼ã‚¹å›è»¢è§’åº¦ï¼ˆBlenderå‡ºåŠ›ãƒ¢ãƒ‡ãƒ«ç”¨ï¼‰")]
+    [SerializeField] private float roomChipBasePitch = -90f;
 
-    [Header("ƒoƒXİ’è")]
-    public GameObject busPrefab;
-    public float busOffsetDistance = 10f;
+    [Header("ç”Ÿæˆãƒªãƒˆãƒ©ã‚¤è¨­å®š")]
+    [Tooltip("æŒ‡å®šã—ãŸæ•°ã«å±Šã‹ãªã‹ã£ãŸå ´åˆã«å†æŒ‘æˆ¦ã™ã‚‹æœ€å¤§å›æ•°")]
+    [SerializeField] private int maxRetryCount = 50;
 
-    [Header("ŒoÏEƒmƒ‹ƒ}İ’è")]
-    [SerializeField] private int currentMapQuota = 1000;      // ƒ}ƒbƒviƒŒƒxƒ‹j‚²‚Æ‚Ìƒmƒ‹ƒ}‹àŠz
-    [SerializeField] private float quotaMultiplier = 2.5f;    // ƒmƒ‹ƒ}‚É‘Î‚·‚é‘Šz‚Ì”{—¦i2.5”{j
+    [Header("ãƒã‚¹ãƒ»ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚¹ãƒãƒ¼ãƒ³è¨­å®š")]
+    [SerializeField] private GameObject busPrefab;
+    [SerializeField] private float busOffsetDistance = 10f;
+    [Tooltip("ãƒã‚¹ã®Yè»¸ã®å‘ãã‚’å¾®èª¿æ•´ã™ã‚‹ã‚ªãƒ•ã‚»ãƒƒãƒˆè§’åº¦ï¼ˆåº¦ï¼‰")]
+    [SerializeField] private float busYRotationOffset = 0f;
+    [Tooltip("ãƒã‚¹å€™è£œéƒ¨å±‹ã¨ã—ã¦è¨±å¯ã™ã‚‹æœ€å°éš£æ¥éƒ¨å±‹æ•°ï¼ˆçªãå‡ºã—éƒ¨å±‹é™¤å¤–ç”¨ï¼‰")]
+    [SerializeField, Range(1, 4)] private int minNeighborsForBusRoom = 2;
+    [Tooltip("ãƒã‚¹ä½ç½®ã‹ã‚‰ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’ã‚¹ãƒãƒ¼ãƒ³ã•ã›ã‚‹éš›ã®é«˜ã•ã‚ªãƒ•ã‚»ãƒƒãƒˆ")]
+    [SerializeField] private Vector3 playerSpawnOffsetFromBus = new Vector3(0f, 1f, 0f);
 
-    [Header("ƒXƒNƒ‰ƒbƒv©“®”z’uİ’è")]
-    [SerializeField] private List<ItemDataAsset> scrapDataList; // ”z’u‚·‚éƒXƒNƒ‰ƒbƒv‚Ìƒf[ƒ^Œó•â
+    [Header("çµŒæ¸ˆãƒ»ãƒãƒ«ãƒè¨­å®š")]
+    [SerializeField] private int currentMapQuota = 1000;
+    [SerializeField] private float quotaMultiplier = 2.5f;
+
+    [Header("ã‚¹ã‚¯ãƒ©ãƒƒãƒ—è‡ªå‹•é…ç½®è¨­å®š")]
+    [SerializeField] private List<ItemDataAsset> scrapDataList;
+    [Tooltip("ã‚¹ã‚¯ãƒ©ãƒƒãƒ—ç”Ÿæˆã®æœ€å¤§è©¦è¡Œãƒ«ãƒ¼ãƒ—å›æ•°")]
+    [SerializeField, Min(1)] private int maxScrapSpawnIterations = 300;
+    [Tooltip("éƒ¨å±‹ã®ã‚¿ã‚¤ãƒ«ã‚µã‚¤ã‚ºã«å¯¾ã™ã‚‹ã‚¹ã‚¯ãƒ©ãƒƒãƒ—é…ç½®ç¯„å›²ã®æ¯”ç‡ï¼ˆ0.35ãªã‚‰ä¸­å¿ƒã‹ã‚‰Â±35%ã®ç¯„å›²ï¼‰")]
+    [SerializeField, Range(0.05f, 0.48f)] private float scrapSpawnAreaRatio = 0.35f;
+    [Tooltip("ã‚¹ã‚¯ãƒ©ãƒƒãƒ—æ¥åœ°ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã‚’é–‹å§‹ã™ã‚‹ä¸Šç©ºé«˜ã•")]
+    [SerializeField] private float scrapRaycastStartHeight = 5.0f;
+    [Tooltip("ã‚¹ã‚¯ãƒ©ãƒƒãƒ—æ¥åœ°ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã®æœ€å¤§è·é›¢")]
+    [SerializeField] private float scrapRaycastDistance = 10.0f;
+    [Tooltip("åºŠé¢ãŒè¦‹ã¤ã‹ã‚‰ãªã„å ´åˆã®ã‚¹ã‚¯ãƒ©ãƒƒãƒ—åˆæœŸé«˜ã•")]
+    [SerializeField] private float scrapFallbackSpawnHeight = 0.5f;
+    [Tooltip("åºŠé¢ãƒ’ãƒƒãƒˆä½ç½®ã‹ã‚‰ã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚’å°‘ã—æµ®ã‹ã›ã‚‹ã‚ªãƒ•ã‚»ãƒƒãƒˆé«˜ã•")]
+    [SerializeField] private float scrapSurfaceOffsetHeight = 0.1f;
+    [Tooltip("ãƒ—ãƒ¬ãƒãƒ–æœªè¨­å®šæ™‚ã®ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯Cubeã®ã‚µã‚¤ã‚º")]
+    [SerializeField] private float fallbackCubeScale = 0.4f;
+    [Tooltip("ã‚¢ã‚¤ãƒ†ãƒ ä¾¡æ ¼ãŒ0ä»¥ä¸‹ã®å ´åˆã«åŠ ç®—ã™ã‚‹ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆä¾¡å€¤")]
+    [SerializeField, Min(1)] private int defaultFallbackScrapValue = 50;
+
+    [Header("ã‚¹ãƒ­ãƒƒãƒˆãƒã‚·ãƒ³è¨­ç½®æ¡ä»¶è¨­å®š")]
+    [Tooltip("é…ç½®ã™ã‚‹ã‚¹ãƒ­ãƒƒãƒˆãƒã‚·ãƒ³ã®ãƒ—ãƒ¬ãƒãƒ–ã¨å‡ºç¾é‡ã¿ã®ãƒªã‚¹ãƒˆ")]
+    [SerializeField] private List<SlotSpawnCandidate> slotCandidates = new List<SlotSpawnCandidate>();
+    [Tooltip("ãƒãƒƒãƒ—å…¨ä½“ã«è¨­ç½®ã™ã‚‹ã‚¹ãƒ­ãƒƒãƒˆã®æœ€å°å°æ•°")]
+    [SerializeField, Min(0)] private int minSlotCountPerMap = 2;
+    [Tooltip("ãƒãƒƒãƒ—å…¨ä½“ã«è¨­ç½®ã™ã‚‹ã‚¹ãƒ­ãƒƒãƒˆã®æœ€å¤§å°æ•°")]
+    [SerializeField, Min(0)] private int maxSlotCountPerMap = 4;
+    [Tooltip("1éƒ¨å±‹ã‚ãŸã‚Šã«è¨­ç½®ã§ãã‚‹æœ€å¤§å°æ•°")]
+    [SerializeField, Range(1, 4)] private int maxSlotsPerRoom = 1;
+    [Tooltip("å€™è£œã®éƒ¨å±‹ã«ã‚¹ãƒ­ãƒƒãƒˆãŒé…ç½®ã•ã‚Œã‚‹ç¢ºç‡ï¼ˆ0ã€œ1ï¼‰")]
+    [SerializeField, Range(0f, 1f)] private float roomSlotSpawnChance = 0.75f;
+    [Tooltip("ã‚¹ã‚¿ãƒ¼ãƒˆéƒ¨å±‹ï¼ˆGrid 0,0ï¼‰ã«ã¯è¨­ç½®ã—ãªã„")]
+    [SerializeField] private bool excludeStartRoomForSlot = true;
+    [Tooltip("ãƒã‚¹ãŒæ¥ç¶šã•ã‚ŒãŸéƒ¨å±‹ã«ã¯è¨­ç½®ã—ãªã„")]
+    [SerializeField] private bool excludeBusRoomForSlot = true;
+    [Tooltip("ãƒã‚¹æ¥ç¶šéƒ¨å±‹ã‹ã‚‰ã®æœ€å°ã‚°ãƒªãƒƒãƒ‰è·é›¢ï¼ˆãƒãƒ³ãƒãƒƒã‚¿ãƒ³è·é›¢ï¼‰")]
+    [SerializeField, Min(0)] private int minManhattanDistanceFromBus = 1;
+    [Tooltip("è¡Œãæ­¢ã¾ã‚Šã®éƒ¨å±‹ï¼ˆæ‰‰ãŒ1ã¤ã ã‘ã®éƒ¨å±‹ï¼‰ã‚’å„ªå…ˆã—ã¦è¨­ç½®ã™ã‚‹")]
+    [SerializeField] private bool prioritizeDeadEndRooms = true;
+
+    [Header("ã‚¹ãƒ­ãƒƒãƒˆé…ç½®ä½ç½®ãƒ»å‘ããƒ»æ¥åœ°èª¿æ•´")]
+    [Tooltip("éƒ¨å±‹ã®ã‚¿ã‚¤ãƒ«ã‚µã‚¤ã‚ºã«å¯¾ã™ã‚‹å£éš›ã¸ã®é…ç½®è·é›¢æ¯”ç‡ï¼ˆä¾‹: 0.38 ãªã‚‰ 20m Ã— 0.38 = ä¸­å¿ƒã‹ã‚‰7.6må£å¯„ã‚Šï¼‰")]
+    [SerializeField, Range(0.1f, 0.48f)] private float slotWallDistanceRatio = 0.38f;
+    [Tooltip("éƒ¨å±‹ã®ã‚¿ã‚¤ãƒ«ã‚µã‚¤ã‚ºã«å¯¾ã™ã‚‹å£æ¨ªæ–¹å‘ã®ãƒ©ãƒ³ãƒ€ãƒ é…ç½®å¹…æ¯”ç‡ï¼ˆ0ã§å£ã®ä¸­å¤®å›ºå®šï¼‰")]
+    [SerializeField, Range(0f, 0.35f)] private float slotWallLateralSpreadRatio = 0.1f;
+    [Tooltip("ã‚¹ãƒ­ãƒƒãƒˆã®æ­£é¢ã‚’éƒ¨å±‹ã®å†…å´ã«å‘ã‘ã‚‹ãŸã‚ã®Yè»¸å›è»¢ã‚ªãƒ•ã‚»ãƒƒãƒˆè§’åº¦ï¼ˆåº¦ï¼‰")]
+    [SerializeField] private float slotRotationYawOffset = 0f;
+    [Tooltip("ã‚¹ãƒ­ãƒƒãƒˆæ¥åœ°ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã‚’é–‹å§‹ã™ã‚‹ä¸Šç©ºé«˜ã•")]
+    [SerializeField] private float slotRaycastStartHeight = 5.0f;
+    [Tooltip("ã‚¹ãƒ­ãƒƒãƒˆæ¥åœ°ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã®æœ€å¤§è·é›¢")]
+    [SerializeField] private float slotRaycastDistance = 10.0f;
+    [Tooltip("åºŠé¢ãƒ’ãƒƒãƒˆä½ç½®ã‹ã‚‰ã‚¹ãƒ­ãƒƒãƒˆã‚’æµ®ã‹ã›ã‚‹å¾®èª¿æ•´é«˜ã•")]
+    [SerializeField] private float slotFloorHeightOffset = 0.0f;
 
     public class GeneratedRoom
     {
@@ -37,23 +109,33 @@ public class MapGenerator : MonoBehaviour
         public bool rightDoor;
     }
 
+    private const int RightAngleDegrees = 90;
+    private const int CardinalDirectionCount = 4;
+    private const float FullCircleDegrees = 360f;
+    private static readonly int[] AllowedRotationAngles = { 0, 90, 180, 270 };
+    private static readonly int[] NonRotatedAngles = { 0 };
+    private static readonly float[] WallInwardYawAngles = { 180f, 0f, 90f, 270f };
+
     private Dictionary<Vector2Int, GeneratedRoom> generatedRooms = new Dictionary<Vector2Int, GeneratedRoom>();
     private List<GeneratedRoom> spawnedRoomList = new List<GeneratedRoom>();
+    private List<GameObject> spawnedSlotList = new List<GameObject>();
     private MapGizmoDrawer gizmoDrawer;
 
     private Vector2Int? spawnedBusGridPos = null;
     private int spawnedBusDirection = -1;
 
     public List<GeneratedRoom> GetSpawnedRooms() => spawnedRoomList;
+    public List<GameObject> GetSpawnedSlots() => spawnedSlotList;
     public Vector2Int? GetBusGridPos() => spawnedBusGridPos;
     public int GetBusDirection() => spawnedBusDirection;
+    public int CurrentMapQuota => currentMapQuota;
 
-    void Awake()
+    private void Awake()
     {
         gizmoDrawer = GetComponent<MapGizmoDrawer>();
     }
 
-    void Start()
+    private void Start()
     {
         GenerateMap();
     }
@@ -74,7 +156,7 @@ public class MapGenerator : MonoBehaviour
 
         if (!success)
         {
-            Debug.LogWarning($"[MAP] Œx: Å‘åƒŠƒgƒ‰ƒC‰ñ”({maxRetryCount})ˆÈ“à‚É–Ú•W”({targetRoomCount})‚Ì¶¬‚ª‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½BiŒ»İ‚Ì¶¬”: {spawnedRoomList.Count}j");
+            Debug.LogWarning($"[MAP] è­¦å‘Š: æœ€å¤§ãƒªãƒˆãƒ©ã‚¤å›æ•°({maxRetryCount})ä»¥å†…ã«ç›®æ¨™æ•°({targetRoomCount})ã®ç”ŸæˆãŒã§ãã¾ã›ã‚“ã§ã—ãŸã€‚ï¼ˆç¾åœ¨ã®ç”Ÿæˆæ•°: {spawnedRoomList.Count}ï¼‰");
         }
     }
 
@@ -86,6 +168,7 @@ public class MapGenerator : MonoBehaviour
         }
         generatedRooms.Clear();
         spawnedRoomList.Clear();
+        spawnedSlotList.Clear();
         spawnedBusGridPos = null;
         spawnedBusDirection = -1;
         if (gizmoDrawer != null) gizmoDrawer.Clear();
@@ -130,7 +213,7 @@ public class MapGenerator : MonoBehaviour
 
             if (!generatedRooms.ContainsKey(currentGrid))
             {
-                Vector3 worldPos = new Vector3(currentGrid.x * tileSize, 0, currentGrid.y * tileSize);
+                Vector3 worldPos = new Vector3(currentGrid.x * tileSize, 0f, currentGrid.y * tileSize);
                 GeneratedRoom newRoom = new GeneratedRoom
                 {
                     gridPos = currentGrid,
@@ -146,7 +229,7 @@ public class MapGenerator : MonoBehaviour
                 generatedRooms[currentGrid] = newRoom;
                 spawnedRoomList.Add(newRoom);
 
-                Quaternion spawnRotation = Quaternion.Euler(-90f, result.angle, 0f);
+                Quaternion spawnRotation = Quaternion.Euler(roomChipBasePitch, result.angle, 0f);
                 Instantiate(result.chip.chipPrefab, worldPos, spawnRotation, transform);
 
                 if (spawnedRoomList.Count >= targetRoomCount) break;
@@ -173,35 +256,225 @@ public class MapGenerator : MonoBehaviour
 
         if (spawnedRoomList.Count >= targetRoomCount)
         {
-            // 1. ‚Ü‚¸ƒoƒX‚ğ¶¬‚·‚éi‚±‚ê‚É‚æ‚è spawnedBusGridPos ‚ªŠm’è‚µ‚Ü‚·j
             SpawnBusAtOuterDoor();
-
-            // 2. ‚»‚ÌŒãAƒoƒXü•Ó‚Ì•”‰®‚ğœŠO‚µ‚ÄƒXƒNƒ‰ƒbƒv‚ğ”z’u‚·‚é
+            SpawnSlotMachines();
             SpawnRandomScraps();
-
             UpdateGizmoDrawer();
-            Debug.Log($"[MAP] ƒ}ƒbƒv¶¬¬Œ÷I (¶¬”: {spawnedRoomList.Count}ŒÂ)");
+            Debug.Log($"[MAP] ãƒãƒƒãƒ—ç”ŸæˆæˆåŠŸï¼ (ç”Ÿæˆæ•°: {spawnedRoomList.Count}å€‹)");
             return true;
         }
 
         return false;
     }
 
-    // ƒmƒ‹ƒ}‹àŠz‚Ì2.5”{‘Š“–‚ÌƒXƒNƒ‰ƒbƒv‚ğAƒoƒXü•Ó‚ğœ‚¢‚½•”‰®‚Ì°–Ê‚ÉãY—í‚É”z’u‚·‚éƒƒ\ƒbƒh
+    private void SpawnSlotMachines()
+    {
+        if (slotCandidates == null || slotCandidates.Count == 0) return;
+
+        int maxCount = Mathf.Max(minSlotCountPerMap, maxSlotCountPerMap);
+        int targetSlotCount = Random.Range(minSlotCountPerMap, maxCount + 1);
+        if (targetSlotCount <= 0) return;
+
+        List<GeneratedRoom> normalEligibleRooms = new List<GeneratedRoom>();
+        List<GeneratedRoom> deadEndEligibleRooms = new List<GeneratedRoom>();
+
+        foreach (var room in spawnedRoomList)
+        {
+            if (!IsRoomEligibleForSlot(room, out int doorCount)) continue;
+
+            if (doorCount == 1)
+            {
+                deadEndEligibleRooms.Add(room);
+            }
+            else
+            {
+                normalEligibleRooms.Add(room);
+            }
+        }
+
+        ShuffleList(deadEndEligibleRooms);
+        ShuffleList(normalEligibleRooms);
+
+        List<GeneratedRoom> orderedCandidateRooms = new List<GeneratedRoom>();
+        if (prioritizeDeadEndRooms)
+        {
+            orderedCandidateRooms.AddRange(deadEndEligibleRooms);
+            orderedCandidateRooms.AddRange(normalEligibleRooms);
+        }
+        else
+        {
+            orderedCandidateRooms.AddRange(deadEndEligibleRooms);
+            orderedCandidateRooms.AddRange(normalEligibleRooms);
+            ShuffleList(orderedCandidateRooms);
+        }
+
+        int spawnedCount = 0;
+
+        foreach (var room in orderedCandidateRooms)
+        {
+            if (spawnedCount >= targetSlotCount) break;
+            if (Random.value > roomSlotSpawnChance) continue;
+
+            // æ‰‰ãŒå­˜åœ¨ã—ãªã„å£é¢ï¼ˆ0:ä¸Šå£, 1:ä¸‹å£, 2:å·¦å£, 3:å³å£ï¼‰ã‚’æŠ½å‡º
+            List<int> availableWalls = GetAvailableWallsInRoom(room);
+            ShuffleList(availableWalls);
+
+            int slotsInThisRoom = 0;
+            foreach (int wallDir in availableWalls)
+            {
+                if (spawnedCount >= targetSlotCount || slotsInThisRoom >= maxSlotsPerRoom) break;
+
+                SlotSpawnCandidate candidate = ChooseRandomSlotCandidate();
+                if (candidate == null || candidate.slotPrefab == null) continue;
+
+                CalculateWallSlotTransform(room, wallDir, candidate.slotPrefab.transform.localRotation, out Vector3 spawnPos, out Quaternion spawnRot);
+
+                GameObject slotInstance = Instantiate(candidate.slotPrefab, spawnPos, spawnRot, transform);
+                spawnedSlotList.Add(slotInstance);
+
+                spawnedCount++;
+                slotsInThisRoom++;
+            }
+        }
+
+        Debug.Log($"[MAP] ã‚¹ãƒ­ãƒƒãƒˆãƒã‚·ãƒ³é…ç½®å®Œäº†: {spawnedCount} / {targetSlotCount} å°");
+    }
+
+    private bool IsRoomEligibleForSlot(GeneratedRoom room, out int doorCount)
+    {
+        doorCount = (room.topDoor ? 1 : 0)
+                  + (room.bottomDoor ? 1 : 0)
+                  + (room.leftDoor ? 1 : 0)
+                  + (room.rightDoor ? 1 : 0);
+
+        // å››æ–¹ã™ã¹ã¦ãŒæ‰‰ã®åå­—è·¯ã¯å£é¢ãŒãªã„ãŸã‚é™¤å¤–
+        if (doorCount >= CardinalDirectionCount) return false;
+
+        if (excludeStartRoomForSlot && room.gridPos == Vector2Int.zero) return false;
+
+        if (spawnedBusGridPos.HasValue)
+        {
+            if (excludeBusRoomForSlot && room.gridPos == spawnedBusGridPos.Value) return false;
+
+            int manhattanDist = Mathf.Abs(room.gridPos.x - spawnedBusGridPos.Value.x)
+                              + Mathf.Abs(room.gridPos.y - spawnedBusGridPos.Value.y);
+            if (manhattanDist < minManhattanDistanceFromBus) return false;
+        }
+
+        return true;
+    }
+
+    private List<int> GetAvailableWallsInRoom(GeneratedRoom room)
+    {
+        List<int> walls = new List<int>(CardinalDirectionCount);
+        if (!room.topDoor) walls.Add(0);
+        if (!room.bottomDoor) walls.Add(1);
+        if (!room.leftDoor) walls.Add(2);
+        if (!room.rightDoor) walls.Add(3);
+        return walls;
+    }
+
+    private void CalculateWallSlotTransform(GeneratedRoom room, int wallDir, Quaternion prefabBaseRot, out Vector3 finalPos, out Quaternion finalRot)
+    {
+        Vector3 wallDirVec = Vector3.zero;
+        Vector3 lateralDirVec = Vector3.zero;
+
+        switch (wallDir)
+        {
+            case 0: // ä¸Šå£ï¼ˆåŒ—å£ï¼‰â” å—ï¼ˆéƒ¨å±‹å†…å´ï¼‰ã‚’å‘ã
+                wallDirVec = Vector3.forward;
+                lateralDirVec = Vector3.right;
+                break;
+            case 1: // ä¸‹å£ï¼ˆå—å£ï¼‰â” åŒ—ï¼ˆéƒ¨å±‹å†…å´ï¼‰ã‚’å‘ã
+                wallDirVec = Vector3.back;
+                lateralDirVec = Vector3.right;
+                break;
+            case 2: // å·¦å£ï¼ˆè¥¿å£ï¼‰â” æ±ï¼ˆéƒ¨å±‹å†…å´ï¼‰ã‚’å‘ã
+                wallDirVec = Vector3.left;
+                lateralDirVec = Vector3.forward;
+                break;
+            case 3: // å³å£ï¼ˆæ±å£ï¼‰â” è¥¿ï¼ˆéƒ¨å±‹å†…å´ï¼‰ã‚’å‘ã
+                wallDirVec = Vector3.right;
+                lateralDirVec = Vector3.forward;
+                break;
+        }
+
+        float wallDistance = tileSize * slotWallDistanceRatio;
+        float maxLateralSpread = tileSize * slotWallLateralSpreadRatio;
+        float lateralOffset = Random.Range(-maxLateralSpread, maxLateralSpread);
+
+        Vector3 horizontalPos = room.worldPos + (wallDirVec * wallDistance) + (lateralDirVec * lateralOffset);
+
+        Vector3 rayOrigin = horizontalPos + Vector3.up * slotRaycastStartHeight;
+        finalPos = horizontalPos + Vector3.up * slotFloorHeightOffset;
+
+        if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, slotRaycastDistance))
+        {
+            finalPos = hit.point + Vector3.up * slotFloorHeightOffset;
+        }
+
+        float inwardYaw = WallInwardYawAngles[Mathf.Clamp(wallDir, 0, WallInwardYawAngles.Length - 1)];
+        Quaternion worldYawRotation = Quaternion.Euler(0f, inwardYaw + slotRotationYawOffset, 0f);
+
+        // ãƒ—ãƒ¬ãƒãƒ–è‡ªä½“ãŒæŒã¤åˆæœŸå›è»¢ï¼ˆZ=90ãªã©ï¼‰ã‚’ç¶­æŒã—ãŸã¾ã¾éƒ¨å±‹ã®çœŸã‚“ä¸­ã¸å‘ã‘ã‚‹
+        finalRot = worldYawRotation * prefabBaseRot;
+    }
+
+    private SlotSpawnCandidate ChooseRandomSlotCandidate()
+    {
+        float totalWeight = 0f;
+        for (int i = 0; i < slotCandidates.Count; i++)
+        {
+            if (slotCandidates[i].slotPrefab != null)
+            {
+                totalWeight += Mathf.Max(0f, slotCandidates[i].spawnWeight);
+            }
+        }
+
+        if (totalWeight <= 0f)
+        {
+            return slotCandidates[Random.Range(0, slotCandidates.Count)];
+        }
+
+        float roll = Random.Range(0f, totalWeight);
+        float cumulative = 0f;
+
+        for (int i = 0; i < slotCandidates.Count; i++)
+        {
+            if (slotCandidates[i].slotPrefab == null) continue;
+
+            cumulative += Mathf.Max(0f, slotCandidates[i].spawnWeight);
+            if (roll <= cumulative)
+            {
+                return slotCandidates[i];
+            }
+        }
+
+        return slotCandidates[slotCandidates.Count - 1];
+    }
+
+    private void ShuffleList<T>(List<T> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            T temp = list[i];
+            list[i] = list[j];
+            list[j] = temp;
+        }
+    }
+
     private void SpawnRandomScraps()
     {
         if (scrapDataList == null || scrapDataList.Count == 0) return;
 
-        // –Ú•W‘‰¿’l = ƒmƒ‹ƒ}‹àŠz ~ 2.5”{
         float targetTotalValue = currentMapQuota * quotaMultiplier;
         float currentTotalValue = 0f;
 
-        // š ƒoƒX‚ª¶¬‚³‚ê‚½•”‰®A‚¨‚æ‚ÑƒXƒ^[ƒg•”‰®(0,0)ˆÈŠO‚Ì•”‰®‚ğŒó•â‚É‚·‚é
         List<GeneratedRoom> availableRooms = spawnedRoomList.FindAll(r =>
             r.gridPos != Vector2Int.zero && (!spawnedBusGridPos.HasValue || r.gridPos != spawnedBusGridPos.Value)
         );
 
-        // ‚à‚µœŠO‚µ‚½Œ‹‰ÊŒó•â‚ª‚È‚­‚È‚Á‚Ä‚µ‚Ü‚Á‚½ê‡‚ÌƒtƒH[ƒ‹ƒoƒbƒN
         if (availableRooms.Count == 0)
         {
             availableRooms = spawnedRoomList.FindAll(r => r.gridPos != Vector2Int.zero);
@@ -209,30 +482,25 @@ public class MapGenerator : MonoBehaviour
         }
 
         int safetyCounter = 0;
-        int maxLoop = 300; // –³ŒÀƒ‹[ƒv–h~
+        float maxOffset = tileSize * scrapSpawnAreaRatio;
 
-        while (currentTotalValue < targetTotalValue && safetyCounter < maxLoop)
+        while (currentTotalValue < targetTotalValue && safetyCounter < maxScrapSpawnIterations)
         {
             safetyCounter++;
 
-            // ƒ‰ƒ“ƒ_ƒ€‚È•”‰®‚ğ‘I‘ğ
             GeneratedRoom targetRoom = availableRooms[Random.Range(0, availableRooms.Count)];
 
-            // •”‰®‚Ì”ÍˆÍ“à‚Åƒ‰ƒ“ƒ_ƒ€‚ÈƒIƒtƒZƒbƒgi•Ç‚Ö‚Ì‚ß‚è‚İ‚ğ–h‚®‚½‚ß’†SŠñ‚è‚É’²®j
-            float offsetX = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
-            float offsetZ = Random.Range(-tileSize * 0.35f, tileSize * 0.35f);
+            float offsetX = Random.Range(-maxOffset, maxOffset);
+            float offsetZ = Random.Range(-maxOffset, maxOffset);
 
-            // ã‹ó5m‚©‚ç‰º‚ÉŒü‚¯‚ÄƒŒƒCƒLƒƒƒXƒg‚ğ”ò‚Î‚µAÀÛ‚Ìu°‚Ì‚‚³v‚ğ³Šm‚Éæ“¾‚·‚é
-            Vector3 rayOrigin = targetRoom.worldPos + new Vector3(offsetX, 5.0f, offsetZ);
-            Vector3 finalSpawnPos = targetRoom.worldPos + new Vector3(offsetX, 0.5f, offsetZ); // ƒtƒH[ƒ‹ƒoƒbƒN—p
+            Vector3 rayOrigin = targetRoom.worldPos + new Vector3(offsetX, scrapRaycastStartHeight, offsetZ);
+            Vector3 finalSpawnPos = targetRoom.worldPos + new Vector3(offsetX, scrapFallbackSpawnHeight, offsetZ);
 
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 10f))
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, scrapRaycastDistance))
             {
-                // °‚Ì•\–Ê‚©‚ç­‚µ‚¾‚¯ã‚É•‚‚©‚¹‚Ä”z’ui–„‚Ü‚èE•‚‚«‚ğ–h~j
-                finalSpawnPos = hit.point + new Vector3(0f, 0.1f, 0f);
+                finalSpawnPos = hit.point + Vector3.up * scrapSurfaceOffsetHeight;
             }
 
-            // ƒ‰ƒ“ƒ_ƒ€‚ÉƒXƒNƒ‰ƒbƒvƒf[ƒ^‚ğ‘I‘ğ
             ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
 
             GameObject prefabToUse = randomScrapData.ItemPrefab;
@@ -240,20 +508,19 @@ public class MapGenerator : MonoBehaviour
 
             if (prefabToUse != null)
             {
-                scrapObj = Instantiate(prefabToUse, finalSpawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0), transform);
+                Quaternion randomYaw = Quaternion.Euler(0f, Random.Range(0f, FullCircleDegrees), 0f);
+                scrapObj = Instantiate(prefabToUse, finalSpawnPos, randomYaw, transform);
             }
             else
             {
-                // ƒvƒŒƒnƒu‚ª‚È‚¢ê‡‚ÌƒtƒH[ƒ‹ƒoƒbƒN—pƒLƒ…[ƒu
                 scrapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 scrapObj.transform.position = finalSpawnPos;
-                scrapObj.transform.localScale = Vector3.one * 0.4f;
+                scrapObj.transform.localScale = Vector3.one * fallbackCubeScale;
                 scrapObj.AddComponent<Rigidbody>();
                 scrapObj.AddComponent<BoxCollider>();
                 scrapObj.transform.SetParent(transform);
             }
 
-            // ItemƒRƒ“ƒ|[ƒlƒ“ƒg‚Ìİ’è
             Item worldItem = scrapObj.GetComponent<Item>();
             if (worldItem == null)
             {
@@ -261,21 +528,19 @@ public class MapGenerator : MonoBehaviour
             }
             worldItem.SetItemData(randomScrapData);
 
-            // ItemDataAsset ‚Ì Amounti‰¿Šij‚ğ‘‰¿’l‚É‰ÁZ
-            int itemVal = randomScrapData.Amount > 0 ? randomScrapData.Amount : 50;
+            int itemVal = randomScrapData.Amount > 0 ? randomScrapData.Amount : defaultFallbackScrapValue;
             currentTotalValue += itemVal;
         }
 
-        Debug.Log($"[MAP] ƒmƒ‹ƒ}˜A“®ƒXƒNƒ‰ƒbƒv”z’uŠ®—¹iƒoƒXü•ÓœŠOjI –Ú•W‰¿’l: {targetTotalValue}, ¶¬‘‰¿’l: {currentTotalValue}");
+        Debug.Log($"[MAP] ãƒãƒ«ãƒé€£å‹•ã‚¹ã‚¯ãƒ©ãƒƒãƒ—é…ç½®å®Œäº†ï¼ˆãƒã‚¹å‘¨è¾ºé™¤å¤–ï¼‰ï¼ ç›®æ¨™ä¾¡å€¤: {targetTotalValue}, ç”Ÿæˆç·ä¾¡å€¤: {currentTotalValue}");
     }
 
-    // w’è‚µ‚½ƒ[ƒ‹ƒhÀ•WiƒoƒX‚Ì¶¬ˆÊ’uj‚ÉƒvƒŒƒCƒ„[‚ğ‹­§ˆÚ“®‚³‚¹‚éƒƒ\ƒbƒh
     private void SpawnPlayerAtPosition(Vector3 targetPosition)
     {
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player == null)
         {
-            Debug.LogWarning("[MAP] ƒV[ƒ““à‚É PlayerController ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ‚Å‚µ‚½I");
+            Debug.LogWarning("[MAP] ã‚·ãƒ¼ãƒ³å†…ã« PlayerController ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã§ã—ãŸï¼");
             return;
         }
 
@@ -291,7 +556,7 @@ public class MapGenerator : MonoBehaviour
             player.transform.position = targetPosition;
         }
 
-        Debug.Log($"[MAP] ƒvƒŒƒCƒ„[‚ğƒoƒX‚Ì¶¬ˆÊ’u ({targetPosition}) ‚ÉƒXƒ|[ƒ“‚³‚¹‚Ü‚µ‚½B");
+        Debug.Log($"[MAP] ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’ãƒã‚¹ã®ç”Ÿæˆä½ç½® ({targetPosition}) ã«ã‚¹ãƒãƒ¼ãƒ³ã•ã›ã¾ã—ãŸã€‚");
     }
 
     private void UpdateGizmoDrawer()
@@ -319,43 +584,107 @@ public class MapGenerator : MonoBehaviour
     {
         if (busPrefab == null) return;
 
+        int minX = int.MaxValue, maxX = int.MinValue;
+        int minY = int.MaxValue, maxY = int.MinValue;
+
+        foreach (var room in spawnedRoomList)
+        {
+            if (room.gridPos.x < minX) minX = room.gridPos.x;
+            if (room.gridPos.x > maxX) maxX = room.gridPos.x;
+            if (room.gridPos.y < minY) minY = room.gridPos.y;
+            if (room.gridPos.y > maxY) maxY = room.gridPos.y;
+        }
+
         List<(GeneratedRoom room, Vector3 pos, Quaternion rot, int dir)> busCandidates = new List<(GeneratedRoom, Vector3, Quaternion, int)>();
 
         foreach (var room in spawnedRoomList)
         {
-            bool isTopEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.up);
-            bool isBottomEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.down);
-            bool isLeftEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.left);
-            bool isRightEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.right);
+            if (room.gridPos == Vector2Int.zero) continue;
 
-            if (isTopEdge && room.topDoor)
+            bool isOuterEdge = (room.gridPos.x == minX || room.gridPos.x == maxX ||
+                                room.gridPos.y == minY || room.gridPos.y == maxY);
+            if (!isOuterEdge) continue;
+
+            int neighborCount = 0;
+            if (generatedRooms.ContainsKey(room.gridPos + Vector2Int.up)) neighborCount++;
+            if (generatedRooms.ContainsKey(room.gridPos + Vector2Int.down)) neighborCount++;
+            if (generatedRooms.ContainsKey(room.gridPos + Vector2Int.left)) neighborCount++;
+            if (generatedRooms.ContainsKey(room.gridPos + Vector2Int.right)) neighborCount++;
+
+            if (neighborCount < minNeighborsForBusRoom) continue;
+
+            AddOuterDoorBusCandidates(room, busCandidates);
+        }
+
+        if (busCandidates.Count == 0)
+        {
+            foreach (var room in spawnedRoomList)
             {
-                busCandidates.Add((room, room.worldPos + Vector3.forward * busOffsetDistance, Quaternion.Euler(0, 0, 0), 0));
-            }
-            if (isBottomEdge && room.bottomDoor)
-            {
-                busCandidates.Add((room, room.worldPos + Vector3.back * busOffsetDistance, Quaternion.Euler(0, 180, 0), 1));
-            }
-            if (isLeftEdge && room.leftDoor)
-            {
-                busCandidates.Add((room, room.worldPos + Vector3.left * busOffsetDistance, Quaternion.Euler(0, 270, 0), 2));
-            }
-            if (isRightEdge && room.rightDoor)
-            {
-                busCandidates.Add((room, room.worldPos + Vector3.right * busOffsetDistance, Quaternion.Euler(0, 90, 0), 3));
+                if (room.gridPos == Vector2Int.zero) continue;
+
+                bool isOuterEdge = (room.gridPos.x == minX || room.gridPos.x == maxX ||
+                                    room.gridPos.y == minY || room.gridPos.y == maxY);
+                if (!isOuterEdge) continue;
+
+                AddOuterDoorBusCandidates(room, busCandidates);
             }
         }
 
         if (busCandidates.Count > 0)
         {
-            var selected = busCandidates[Random.Range(0, busCandidates.Count)];
-            Instantiate(busPrefab, selected.pos, selected.rot, transform);
+            (GeneratedRoom room, Vector3 pos, Quaternion rot, int dir) bestCandidate = busCandidates[0];
+            float maxDist = -1f;
 
-            spawnedBusGridPos = selected.room.gridPos;
-            spawnedBusDirection = selected.dir;
+            foreach (var candidate in busCandidates)
+            {
+                float dist = Vector3.Distance(Vector3.zero, candidate.room.worldPos);
+                if (dist > maxDist)
+                {
+                    maxDist = dist;
+                    bestCandidate = candidate;
+                }
+            }
 
-            // ƒoƒX‚ª¶¬‚³‚ê‚½ˆÊ’u‚©‚ç­‚µ•‚‚©‚¹‚½À•W‚ÉƒvƒŒƒCƒ„[‚ğƒXƒ|[ƒ“‚³‚¹‚é
-            SpawnPlayerAtPosition(selected.pos + new Vector3(0f, 1f, 0f));
+            Instantiate(busPrefab, bestCandidate.pos, bestCandidate.rot, transform);
+
+            spawnedBusGridPos = bestCandidate.room.gridPos;
+            spawnedBusDirection = bestCandidate.dir;
+
+            SpawnPlayerAtPosition(bestCandidate.pos + playerSpawnOffsetFromBus);
+            Debug.Log($"[ãƒã‚¹ç”Ÿæˆ] æœ€å¤–å‘¨ã®å®‰å®šã—ãŸåº§æ¨™: {bestCandidate.room.gridPos} ã«ãƒã‚¹ã‚’é…ç½®ã—ã¾ã—ãŸã€‚");
+        }
+        else
+        {
+            Debug.LogWarning("[ãƒã‚¹ç”Ÿæˆ] æ¡ä»¶ã‚’æº€ãŸã™ãƒã‚¹ã®é…ç½®ä½ç½®ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã§ã—ãŸã€‚");
+        }
+    }
+
+    private void AddOuterDoorBusCandidates(GeneratedRoom room, List<(GeneratedRoom room, Vector3 pos, Quaternion rot, int dir)> busCandidates)
+    {
+        bool isTopEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.up);
+        bool isBottomEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.down);
+        bool isLeftEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.left);
+        bool isRightEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.right);
+
+        if (isTopEdge && room.topDoor)
+        {
+            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[1] + busYRotationOffset, 0f);
+            busCandidates.Add((room, room.worldPos + Vector3.forward * busOffsetDistance, rot, 0));
+        }
+        if (isBottomEdge && room.bottomDoor)
+        {
+            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[0] + busYRotationOffset, 0f);
+            busCandidates.Add((room, room.worldPos + Vector3.back * busOffsetDistance, rot, 1));
+        }
+        if (isLeftEdge && room.leftDoor)
+        {
+            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[3] + busYRotationOffset, 0f);
+            busCandidates.Add((room, room.worldPos + Vector3.left * busOffsetDistance, rot, 2));
+        }
+        if (isRightEdge && room.rightDoor)
+        {
+            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[2] + busYRotationOffset, 0f);
+            busCandidates.Add((room, room.worldPos + Vector3.right * busOffsetDistance, rot, 3));
         }
     }
 
@@ -367,7 +696,7 @@ public class MapGenerator : MonoBehaviour
 
         foreach (var chip in allMapChips)
         {
-            int[] angles = chip.allowRotation ? new int[] { 0, 90, 180, 270 } : new int[] { 0 };
+            int[] angles = chip.allowRotation ? AllowedRotationAngles : NonRotatedAngles;
 
             foreach (int angle in angles)
             {
@@ -392,7 +721,7 @@ public class MapGenerator : MonoBehaviour
         bool l = chip.hasLeftDoor;
         bool r = chip.hasRightDoor;
 
-        int rotations = (angle / 90) % 4;
+        int rotations = (angle / RightAngleDegrees) % CardinalDirectionCount;
         for (int i = 0; i < rotations; i++)
         {
             bool temp = t;
