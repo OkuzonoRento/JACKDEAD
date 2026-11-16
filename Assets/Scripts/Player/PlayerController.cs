@@ -11,17 +11,25 @@ public class PlayerController : MonoBehaviour
 
     [Header("投擲設定")]
     [SerializeField, Tooltip("アイテムを投げる際の基準となる勢い（重さで割られます）")]
-    private float baseThrowForce = 3.5f; // ← インスペクターから変更可能になりました！
+    private float baseThrowForce = 3.5f;
+
+    [Header("正気度・クリア時回復設定")]
+    [SerializeField, Tooltip("1秒あたりの基本正気度減少量")]
+    private float sanityDrainPerSecond = 0.15f;
+    [SerializeField, Tooltip("各マップクリア時に回復する正気度（Sanity）の量")]
+    private float sanityRecoveryOnClear = 20f;
 
     private float _health;
     private float _sanity;
     private float _dopamine;
     private float _stamina;
 
-    private float _maxHealth;
-    private float _maxSanity;
-    private float _maxDopamine;
-    private float _maxStamina;
+    private float _maxHealth = 100f;
+    private float _maxSanity = 100f;
+    private float _maxDopamine = 100f;
+    private float _maxStamina = 100f;
+
+    private bool pauseSanityDrain = false;
 
     [Header("インベントリ (所持アイテム)")]
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
@@ -34,7 +42,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private int selectedSlotIndex = 0;
     public int SelectedSlotIndex => selectedSlotIndex;
 
-    // 外部（PlayerMovementやPlayerInteraction）から参照できるようにプロパティとして公開
     public InputActionAsset PlayerInputActionsAsset => playerInputActions;
 
     private InputAction slot1Action;
@@ -45,6 +52,11 @@ public class PlayerController : MonoBehaviour
     public float Sanity => _sanity;
     public float Dopamine => _dopamine;
     public float Stamina => _stamina;
+
+    public float MaxHealth => _maxHealth;
+    public float MaxSanity => _maxSanity;
+    public float MaxDopamine => _maxDopamine;
+    public float MaxStamina => _maxStamina;
 
     private void Awake()
     {
@@ -105,11 +117,18 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        ConsumeSanity(Time.deltaTime * 0.15f);
+        if (!pauseSanityDrain)
+        {
+            ConsumeSanity(Time.deltaTime * sanityDrainPerSecond);
+        }
         HandleSlotSelectionInput();
     }
 
-    // --- スロット選択 (数字キー ＆ マウスホイール) ---
+    public void SetPauseSanityDrain(bool pause)
+    {
+        pauseSanityDrain = pause;
+    }
+
     private void HandleSlotSelectionInput()
     {
         if (slot1Action != null && slot1Action.triggered) SelectSlot(0);
@@ -142,7 +161,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // --- Qキー：アイテム投擲 ---
     public void DropSelectedInventoryItem(Transform cameraTransform)
     {
         if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
@@ -166,7 +184,6 @@ public class PlayerController : MonoBehaviour
             Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
             if (rb == null) rb = droppedObj.AddComponent<Rigidbody>();
 
-            // インスペクターで設定した変数（baseThrowForce）を使用します
             float weightFactor = Mathf.Max(0.1f, itemDataToDrop.ItemWeight);
             float throwForce = baseThrowForce / weightFactor;
 
@@ -184,7 +201,6 @@ public class PlayerController : MonoBehaviour
         SaveInventoryToData();
     }
 
-    // --- Eキー：アイテム使用 ---
     public void UseSelectedInventoryItem()
     {
         if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
@@ -197,7 +213,6 @@ public class PlayerController : MonoBehaviour
         SaveInventoryToData();
     }
 
-    // --- インベントリに空きがあるかチェック ---
     public bool HasInventorySpace()
     {
         if (Inventory == null) return false;
@@ -208,33 +223,27 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    // --- アイテムを拾ってインベントリに格納する ---
     public bool TryAddItem(ItemDataAsset itemData)
     {
         if (itemData == null || Inventory == null) return false;
 
-        // 1. 現在選択中のスロットが空いていれば優先して入れる
         if (selectedSlotIndex >= 0 && selectedSlotIndex < Inventory.Length && Inventory[selectedSlotIndex] == null)
         {
             Inventory[selectedSlotIndex] = itemData;
             SaveInventoryToData();
-            Debug.Log($"[インベントリ] 選択中スロット [{selectedSlotIndex + 1}] に {itemData.ItemName} を格納しました！");
             return true;
         }
 
-        // 2. 空いていなければ、先頭から空いているスロットを探して入れる
         for (int i = 0; i < Inventory.Length; i++)
         {
             if (Inventory[i] == null)
             {
                 Inventory[i] = itemData;
                 SaveInventoryToData();
-                Debug.Log($"[インベントリ] スロット [{i + 1}] に {itemData.ItemName} を格納しました！");
                 return true;
             }
         }
 
-        Debug.LogWarning("[インベントリ] 満杯のため拾えません！");
         return false;
     }
 
@@ -253,7 +262,7 @@ public class PlayerController : MonoBehaviour
 
     public void ConsumeSanity(float amount)
     {
-        if (amount <= 0) return;
+        if (amount <= 0f) return;
         if (_dopamine > 0f)
         {
             float consumeDopamine = Mathf.Min(_dopamine, amount);
@@ -264,6 +273,33 @@ public class PlayerController : MonoBehaviour
         else
         {
             _sanity = Mathf.Max(0f, _sanity - amount);
+        }
+    }
+
+    /// <summary>
+    /// クリア精算時にインベントリ内のアイテムをすべて空にして保存する
+    /// </summary>
+    public void ClearAllInventoryItems()
+    {
+        if (Inventory == null) return;
+        for (int i = 0; i < Inventory.Length; i++)
+        {
+            Inventory[i] = null;
+        }
+        SaveInventoryToData();
+    }
+
+    /// <summary>
+    /// ステージクリア時の正気度回復と進行データ保存
+    /// </summary>
+    public void OnStageCleared(int repaidQuota)
+    {
+        _sanity = Mathf.Clamp(_sanity + sanityRecoveryOnClear, 0f, _maxSanity);
+
+        if (PlayerData != null)
+        {
+            PlayerData.TotalRepaidDebt += repaidQuota;
+            PlayerData.CurrentStageLevel += 1;
         }
     }
 

@@ -20,12 +20,12 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
+  m_AmbientSkyColor: {r: 0, g: 0, b: 0, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
-  m_AmbientIntensity: 1
-  m_AmbientMode: 0
-  m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
+  m_AmbientIntensity: 0
+  m_AmbientMode: 3
+  m_SubtractiveShadowColor: {r: 0, g: 0, b: 0, a: 1}
   m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
@@ -35,7 +35,7 @@ RenderSettings:
   m_DefaultReflectionMode: 0
   m_DefaultReflectionResolution: 128
   m_ReflectionBounces: 1
-  m_ReflectionIntensity: 1
+  m_ReflectionIntensity: 0
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
   m_UseRadianceAmbientProbe: 0
@@ -93,7 +93,7 @@ LightmapSettings:
     m_ExportTrainingData: 0
     m_TrainingDataDestination: TrainingData
     m_LightProbeSampleCountMultiplier: 4
-  m_LightingDataAsset: {fileID: 20201, guid: 0000000000000000f000000000000000, type: 0}
+  m_LightingDataAsset: {fileID: 112000000, guid: 7d20f970ce473d449b64525ddaab8057, type: 2}
   m_LightingSettings: {fileID: 0}
 --- !u!196 &4
 NavMeshSettings:
@@ -924,7 +924,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 410087041}
   m_Father: {fileID: 2574542091673538010}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &330585547
@@ -1073,12 +1074,12 @@ Light:
   m_GameObject: {fileID: 410087039}
   m_Enabled: 1
   serializedVersion: 12
-  m_Type: 1
+  m_Type: 0
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 2
-  m_Range: 10
-  m_SpotAngle: 30
-  m_InnerSpotAngle: 21.80208
+  m_Intensity: 4
+  m_Range: 20
+  m_SpotAngle: 70
+  m_InnerSpotAngle: 40
   m_CookieSize2D: {x: 10, y: 10}
   m_Shadows:
     m_Type: 2
@@ -1137,13 +1138,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+  m_Father: {fileID: 330585546}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &410087042
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1397,6 +1398,96 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &515059203
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 515059207}
+  - component: {fileID: 515059206}
+  - component: {fileID: 515059205}
+  m_Layer: 0
+  m_Name: Cube
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!23 &515059205
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515059203}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 52123be0167ce6c4fad9e6203f6798bf, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &515059206
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515059203}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!4 &515059207
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515059203}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 500, y: 500, z: 500}
+  m_ConstrainProportionsScale: 1
+  m_Children: []
+  m_Father: {fileID: 2574542091673538010}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &571069791
 GameObject:
   m_ObjectHideFlags: 0
@@ -1998,7 +2089,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.2509804}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3189,46 +3280,27 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 7e6ef1e99e607374a9a10361ac8f945b, type: 2}
   targetRoomCount: 10
   tileSize: 20
-  roomChipBasePitch: -90
   maxRetryCount: 50
   busPrefab: {fileID: 1492566407503128558, guid: 7ec228188afd7b6448696607b58225ec, type: 3}
   busOffsetDistance: 20
   busYRotationOffset: -90
-  minNeighborsForBusRoom: 2
-  playerSpawnOffsetFromBus: {x: 0, y: 1, z: 0}
-  currentMapQuota: 1000
+  currentStageLevel: 1
+  currentMapQuota: 100
   quotaMultiplier: 2.5
+  quotaGrowthRate: 1.5
+  slotCandidates:
+  - variantName: DEMO
+    slotPrefab: {fileID: 8257188973034071042, guid: 0a7c909b45789e344998e09b37c16ed2, type: 3}
+    spawnWeight: 1
+  minSlotCount: 2
+  maxSlotCount: 4
+  slotWallClearance: 2.2
+  slotRotationYawOffset: 0
   scrapDataList:
   - {fileID: 11400000, guid: 93646bb0b9c2d11439a92105631b8bc9, type: 2}
   - {fileID: 11400000, guid: 4d9678a17f274644295f374a64e3dbc2, type: 2}
   - {fileID: 11400000, guid: a3325ec62e6163d4b9526020461c23e7, type: 2}
   - {fileID: 11400000, guid: a325a75c90b37024784e621478d59c3e, type: 2}
-  maxScrapSpawnIterations: 300
-  scrapSpawnAreaRatio: 0.35
-  scrapRaycastStartHeight: 5
-  scrapRaycastDistance: 10
-  scrapFallbackSpawnHeight: 0.5
-  scrapSurfaceOffsetHeight: 0.1
-  fallbackCubeScale: 0.4
-  defaultFallbackScrapValue: 50
-  slotCandidates:
-  - variantName: DEMO
-    slotPrefab: {fileID: 8257188973034071042, guid: 0a7c909b45789e344998e09b37c16ed2, type: 3}
-    spawnWeight: 1
-  minSlotCountPerMap: 2
-  maxSlotCountPerMap: 4
-  maxSlotsPerRoom: 1
-  roomSlotSpawnChance: 0.75
-  excludeStartRoomForSlot: 1
-  excludeBusRoomForSlot: 1
-  minManhattanDistanceFromBus: 1
-  prioritizeDeadEndRooms: 1
-  slotWallDistanceRatio: 0.38
-  slotWallLateralSpreadRatio: 0.1
-  slotRotationYawOffset: 0
-  slotRaycastStartHeight: 5
-  slotRaycastDistance: 10
-  slotFloorHeightOffset: 0
 --- !u!4 &1871857289
 Transform:
   m_ObjectHideFlags: 0
@@ -3535,6 +3607,7 @@ Transform:
   m_Children:
   - {fileID: 188416179}
   - {fileID: 330585546}
+  - {fileID: 515059207}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6134311109476015887
@@ -3552,6 +3625,8 @@ MonoBehaviour:
   playerInputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   PlayerData: {fileID: 11400000, guid: 8a9f50bd145435d4a90377754a23a04e, type: 2}
   baseThrowForce: 1
+  sanityDrainPerSecond: 0.15
+  sanityRecoveryOnClear: 20
   Inventory:
   - {fileID: 0}
   - {fileID: 0}
@@ -3660,16 +3735,21 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 448
   cameraTransform: {fileID: 330585546}
+  reticleImage: {fileID: 957970150}
+  normalReticleColor: {r: 1, g: 1, b: 1, a: 0.14901961}
+  interactableReticleColor: {r: 0.9628533, g: 1, b: 0.2980392, a: 0.4}
   promptCanvasObj: {fileID: 263013780}
   promptRectTransform: {fileID: 1564616804}
   promptText: {fileID: 1564616805}
-  radialProgressBar: {fileID: 25519805}
   holdUIObj: {fileID: 445195746}
   holdUIRectTransform: {fileID: 445195747}
+  radialProgressBar: {fileID: 25519805}
   closeScale: 1.2
   farScale: 0.6
   scaleDistanceThreshold: 1.5
   promptWorldOffset: {x: 0, y: 0.75, z: 0}
+  defaultRequiredHoldTime: 0.5
+  slotButtonHoldTime: 0.2
 --- !u!114 &6510030111815441598
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3713,7 +3793,6 @@ MonoBehaviour:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 410087041}
   - {fileID: 832575519}
   - {fileID: 1871857289}
   - {fileID: 2574542091673538010}

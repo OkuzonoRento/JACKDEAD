@@ -22,4 +22,6 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  PlayerMoney: 97000
+  PlayerMoney: 0
+  CurrentStageLevel: 6
+  TotalRepaidDebt: 800

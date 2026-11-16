@@ -1,75 +1,117 @@
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
-using System.Collections.Generic;
 
 public class DisplayTextManager : MonoBehaviour
 {
     [Header("UI テキスト参照（3Dテキスト）")]
-    [SerializeField] private TextMeshPro quotaText;       // 本日のノルマ
-    [SerializeField] private TextMeshPro incomeText;      // 本日の収入
-    [SerializeField] private TextMeshPro remainingText;   // 残り返済額
+    [SerializeField] private TextMeshPro quotaText;
+    [SerializeField] private TextMeshPro incomeText;
+    [SerializeField] private TextMeshPro remainingText;
 
     private MapGenerator mapGenerator;
     private PlayerController playerController;
 
     // バスの中（トリガー内）にあるスクラップを管理するセット
-    private HashSet<Item> itemsInBus = new HashSet<Item>();
+    private readonly HashSet<Item> itemsInBus = new HashSet<Item>();
 
     // プレイヤーがバスのエリア内に入っているかどうか
     private bool isPlayerInBus = false;
 
-    void Start()
+    public bool IsPlayerInBus => isPlayerInBus;
+
+    private void Start()
     {
-        // プレハブからでもシーン上のマネージャーやプレイヤーを自動取得
         mapGenerator = FindAnyObjectByType<MapGenerator>();
         playerController = FindAnyObjectByType<PlayerController>();
     }
 
-    void Update()
+    private void Update()
     {
         UpdateQuotaUI();
     }
 
-    // === トリガーに入ったときの処理（スクラップ ＆ プレイヤー） ===
     private void OnTriggerEnter(Collider other)
     {
-        // 1. スクラップがバス内に入った場合
+        RegisterColliderInBus(other);
+    }
+
+    // バス内でQキー投擲されたアイテム（Instantiate後にItemが付与されるケース）も確実に拾う
+    private void OnTriggerStay(Collider other)
+    {
+        RegisterColliderInBus(other);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
         Item item = other.GetComponent<Item>();
+        if (item == null) item = other.GetComponentInParent<Item>();
+
         if (item != null)
         {
-            if (!itemsInBus.Contains(item))
-            {
-                itemsInBus.Add(item);
-            }
+            itemsInBus.Remove(item);
         }
 
-        // 2. プレイヤーがバス内に入った（乗った）場合
         PlayerController player = other.GetComponent<PlayerController>();
+        if (player == null) player = other.GetComponentInParent<PlayerController>();
+
+        if (player != null || other.CompareTag("Player"))
+        {
+            isPlayerInBus = false;
+        }
+    }
+
+    private void RegisterColliderInBus(Collider other)
+    {
+        Item item = other.GetComponent<Item>();
+        if (item == null) item = other.GetComponentInParent<Item>();
+
+        if (item != null && item.ItemData != null)
+        {
+            itemsInBus.Add(item);
+        }
+
+        PlayerController player = other.GetComponent<PlayerController>();
+        if (player == null) player = other.GetComponentInParent<PlayerController>();
+
         if (player != null || other.CompareTag("Player"))
         {
             isPlayerInBus = true;
         }
     }
 
-    // === トリガーから出たときの処理（スクラップ ＆ プレイヤー） ===
-    private void OnTriggerExit(Collider other)
+    /// <summary>
+    /// トラック（バス）のトリガー内にある床置きスクラップの合計金額を返す（DepartureLeverと共通利用）
+    /// </summary>
+    public int GetBusScrapTotalValue()
     {
-        // 1. スクラップがバスの外に出た場合
-        Item item = other.GetComponent<Item>();
-        if (item != null)
+        int total = 0;
+        itemsInBus.RemoveWhere(item => item == null);
+
+        foreach (var item in itemsInBus)
         {
-            if (itemsInBus.Contains(item))
+            if (item != null && item.ItemData != null)
             {
-                itemsInBus.Remove(item);
+                total += item.ItemData.Amount;
             }
         }
+        return total;
+    }
 
-        // 2. プレイヤーがバスの外に出た場合
-        PlayerController player = other.GetComponent<PlayerController>();
-        if (player != null || other.CompareTag("Player"))
+    /// <summary>
+    /// レベルクリア精算時にバス内の床置きスクラップをすべて消去する
+    /// </summary>
+    public void ClearBusScrapItems()
+    {
+        itemsInBus.RemoveWhere(item => item == null);
+        foreach (var item in itemsInBus)
         {
-            isPlayerInBus = false;
+            if (item != null)
+            {
+                Destroy(item.gameObject);
+            }
         }
+        itemsInBus.Clear();
     }
 
     private void UpdateQuotaUI()
@@ -85,16 +127,10 @@ public class DisplayTextManager : MonoBehaviour
             playerController = FindAnyObjectByType<PlayerController>();
         }
 
-        // 1. ノルマ金額の取得
         int currentQuota = mapGenerator.CurrentMapQuota;
-
-        // 2. 収入の計算（所持金 ＋ バス内スクラップ ＋ インベントリ）
         int totalIncome = CalculateTotalIncome();
-
-        // 3. 残り返済額の計算（ノルマ - 収入）
         int remaining = Mathf.Max(0, currentQuota - totalIncome);
 
-        // UIへの反映（$000000 フォーマット）
         if (quotaText != null)
             quotaText.text = $"${currentQuota:D6}";
 
@@ -105,36 +141,24 @@ public class DisplayTextManager : MonoBehaviour
             remainingText.text = $"${remaining:D6}";
     }
 
-    private int CalculateTotalIncome()
+    public int CalculateTotalIncome()
     {
-        int total = 0;
+        int total = GetBusScrapTotalValue();
 
-        // A. バス内にある床置きスクラップの金額を合算
-        itemsInBus.RemoveWhere(item => item == null);
-        foreach (var item in itemsInBus)
-        {
-            if (item != null && item.ItemData != null)
-            {
-                total += item.ItemData.Amount;
-            }
-        }
-
-        // B. 【プレイヤーがバスに乗っている場合のみ】インベントリ内の金額を合算
-        if (isPlayerInBus && playerController != null && playerController.Inventory != null)
-        {
-            foreach (var itemData in playerController.Inventory)
-            {
-                if (itemData != null)
-                {
-                    total += itemData.Amount;
-                }
-            }
-        }
-
-        // C. 【プレイヤーがバスに乗っている場合のみ】プレイヤーの所持金も収入として合算する
         if (isPlayerInBus && playerController != null)
         {
             total += playerController.PlayerMoney;
+
+            if (playerController.Inventory != null)
+            {
+                foreach (var itemData in playerController.Inventory)
+                {
+                    if (itemData != null)
+                    {
+                        total += itemData.Amount;
+                    }
+                }
+            }
         }
 
         return total;

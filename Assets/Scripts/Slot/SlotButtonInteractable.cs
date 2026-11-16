@@ -7,11 +7,15 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
     [Header("カジノマシン本体の参照")]
     [SerializeField] private SlotMachineController slotMachine;
 
-    [Header("このボタンのベット金額")]
+    [Header("ベット金額・長押し時間設定")]
     [SerializeField] private int customBetAmount = 1000;
+    [Tooltip("ボタンを長押ししてゲージが満タンになるまでの時間（秒）")]
+    [SerializeField, Min(0.05f)] private float holdTime = 0.5f;
 
     [Header("ボタン上のテキスト表示")]
     [SerializeField] private TextMeshPro buttonText;
+    [SerializeField] private Color availableTextColor = Color.white;
+    [SerializeField] private Color unavailableTextColor = Color.gray;
 
     [Header("ボタン押し込み演出")]
     [Tooltip("押したときにボタンが沈み込むローカル移動量")]
@@ -49,15 +53,15 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
 
             if (slotMachine != null)
             {
-                bool canPlay = !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(customBetAmount);
-                buttonText.color = canPlay ? Color.white : Color.gray;
+                bool canPlay = CanInteract();
+                buttonText.color = canPlay ? availableTextColor : unavailableTextColor;
             }
         }
     }
 
     public string GetInteractPrompt() => "";
 
-    public float GetHoldTime() => 0.1f;
+    public float GetHoldTime() => holdTime;
 
     public bool CanInteract()
     {

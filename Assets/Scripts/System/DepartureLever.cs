@@ -1,7 +1,6 @@
 using UnityEngine;
-using System.Collections.Generic;
 
-public class DepartureLever : MonoBehaviour
+public class DepartureLever : MonoBehaviour, IInteractable
 {
     [Header("インタラクト設定")]
     [SerializeField, Tooltip("レバーを引くのに必要な長押し時間")]
@@ -10,116 +9,139 @@ public class DepartureLever : MonoBehaviour
     [SerializeField, Tooltip("UIに表示する名称")]
     private string leverPromptName = "出発レバー";
 
+    [Header("バス参照（未設定なら親またはシーンから自動取得）")]
+    [SerializeField] private DisplayTextManager displayTextManager;
+
     public float RequiredHoldTime => requiredHoldTime;
     public string LeverPromptName => leverPromptName;
 
     private bool isActivated = false;
 
-    // バス（トラック）のトリガー内にあるスクラップを保持するセット
-    private HashSet<Item> itemsInBus = new HashSet<Item>();
-
-    private void OnTriggerEnter(Collider other)
+    private void Awake()
     {
-        Item item = other.GetComponent<Item>();
-        if (item != null)
+        if (displayTextManager == null)
         {
-            if (!itemsInBus.Contains(item))
+            displayTextManager = GetComponentInParent<DisplayTextManager>();
+            if (displayTextManager == null)
             {
-                itemsInBus.Add(item);
+                displayTextManager = FindAnyObjectByType<DisplayTextManager>();
             }
         }
     }
 
-    private void OnTriggerExit(Collider other)
-    {
-        Item item = other.GetComponent<Item>();
-        if (item != null)
-        {
-            if (itemsInBus.Contains(item))
-            {
-                itemsInBus.Remove(item);
-            }
-        }
-    }
+    // --- IInteractable の実装 ---
+    public string GetInteractPrompt() => leverPromptName;
+
+    public float GetHoldTime() => requiredHoldTime;
 
     public bool CanInteract()
     {
-        return !isActivated;
+        if (isActivated) return false;
+
+        int totalAssets = CalculateTotalAssets(out _, out _, out _);
+        MapGenerator mapGen = FindAnyObjectByType<MapGenerator>();
+        int quota = mapGen != null ? mapGen.CurrentMapQuota : 0;
+
+        return totalAssets >= quota;
     }
 
-    // プレイヤーが長押しを完了したときに呼ばれる
+    public void OnInteract()
+    {
+        OnPullLever();
+    }
+
     public void OnPullLever()
     {
         if (isActivated) return;
 
-        // 総資産（所持金 ＋ トラック内アイテム ＋ インベントリ内アイテム）を計算
         int totalAssets = CalculateTotalAssets(out int playerMoney, out int truckItemsValue, out int inventoryItemsValue);
 
         MapGenerator mapGen = FindAnyObjectByType<MapGenerator>();
         int quota = mapGen != null ? mapGen.CurrentMapQuota : 1000;
+        int currentLevel = mapGen != null ? mapGen.CurrentStageLevel : 1;
 
         Debug.Log($"[出発判定] 所持金: ${playerMoney} + トラック内: ${truckItemsValue} + インベントリ: ${inventoryItemsValue} = 総資産: ${totalAssets} (ノルマ: ${quota})");
 
-        // 1. ノルマ未達成の場合（インタラクト失敗）
+        // 1. ノルマ未達成の場合
         if (totalAssets < quota)
         {
             Debug.Log("[出発システム] ノルマに達していないため、出発できません！");
-            // TODO: 失敗時のブザー音や警告UIなど
             return;
         }
 
-        // 2. ノルマ達成の場合（インタラクト成功）
+        // 2. ノルマ達成の場合
         isActivated = true;
 
-        // 超えた分（利益）を計算
+        // トラック内のスクラップオブジェクトを消去
+        if (displayTextManager != null)
+        {
+            displayTextManager.ClearBusScrapItems();
+        }
+
         int surplusProfit = totalAssets - quota;
 
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null)
         {
-            int newMoney = surplusProfit;
-            player.AddMoney(newMoney - player.PlayerMoney);
+            // 手持ちインベントリのスクラップも精算して空にする
+            player.ClearAllInventoryItems();
 
-            Debug.Log($"[出発成功] ノルマ達成！ 超えた分の利益 ${surplusProfit} を所持金として獲得しました！");
+            // ノルマを支払った残額（超えた分の利益）を新しい所持金として反映
+            player.AddMoney(surplusProfit - player.PlayerMoney);
+
+            // ステージクリア時の正気度回復 ＆ 進行データ保存
+            player.OnStageCleared(quota);
+
+            Debug.Log($"[出発成功] STAGE {currentLevel} クリア！ 精算後の所持金: ${surplusProfit}");
         }
 
-        // TODO: バス発進、リザルト画面表示、次のシーン遷移などの処理
+        // 3. 簡易リザルト画面を表示（未配置ならそのまま次レベルへ進行）
+        StageResultUIController resultUI = FindAnyObjectByType<StageResultUIController>();
+        if (resultUI != null)
+        {
+            resultUI.ShowStageClearResult(currentLevel, totalAssets, quota, surplusProfit);
+        }
+        else if (mapGen != null)
+        {
+            mapGen.AdvanceToNextLevel();
+        }
     }
 
-    // 総資産を計算するヘルパー
     private int CalculateTotalAssets(out int playerMoney, out int truckItemsValue, out int inventoryItemsValue)
     {
         playerMoney = 0;
         truckItemsValue = 0;
         inventoryItemsValue = 0;
 
-        // A. プレイヤーの現在の所持金
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null)
         {
             playerMoney = player.PlayerMoney;
-        }
 
-        // B. ★ トラック（バス）のトリガー内にあるスクラップのみを合算する
-        itemsInBus.RemoveWhere(item => item == null);
-        foreach (var item in itemsInBus)
-        {
-            if (item != null && item.ItemData != null)
+            if (player.Inventory != null)
             {
-                truckItemsValue += item.ItemData.Amount;
-            }
-        }
-
-        // C. プレイヤーのインベントリ内にあるアイテムの合計
-        if (player != null && player.Inventory != null)
-        {
-            foreach (var itemData in player.Inventory)
-            {
-                if (itemData != null)
+                for (int i = 0; i < player.Inventory.Length; i++)
                 {
-                    inventoryItemsValue += itemData.Amount;
+                    if (player.Inventory[i] != null)
+                    {
+                        inventoryItemsValue += player.Inventory[i].Amount;
+                    }
                 }
             }
+        }
+
+        if (displayTextManager == null)
+        {
+            displayTextManager = GetComponentInParent<DisplayTextManager>();
+            if (displayTextManager == null)
+            {
+                displayTextManager = FindAnyObjectByType<DisplayTextManager>();
+            }
+        }
+
+        if (displayTextManager != null)
+        {
+            truckItemsValue = displayTextManager.GetBusScrapTotalValue();
         }
 
         return playerMoney + truckItemsValue + inventoryItemsValue;
