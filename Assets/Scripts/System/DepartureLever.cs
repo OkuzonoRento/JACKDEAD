@@ -50,7 +50,39 @@ public class DepartureLever : MonoBehaviour, IInteractable
         OnPullLever();
     }
 
+    private void OnEnable()
+    {
+        if (NetworkSession.Instance != null)
+        {
+            NetworkSession.Instance.StageClearReceived += OnRemoteStageClear;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (NetworkSession.Instance != null)
+        {
+            NetworkSession.Instance.StageClearReceived -= OnRemoteStageClear;
+        }
+    }
+
+    /// <summary>
+    /// 他プレイヤーがレバーを引いたとき、全員のマップが食い違わないよう同じクリア処理を実行する
+    /// </summary>
+    private void OnRemoteStageClear(int clearedLevel)
+    {
+        MapGenerator mapGen = FindAnyObjectByType<MapGenerator>();
+        if (mapGen == null || mapGen.CurrentStageLevel != clearedLevel) return;
+
+        ExecuteClear(true);
+    }
+
     public void OnPullLever()
+    {
+        ExecuteClear(false);
+    }
+
+    private void ExecuteClear(bool triggeredByRemote)
     {
         if (isActivated) return;
 
@@ -62,8 +94,8 @@ public class DepartureLever : MonoBehaviour, IInteractable
 
         Debug.Log($"[出発判定] 所持金: ${playerMoney} + トラック内: ${truckItemsValue} + インベントリ: ${inventoryItemsValue} = 総資産: ${totalAssets} (ノルマ: ${quota})");
 
-        // 1. ノルマ未達成の場合
-        if (totalAssets < quota)
+        // 1. ノルマ未達成の場合（他プレイヤーからの通知による強制クリアでは判定しない）
+        if (!triggeredByRemote && totalAssets < quota)
         {
             Debug.Log("[出発システム] ノルマに達していないため、出発できません！");
             return;
@@ -72,13 +104,20 @@ public class DepartureLever : MonoBehaviour, IInteractable
         // 2. ノルマ達成の場合
         isActivated = true;
 
+        // マルチプレイ中は、他の参加者にもクリアを通知する
+        if (!triggeredByRemote && NetworkSession.Instance != null)
+        {
+            NetworkSession.Instance.BroadcastStageClear(currentLevel);
+        }
+
         // トラック内のスクラップオブジェクトを消去
         if (displayTextManager != null)
         {
             displayTextManager.ClearBusScrapItems();
         }
 
-        int surplusProfit = totalAssets - quota;
+        // 強制クリア時に所持金がマイナスにならないよう、余剰は0以上にする
+        int surplusProfit = Mathf.Max(0, totalAssets - quota);
 
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null)

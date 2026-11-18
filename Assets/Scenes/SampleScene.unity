@@ -3945,7 +3945,7 @@ MonoBehaviour:
   minRoomCount: 5
   maxRoomCount: 40
   baseQuotaLevel1: 500
-  baseQuotaFinalLevel: 280000
+  baseQuotaFinalLevel: 284500
   quotaRandomRange: 0.08
   quotaMultiplier: 2.5
   postMaxLevelGrowthRate: 1.1

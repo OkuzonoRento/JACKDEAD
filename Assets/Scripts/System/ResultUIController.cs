@@ -442,6 +442,7 @@ public class ResultUIController : MonoBehaviour
         if (mapGenerator != null)
         {
             mapGenerator.AdvanceToNextLevel();
+            GameSaveBridge.SaveProgress(playerController, mapGenerator);
         }
         if (playerMovement != null) playerMovement.UnlockControl();
         if (playerController != null) playerController.SetPauseSanityDrain(false);
@@ -506,6 +507,7 @@ public class ResultUIController : MonoBehaviour
         yield return new WaitForSecondsRealtime(gameOverHoldDuration);
 
         // 次回のプレイが最初から始まるよう、進行データを初期化してからタイトルへ
+        GameSaveBridge.DeleteSaveOnDeath();
         if (playerController != null) playerController.ResetForNewRun();
 
         Cursor.lockState = CursorLockMode.None;
