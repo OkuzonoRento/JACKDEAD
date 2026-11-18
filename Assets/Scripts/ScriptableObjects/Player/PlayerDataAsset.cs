@@ -11,13 +11,13 @@ public class PlayerDataAsset : ScriptableObject
     [Min(0.0f)] public float JumpPower = 5.0f;
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
 
-    [Header("Š‹àEisƒf[ƒ^İ’è")]
-    [Min(0), Tooltip("ƒvƒŒƒCƒ„[‚ÌŒ»İ‚ÌŠ‹à")]
+    [Header("æ‰€æŒé‡‘ãƒ»é€²è¡Œãƒ‡ãƒ¼ã‚¿è¨­å®š")]
+    [Min(0), Tooltip("ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ç¾åœ¨ã®æ‰€æŒé‡‘")]
     public int PlayerMoney = 0;
 
-    [Min(1), Tooltip("Œ»İ‚ÌƒXƒe[ƒWƒŒƒxƒ‹")]
+    [Min(1), Tooltip("ç¾åœ¨ã®ã‚¹ãƒ†ãƒ¼ã‚¸ãƒ¬ãƒ™ãƒ«")]
     public int CurrentStageLevel = 1;
 
-    [Min(0), Tooltip("‚±‚ê‚Ü‚Å‚Ì—İŒvØ‹à•ÔÏŠz")]
+    [Min(0), Tooltip("ã“ã‚Œã¾ã§ã®ç´¯è¨ˆå€Ÿé‡‘è¿”æ¸ˆé¡")]
     public int TotalRepaidDebt = 0;
 }

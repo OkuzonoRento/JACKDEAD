@@ -5,48 +5,48 @@ using TMPro;
 
 public class PlayerUIController : MonoBehaviour
 {
-    [Header("QÆ")]
+    [Header("å‚ç…§")]
     [SerializeField] private PlayerController playerController;
-    [SerializeField] private PlayerMovement playerMovement; // ƒXƒ^ƒ~ƒiQÆ—p
+    [SerializeField] private PlayerMovement playerMovement; // ã‚¹ã‚¿ãƒŸãƒŠå‚ç…§ç”¨
 
-    [Header("UI ƒXƒ‰ƒCƒ_[")]
+    [Header("UI ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼")]
     [SerializeField] private Slider healthSlider;
     [SerializeField] private Slider sanitySlider;
     [SerializeField] private Slider dopamineSlider;
     [SerializeField] private Slider staminaSlider;
 
-    [Header("Š‹àUI")]
+    [Header("æ‰€æŒé‡‘UI")]
     [SerializeField] private TextMeshProUGUI moneyText;
-    [Tooltip("‚±‚Ì‹àŠzˆÈã‚É‚È‚Á‚½‚çwKx’PˆÊi—á: $ 1.5 Kj‚ÉÈ—ª•\¦‚·‚é")]
+    [Tooltip("ã“ã®é‡‘é¡ä»¥ä¸Šã«ãªã£ãŸã‚‰ã€Kã€å˜ä½ï¼ˆä¾‹: $ 1.5 Kï¼‰ã«çœç•¥è¡¨ç¤ºã™ã‚‹")]
     [SerializeField] private int kUnitThreshold = 1000;
 
-    [Header("Š‹àƒAƒjƒ[ƒVƒ‡ƒ“İ’è")]
-    [Tooltip("‹àŠz‚ª•Ï‰»‚µ‚«‚é‚Ü‚Å‚ÌŠÔi•bj")]
+    [Header("æ‰€æŒé‡‘ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³è¨­å®š")]
+    [Tooltip("é‡‘é¡ãŒå¤‰åŒ–ã—ãã‚‹ã¾ã§ã®æ™‚é–“ï¼ˆç§’ï¼‰")]
     [SerializeField] private float moneyAnimDuration = 0.6f;
-    [Tooltip("‹àŠz•Ï‰»‚ÉƒeƒLƒXƒg‚ª’e‚ŞÅ‘åƒXƒP[ƒ‹”{—¦")]
+    [Tooltip("é‡‘é¡å¤‰åŒ–æ™‚ã«ãƒ†ã‚­ã‚¹ãƒˆãŒå¼¾ã‚€æœ€å¤§ã‚¹ã‚±ãƒ¼ãƒ«å€ç‡")]
     [SerializeField] private float moneyPunchScale = 1.3f;
-    [Tooltip("‚¨‹à‚ª‘‚¦‚½‚Æ‚«‚Ìˆê“I‚È•¶šF")]
+    [Tooltip("ãŠé‡‘ãŒå¢—ãˆãŸã¨ãã®ä¸€æ™‚çš„ãªæ–‡å­—è‰²")]
     [SerializeField] private Color moneyGainColor = new Color(0.3f, 1f, 0.4f);
-    [Tooltip("‚¨‹à‚ªŒ¸‚Á‚½‚Æ‚«‚Ìˆê“I‚È•¶šF")]
+    [Tooltip("ãŠé‡‘ãŒæ¸›ã£ãŸã¨ãã®ä¸€æ™‚çš„ãªæ–‡å­—è‰²")]
     [SerializeField] private Color moneyLossColor = new Color(1f, 0.35f, 0.35f);
 
     [System.Serializable]
     public struct InventorySlotUI
     {
-        public RectTransform slotRectTransform; // ƒXƒƒbƒg©‘Ì‚ÌRectTransformiƒTƒCƒY•ÏX—pj
-        public Image slotBackgroundImage;       // ƒXƒƒbƒg©‘Ì‚Ì”wŒii‘I‘ğ’†‚ÅSprite‚ğ•ÏXj
-        public Image itemIconImage;             // ƒAƒCƒeƒ€‚ÌƒAƒCƒRƒ“‚ğ•\¦‚·‚éImage
+        public RectTransform slotRectTransform; // ã‚¹ãƒ­ãƒƒãƒˆè‡ªä½“ã®RectTransformï¼ˆã‚µã‚¤ã‚ºå¤‰æ›´ç”¨ï¼‰
+        public Image slotBackgroundImage;       // ã‚¹ãƒ­ãƒƒãƒˆè‡ªä½“ã®èƒŒæ™¯ï¼ˆé¸æŠä¸­ã§Spriteã‚’å¤‰æ›´ï¼‰
+        public Image itemIconImage;             // ã‚¢ã‚¤ãƒ†ãƒ ã®ã‚¢ã‚¤ã‚³ãƒ³ã‚’è¡¨ç¤ºã™ã‚‹Image
     }
 
-    [Header("ƒCƒ“ƒxƒ“ƒgƒŠ ƒXƒƒbƒgUI (3‚Â•ª)")]
+    [Header("ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª ã‚¹ãƒ­ãƒƒãƒˆUI (3ã¤åˆ†)")]
     [SerializeField] private InventorySlotUI[] inventorySlots = new InventorySlotUI[3];
 
-    [Header("ƒXƒƒbƒg‘I‘ğ‚ÌŒ©‚½–Úİ’è")]
-    [SerializeField] private Sprite normalSlotSprite;     // ’Êí‚ÌƒXƒƒbƒg‰æ‘œ
-    [SerializeField] private Sprite selectedSlotSprite;   // ‘I‘ğ’†‚ÌƒXƒƒbƒg‰æ‘œ
-    [SerializeField] private float normalScale = 1.0f;    // ’Êí‚ÌƒTƒCƒY”{—¦
-    [SerializeField] private float selectedScale = 1.2f;  // ‘I‘ğ’†‚ÌƒTƒCƒY”{—¦
-    [SerializeField] private float scaleLerpSpeed = 15f;  // ƒTƒCƒY•ÏX‚ÌƒXƒ€[ƒY‚³
+    [Header("ã‚¹ãƒ­ãƒƒãƒˆé¸æŠæ™‚ã®è¦‹ãŸç›®è¨­å®š")]
+    [SerializeField] private Sprite normalSlotSprite;     // é€šå¸¸æ™‚ã®ã‚¹ãƒ­ãƒƒãƒˆç”»åƒ
+    [SerializeField] private Sprite selectedSlotSprite;   // é¸æŠä¸­ã®ã‚¹ãƒ­ãƒƒãƒˆç”»åƒ
+    [SerializeField] private float normalScale = 1.0f;    // é€šå¸¸æ™‚ã®ã‚µã‚¤ã‚ºå€ç‡
+    [SerializeField] private float selectedScale = 1.2f;  // é¸æŠä¸­ã®ã‚µã‚¤ã‚ºå€ç‡
+    [SerializeField] private float scaleLerpSpeed = 15f;  // ã‚µã‚¤ã‚ºå¤‰æ›´ã®ã‚¹ãƒ ãƒ¼ã‚ºã•
 
     private int targetMoney = 0;
     private float currentDisplayedMoney = 0f;
@@ -69,7 +69,7 @@ public class PlayerUIController : MonoBehaviour
     {
         if (playerController != null)
         {
-            // --- 1. ƒXƒe[ƒ^ƒXUI‚ÌXV ---
+            // --- 1. ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹UIã®æ›´æ–° ---
             if (healthSlider != null)
             {
                 healthSlider.value = playerController.Health / 100f;
@@ -83,14 +83,14 @@ public class PlayerUIController : MonoBehaviour
                 dopamineSlider.value = playerController.Dopamine / 100f;
             }
 
-            // --- 2. Š‹àUI‚ÌXV ---
+            // --- 2. æ‰€æŒé‡‘UIã®æ›´æ–° ---
             UpdateMoneyUI();
 
-            // --- 3. ƒCƒ“ƒxƒ“ƒgƒŠƒXƒƒbƒgUI‚ÌXV ---
+            // --- 3. ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªã‚¹ãƒ­ãƒƒãƒˆUIã®æ›´æ–° ---
             UpdateInventoryUI();
         }
 
-        // ƒXƒ^ƒ~ƒi‚ÌXV (PlayerMovement‚©‚çæ“¾)
+        // ã‚¹ã‚¿ãƒŸãƒŠã®æ›´æ–° (PlayerMovementã‹ã‚‰å–å¾—)
         if (staminaSlider != null && playerMovement != null)
         {
             staminaSlider.value = playerMovement.CurrentStamina / 100f;
@@ -103,7 +103,7 @@ public class PlayerUIController : MonoBehaviour
 
         int actualMoney = playerController.PlayerMoney;
 
-        // ‰‰ñƒtƒŒ[ƒ€‚ÍƒAƒjƒ[ƒVƒ‡ƒ“‚È‚µ‚Å‘¦À‚É”½‰f
+        // åˆå›ãƒ•ãƒ¬ãƒ¼ãƒ ã¯ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ãªã—ã§å³åº§ã«åæ˜ 
         if (!isMoneyInitialized)
         {
             isMoneyInitialized = true;
@@ -113,7 +113,7 @@ public class PlayerUIController : MonoBehaviour
             return;
         }
 
-        // Š‹à‚ª•Ï“®‚µ‚½uŠÔ‚ÉƒAƒjƒ[ƒVƒ‡ƒ“‚ğŠJn
+        // æ‰€æŒé‡‘ãŒå¤‰å‹•ã—ãŸç¬é–“ã«ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã‚’é–‹å§‹
         if (actualMoney != targetMoney)
         {
             bool isGain = actualMoney > targetMoney;
@@ -140,25 +140,25 @@ public class PlayerUIController : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / moneyAnimDuration);
 
-            // ƒC[ƒWƒ“ƒOiÅ‰‚Í‘¬‚­A–Ú•W’l‚É‹ß‚Ã‚­‚Ù‚Ç‚ä‚Á‚­‚è~‚Ü‚éj
+            // ã‚¤ãƒ¼ã‚¸ãƒ³ã‚°ï¼ˆæœ€åˆã¯é€Ÿãã€ç›®æ¨™å€¤ã«è¿‘ã¥ãã»ã©ã‚†ã£ãã‚Šæ­¢ã¾ã‚‹ï¼‰
             float easeOut = 1f - Mathf.Pow(1f - t, 3f);
 
-            // 1. ”’l‚ÌƒJƒEƒ“ƒgƒAƒbƒv^ƒ_ƒEƒ“
+            // 1. æ•°å€¤ã®ã‚«ã‚¦ãƒ³ãƒˆã‚¢ãƒƒãƒ—ï¼ãƒ€ã‚¦ãƒ³
             currentDisplayedMoney = Mathf.Lerp(startMoney, targetMoney, easeOut);
             moneyText.text = FormatMoney(Mathf.RoundToInt(currentDisplayedMoney));
 
-            // 2. ƒXƒP[ƒ‹‚ÌƒoƒEƒ“ƒX‰‰oi‘O”¼‚Å–c‚ç‚İAŒã”¼‚ÅŒ³‚ÌƒTƒCƒY‚É–ß‚éj
+            // 2. ã‚¹ã‚±ãƒ¼ãƒ«ã®ãƒã‚¦ãƒ³ã‚¹æ¼”å‡ºï¼ˆå‰åŠã§è†¨ã‚‰ã¿ã€å¾ŒåŠã§å…ƒã®ã‚µã‚¤ã‚ºã«æˆ»ã‚‹ï¼‰
             float bounce = Mathf.Sin(t * Mathf.PI);
             float scaleMultiplier = Mathf.Lerp(1f, moneyPunchScale, bounce);
             textRect.localScale = defaultMoneyScale * scaleMultiplier;
 
-            // 3. •¶šF‚Ìƒtƒ‰ƒbƒVƒ…i‘Œ¸F‚©‚çŒ³‚ÌF‚Ö™X‚É–ß‚·j
+            // 3. æ–‡å­—è‰²ã®ãƒ•ãƒ©ãƒƒã‚·ãƒ¥ï¼ˆå¢—æ¸›è‰²ã‹ã‚‰å…ƒã®è‰²ã¸å¾ã€…ã«æˆ»ã™ï¼‰
             moneyText.color = Color.Lerp(flashColor, defaultMoneyColor, t);
 
             yield return null;
         }
 
-        // ÅI’l‚ğƒsƒ^ƒb‚ÆŠm’è
+        // æœ€çµ‚å€¤ã‚’ãƒ”ã‚¿ãƒƒã¨ç¢ºå®š
         currentDisplayedMoney = targetMoney;
         moneyText.text = FormatMoney(targetMoney);
         textRect.localScale = defaultMoneyScale;
@@ -171,21 +171,21 @@ public class PlayerUIController : MonoBehaviour
         int absAmount = Mathf.Abs(amount);
         string sign = amount < 0 ? "-" : "";
 
-        // 100–œˆÈã‚Í M ’PˆÊ (—á: $ 1.2 M)
+        // 100ä¸‡ä»¥ä¸Šã¯ M å˜ä½ (ä¾‹: $ 1.2 M)
         if (absAmount >= 1000000)
         {
             float mValue = Mathf.Floor(absAmount / 100000f) / 10f;
             return $"{sign}$ {mValue:0.#} M";
         }
 
-        // w’è‚µ‚«‚¢’li—á: 1000 ‚Ü‚½‚Í 10000jˆÈã‚Í K ’PˆÊ (—á: $ 1.5 K)
+        // æŒ‡å®šã—ãã„å€¤ï¼ˆä¾‹: 1000 ã¾ãŸã¯ 10000ï¼‰ä»¥ä¸Šã¯ K å˜ä½ (ä¾‹: $ 1.5 K)
         if (absAmount >= kUnitThreshold && kUnitThreshold >= 1000)
         {
             float kValue = Mathf.Floor(absAmount / 100f) / 10f;
             return $"{sign}$ {kValue:0.#} K";
         }
 
-        // ‚»‚ê–¢–‚Í‚»‚Ì‚Ü‚Ü•\¦ (—á: $ 500)
+        // ãã‚Œæœªæº€ã¯ãã®ã¾ã¾è¡¨ç¤º (ä¾‹: $ 500)
         return $"{sign}$ {absAmount}";
     }
 
@@ -197,7 +197,7 @@ public class PlayerUIController : MonoBehaviour
         {
             bool isSelected = (i == selectedIndex);
 
-            // A. ƒXƒƒbƒg‚Ì‘I‘ğó‘Ô‚É‰‚¶‚½”wŒiSprite‚ÌØ‚è‘Ö‚¦
+            // A. ã‚¹ãƒ­ãƒƒãƒˆã®é¸æŠçŠ¶æ…‹ã«å¿œã˜ãŸèƒŒæ™¯Spriteã®åˆ‡ã‚Šæ›¿ãˆ
             if (inventorySlots[i].slotBackgroundImage != null)
             {
                 if (isSelected)
@@ -212,7 +212,7 @@ public class PlayerUIController : MonoBehaviour
                 }
             }
 
-            // B. ‘I‘ğ’†ƒXƒƒbƒg‚ÌƒTƒCƒYiƒXƒP[ƒ‹j‚ğŠŠ‚ç‚©‚É•ÏX
+            // B. é¸æŠä¸­ã‚¹ãƒ­ãƒƒãƒˆã®ã‚µã‚¤ã‚ºï¼ˆã‚¹ã‚±ãƒ¼ãƒ«ï¼‰ã‚’æ»‘ã‚‰ã‹ã«å¤‰æ›´
             if (inventorySlots[i].slotRectTransform != null)
             {
                 float targetScale = isSelected ? selectedScale : normalScale;
@@ -224,7 +224,7 @@ public class PlayerUIController : MonoBehaviour
                 );
             }
 
-            // C. ƒCƒ“ƒxƒ“ƒgƒŠ“à‚ÌƒAƒCƒeƒ€‚É‰‚¶‚½ƒAƒCƒRƒ“‚ÌØ‚è‘Ö‚¦
+            // C. ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªå†…ã®ã‚¢ã‚¤ãƒ†ãƒ ã«å¿œã˜ãŸã‚¢ã‚¤ã‚³ãƒ³ã®åˆ‡ã‚Šæ›¿ãˆ
             if (inventorySlots[i].itemIconImage != null)
             {
                 ItemDataAsset itemData = playerController.Inventory[i];

@@ -2,14 +2,14 @@ using UnityEngine;
 
 public class DepartureLever : MonoBehaviour, IInteractable
 {
-    [Header("ƒCƒ“ƒ^ƒ‰ƒNƒgİ’è")]
-    [SerializeField, Tooltip("ƒŒƒo[‚ğˆø‚­‚Ì‚É•K—v‚È’·‰Ÿ‚µŠÔ")]
+    [Header("ã‚¤ãƒ³ã‚¿ãƒ©ã‚¯ãƒˆè¨­å®š")]
+    [SerializeField, Tooltip("ãƒ¬ãƒãƒ¼ã‚’å¼•ãã®ã«å¿…è¦ãªé•·æŠ¼ã—æ™‚é–“")]
     private float requiredHoldTime = 1.5f;
 
-    [SerializeField, Tooltip("UI‚É•\¦‚·‚é–¼Ì")]
-    private string leverPromptName = "o”­ƒŒƒo[";
+    [SerializeField, Tooltip("UIã«è¡¨ç¤ºã™ã‚‹åç§°")]
+    private string leverPromptName = "å‡ºç™ºãƒ¬ãƒãƒ¼";
 
-    [Header("ƒoƒXQÆi–¢İ’è‚È‚çe‚Ü‚½‚ÍƒV[ƒ“‚©‚ç©“®æ“¾j")]
+    [Header("ãƒã‚¹å‚ç…§ï¼ˆæœªè¨­å®šãªã‚‰è¦ªã¾ãŸã¯ã‚·ãƒ¼ãƒ³ã‹ã‚‰è‡ªå‹•å–å¾—ï¼‰")]
     [SerializeField] private DisplayTextManager displayTextManager;
 
     public float RequiredHoldTime => requiredHoldTime;
@@ -29,7 +29,7 @@ public class DepartureLever : MonoBehaviour, IInteractable
         }
     }
 
-    // --- IInteractable ‚ÌÀ‘• ---
+    // --- IInteractable ã®å®Ÿè£… ---
     public string GetInteractPrompt() => leverPromptName;
 
     public float GetHoldTime() => requiredHoldTime;
@@ -60,19 +60,19 @@ public class DepartureLever : MonoBehaviour, IInteractable
         int quota = mapGen != null ? mapGen.CurrentMapQuota : 1000;
         int currentLevel = mapGen != null ? mapGen.CurrentStageLevel : 1;
 
-        Debug.Log($"[o”­”»’è] Š‹à: ${playerMoney} + ƒgƒ‰ƒbƒN“à: ${truckItemsValue} + ƒCƒ“ƒxƒ“ƒgƒŠ: ${inventoryItemsValue} = ‘‘Y: ${totalAssets} (ƒmƒ‹ƒ}: ${quota})");
+        Debug.Log($"[å‡ºç™ºåˆ¤å®š] æ‰€æŒé‡‘: ${playerMoney} + ãƒˆãƒ©ãƒƒã‚¯å†…: ${truckItemsValue} + ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª: ${inventoryItemsValue} = ç·è³‡ç”£: ${totalAssets} (ãƒãƒ«ãƒ: ${quota})");
 
-        // 1. ƒmƒ‹ƒ}–¢’B¬‚Ìê‡
+        // 1. ãƒãƒ«ãƒæœªé”æˆã®å ´åˆ
         if (totalAssets < quota)
         {
-            Debug.Log("[o”­ƒVƒXƒeƒ€] ƒmƒ‹ƒ}‚É’B‚µ‚Ä‚¢‚È‚¢‚½‚ßAo”­‚Å‚«‚Ü‚¹‚ñI");
+            Debug.Log("[å‡ºç™ºã‚·ã‚¹ãƒ†ãƒ ] ãƒãƒ«ãƒã«é”ã—ã¦ã„ãªã„ãŸã‚ã€å‡ºç™ºã§ãã¾ã›ã‚“ï¼");
             return;
         }
 
-        // 2. ƒmƒ‹ƒ}’B¬‚Ìê‡
+        // 2. ãƒãƒ«ãƒé”æˆã®å ´åˆ
         isActivated = true;
 
-        // ƒgƒ‰ƒbƒN“à‚ÌƒXƒNƒ‰ƒbƒvƒIƒuƒWƒFƒNƒg‚ğÁ‹
+        // ãƒˆãƒ©ãƒƒã‚¯å†…ã®ã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’æ¶ˆå»
         if (displayTextManager != null)
         {
             displayTextManager.ClearBusScrapItems();
@@ -83,20 +83,20 @@ public class DepartureLever : MonoBehaviour, IInteractable
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null)
         {
-            // è‚¿ƒCƒ“ƒxƒ“ƒgƒŠ‚ÌƒXƒNƒ‰ƒbƒv‚à¸Z‚µ‚Ä‹ó‚É‚·‚é
+            // æ‰‹æŒã¡ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªã®ã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚‚ç²¾ç®—ã—ã¦ç©ºã«ã™ã‚‹
             player.ClearAllInventoryItems();
 
-            // ƒmƒ‹ƒ}‚ğx•¥‚Á‚½cŠzi’´‚¦‚½•ª‚Ì—˜‰vj‚ğV‚µ‚¢Š‹à‚Æ‚µ‚Ä”½‰f
+            // ãƒãƒ«ãƒã‚’æ”¯æ‰•ã£ãŸæ®‹é¡ï¼ˆè¶…ãˆãŸåˆ†ã®åˆ©ç›Šï¼‰ã‚’æ–°ã—ã„æ‰€æŒé‡‘ã¨ã—ã¦åæ˜ 
             player.AddMoney(surplusProfit - player.PlayerMoney);
 
-            // ƒXƒe[ƒWƒNƒŠƒA‚Ì³‹C“x‰ñ•œ • isƒf[ƒ^•Û‘¶
+            // ã‚¹ãƒ†ãƒ¼ã‚¸ã‚¯ãƒªã‚¢æ™‚ã®æ­£æ°—åº¦å›å¾© ï¼† é€²è¡Œãƒ‡ãƒ¼ã‚¿ä¿å­˜
             player.OnStageCleared(quota);
 
-            Debug.Log($"[o”­¬Œ÷] STAGE {currentLevel} ƒNƒŠƒAI ¸ZŒã‚ÌŠ‹à: ${surplusProfit}");
+            Debug.Log($"[å‡ºç™ºæˆåŠŸ] STAGE {currentLevel} ã‚¯ãƒªã‚¢ï¼ ç²¾ç®—å¾Œã®æ‰€æŒé‡‘: ${surplusProfit}");
         }
 
-        // 3. ŠÈˆÕƒŠƒUƒ‹ƒg‰æ–Ê‚ğ•\¦i–¢”z’u‚È‚ç‚»‚Ì‚Ü‚ÜŸƒŒƒxƒ‹‚Öisj
-        StageResultUIController resultUI = FindAnyObjectByType<StageResultUIController>();
+        // 3. ç°¡æ˜“ãƒªã‚¶ãƒ«ãƒˆç”»é¢ã‚’è¡¨ç¤ºï¼ˆæœªé…ç½®ãªã‚‰ãã®ã¾ã¾æ¬¡ãƒ¬ãƒ™ãƒ«ã¸é€²è¡Œï¼‰
+        ResultUIController resultUI = FindAnyObjectByType<ResultUIController>();
         if (resultUI != null)
         {
             resultUI.ShowStageClearResult(currentLevel, totalAssets, quota, surplusProfit);
@@ -114,6 +114,7 @@ public class DepartureLever : MonoBehaviour, IInteractable
         inventoryItemsValue = 0;
 
         PlayerController player = FindAnyObjectByType<PlayerController>();
+        MapGenerator priceSource = FindAnyObjectByType<MapGenerator>();
         if (player != null)
         {
             playerMoney = player.PlayerMoney;
@@ -124,7 +125,10 @@ public class DepartureLever : MonoBehaviour, IInteractable
                 {
                     if (player.Inventory[i] != null)
                     {
-                        inventoryItemsValue += player.Inventory[i].Amount;
+                        // ç¾åœ¨ã®ãƒ¬ãƒ™ãƒ«ã®ä¾¡æ ¼è£œæ­£ã‚’æ›ã‘ãŸå£²å€¤ã§ç²¾ç®—ã™ã‚‹
+                        inventoryItemsValue += priceSource != null
+                            ? priceSource.GetScrapValue(player.Inventory[i])
+                            : player.Inventory[i].Amount;
                     }
                 }
             }

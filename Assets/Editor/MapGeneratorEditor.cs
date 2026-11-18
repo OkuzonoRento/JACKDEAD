@@ -12,7 +12,7 @@ public class MapGeneratorEditor : Editor
         MapGenerator generator = (MapGenerator)target;
 
         EditorGUILayout.Space(15);
-        EditorGUILayout.LabelField("y ƒ}ƒbƒvŒ©‰º‚ë‚µ}iƒvƒŒƒrƒ…[j z", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("ã€ ãƒãƒƒãƒ—è¦‹ä¸‹ã‚ã—å›³ï¼ˆãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ï¼‰ ã€‘", EditorStyles.boldLabel);
 
         Rect rect = GUILayoutUtility.GetRect(250, 250);
         EditorGUI.DrawRect(rect, new Color(0.15f, 0.15f, 0.15f, 1f));
@@ -20,7 +20,7 @@ public class MapGeneratorEditor : Editor
         var spawnedRooms = generator.GetSpawnedRooms();
         if (spawnedRooms == null || spawnedRooms.Count == 0)
         {
-            EditorGUI.DropShadowLabel(rect, "ƒQ[ƒ€‚ğÄ¶(Play)‚·‚é‚Æ\n‚±‚±‚Éƒ}ƒbƒvƒvƒŒƒrƒ…[‚ª•\¦‚³‚ê‚Ü‚·");
+            EditorGUI.DropShadowLabel(rect, "ã‚²ãƒ¼ãƒ ã‚’å†ç”Ÿ(Play)ã™ã‚‹ã¨\nã“ã“ã«ãƒãƒƒãƒ—ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ãŒè¡¨ç¤ºã•ã‚Œã¾ã™");
             return;
         }
 
@@ -52,7 +52,7 @@ public class MapGeneratorEditor : Editor
         Vector2 centerOffset = new Vector2(rect.x + rect.width / 2f, rect.y + rect.height / 2f);
         Vector2 gridCenter = new Vector2((minX + maxX) / 2f, (minZ + maxZ) / 2f);
 
-        // Še•”‰®‚Æ”à‚ğ•`‰æ
+        // å„éƒ¨å±‹ã¨æ‰‰ã‚’æç”»
         foreach (var room in spawnedRooms)
         {
             float drawX = centerOffset.x + (room.gridPos.x - gridCenter.x) * scale;
@@ -89,7 +89,7 @@ public class MapGeneratorEditor : Editor
             }
         }
 
-        // --- yC³zÀÛ‚ÉƒQ[ƒ€“à‚Å‘I‚Î‚ê‚Ä¶¬‚³‚ê‚½ƒoƒX‚ÌêŠ‚¾‚¯‚É‰©F‚¢–Úˆó‚ğ•`‰æ ---
+        // --- ã€ä¿®æ­£ã€‘å®Ÿéš›ã«ã‚²ãƒ¼ãƒ å†…ã§é¸ã°ã‚Œã¦ç”Ÿæˆã•ã‚ŒãŸãƒã‚¹ã®å ´æ‰€ã ã‘ã«é»„è‰²ã„ç›®å°ã‚’æç”» ---
         Vector2Int? busGrid = generator.GetBusGridPos();
         int busDir = generator.GetBusDirection();
 
@@ -103,14 +103,14 @@ public class MapGeneratorEditor : Editor
             float busOffsetY = 0;
             float offsetDist = scale * 0.45f;
 
-            // ƒoƒX‚ª’u‚©‚ê‚½•ûŒüi0:Top, 1:Bottom, 2:Left, 3:Rightj‚É‡‚í‚¹‚ÄƒIƒtƒZƒbƒg‚ğŒvZ
+            // ãƒã‚¹ãŒç½®ã‹ã‚ŒãŸæ–¹å‘ï¼ˆ0:Top, 1:Bottom, 2:Left, 3:Rightï¼‰ã«åˆã‚ã›ã¦ã‚ªãƒ•ã‚»ãƒƒãƒˆã‚’è¨ˆç®—
             if (busDir == 0) busOffsetY = -offsetDist;      // Top
             else if (busDir == 1) busOffsetY = offsetDist;   // Bottom
             else if (busDir == 2) busOffsetX = -offsetDist;  // Left
             else if (busDir == 3) busOffsetX = offsetDist;   // Right
 
             Rect busRect = new Rect(drawX + busOffsetX - scale * 0.2f, drawY + busOffsetY - scale * 0.2f, scale * 0.4f, scale * 0.4f);
-            EditorGUI.DrawRect(busRect, new Color(1f, 0.8f, 0f, 1f)); // ‰©FiÀÛ‚ÌƒoƒX‚ÌˆÊ’uj
+            EditorGUI.DrawRect(busRect, new Color(1f, 0.8f, 0f, 1f)); // é»„è‰²ï¼ˆå®Ÿéš›ã®ãƒã‚¹ã®ä½ç½®ï¼‰
         }
 
         if (Application.isPlaying)

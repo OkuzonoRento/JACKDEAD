@@ -2755,7 +2755,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1133812400
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2781,6 +2781,11 @@ MonoBehaviour:
   dopamineGaugeSlider: {fileID: 0}
   bodyStatusContainerObj: {fileID: 0}
   debuffSummaryText: {fileID: 0}
+  fadeDuration: 0.6
+  blackHoldDuration: 0.4
+  gameOverFadeDuration: 1.5
+  gameOverHoldDuration: 4
+  titleSceneName: TitleScene
   mapGenerator: {fileID: 1871857288}
   playerController: {fileID: 6134311109476015887}
   playerMovement: {fileID: 6510030111815441596}
@@ -3930,16 +3935,22 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 5fc47ae796a00c7419054a46959a94ba, type: 2}
   - {fileID: 11400000, guid: 13bbf1f578dca804abf9b3eb86b2f1da, type: 2}
   - {fileID: 11400000, guid: 7e6ef1e99e607374a9a10361ac8f945b, type: 2}
-  targetRoomCount: 10
   tileSize: 20
   maxRetryCount: 50
   busPrefab: {fileID: 1492566407503128558, guid: 7ec228188afd7b6448696607b58225ec, type: 3}
   busOffsetDistance: 20
   busYRotationOffset: -90
   currentStageLevel: 1
-  currentMapQuota: 100
+  maxStageLevel: 20
+  minRoomCount: 5
+  maxRoomCount: 40
+  baseQuotaLevel1: 500
+  baseQuotaFinalLevel: 280000
+  quotaRandomRange: 0.08
   quotaMultiplier: 2.5
-  quotaGrowthRate: 1.5
+  postMaxLevelGrowthRate: 1.1
+  priceMultiplierFinalLevel: 150
+  slotStartLevel: 5
   slotCandidates:
   - variantName: DEMO
     slotPrefab: {fileID: 8257188973034071042, guid: 0a7c909b45789e344998e09b37c16ed2, type: 3}
@@ -4416,6 +4427,7 @@ MonoBehaviour:
   baseThrowForce: 1
   sanityDrainPerSecond: 0.15
   sanityRecoveryOnClear: 20
+  fallDeathHeight: -30
   Inventory:
   - {fileID: 0}
   - {fileID: 0}

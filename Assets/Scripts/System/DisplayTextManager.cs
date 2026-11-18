@@ -4,7 +4,7 @@ using TMPro;
 
 public class DisplayTextManager : MonoBehaviour
 {
-    [Header("UI ƒeƒLƒXƒgQÆi3DƒeƒLƒXƒgj")]
+    [Header("UI ãƒ†ã‚­ã‚¹ãƒˆå‚ç…§ï¼ˆ3Dãƒ†ã‚­ã‚¹ãƒˆï¼‰")]
     [SerializeField] private TextMeshPro quotaText;
     [SerializeField] private TextMeshPro incomeText;
     [SerializeField] private TextMeshPro remainingText;
@@ -12,10 +12,10 @@ public class DisplayTextManager : MonoBehaviour
     private MapGenerator mapGenerator;
     private PlayerController playerController;
 
-    // ƒoƒX‚Ì’†iƒgƒŠƒK[“àj‚É‚ ‚éƒXƒNƒ‰ƒbƒv‚ğŠÇ—‚·‚éƒZƒbƒg
+    // ãƒã‚¹ã®ä¸­ï¼ˆãƒˆãƒªã‚¬ãƒ¼å†…ï¼‰ã«ã‚ã‚‹ã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚’ç®¡ç†ã™ã‚‹ã‚»ãƒƒãƒˆ
     private readonly HashSet<Item> itemsInBus = new HashSet<Item>();
 
-    // ƒvƒŒƒCƒ„[‚ªƒoƒX‚ÌƒGƒŠƒA“à‚É“ü‚Á‚Ä‚¢‚é‚©‚Ç‚¤‚©
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒãƒã‚¹ã®ã‚¨ãƒªã‚¢å†…ã«å…¥ã£ã¦ã„ã‚‹ã‹ã©ã†ã‹
     private bool isPlayerInBus = false;
 
     public bool IsPlayerInBus => isPlayerInBus;
@@ -36,7 +36,7 @@ public class DisplayTextManager : MonoBehaviour
         RegisterColliderInBus(other);
     }
 
-    // ƒoƒX“à‚ÅQƒL[“Š±‚³‚ê‚½ƒAƒCƒeƒ€iInstantiateŒã‚ÉItem‚ª•t—^‚³‚ê‚éƒP[ƒXj‚àŠmÀ‚ÉE‚¤
+    // ãƒã‚¹å†…ã§Qã‚­ãƒ¼æŠ•æ“²ã•ã‚ŒãŸã‚¢ã‚¤ãƒ†ãƒ ï¼ˆInstantiateå¾Œã«ItemãŒä»˜ä¸ã•ã‚Œã‚‹ã‚±ãƒ¼ã‚¹ï¼‰ã‚‚ç¢ºå®Ÿã«æ‹¾ã†
     private void OnTriggerStay(Collider other)
     {
         RegisterColliderInBus(other);
@@ -81,7 +81,7 @@ public class DisplayTextManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒgƒ‰ƒbƒNiƒoƒXj‚ÌƒgƒŠƒK[“à‚É‚ ‚é°’u‚«ƒXƒNƒ‰ƒbƒv‚Ì‡Œv‹àŠz‚ğ•Ô‚·iDepartureLever‚Æ‹¤’Ê—˜—pj
+    /// ãƒˆãƒ©ãƒƒã‚¯ï¼ˆãƒã‚¹ï¼‰ã®ãƒˆãƒªã‚¬ãƒ¼å†…ã«ã‚ã‚‹åºŠç½®ãã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã®åˆè¨ˆé‡‘é¡ã‚’è¿”ã™ï¼ˆDepartureLeverã¨å…±é€šåˆ©ç”¨ï¼‰
     /// </summary>
     public int GetBusScrapTotalValue()
     {
@@ -92,14 +92,14 @@ public class DisplayTextManager : MonoBehaviour
         {
             if (item != null && item.ItemData != null)
             {
-                total += item.ItemData.Amount;
+                total += item.CurrentValue;
             }
         }
         return total;
     }
 
     /// <summary>
-    /// ƒŒƒxƒ‹ƒNƒŠƒA¸Z‚ÉƒoƒX“à‚Ì°’u‚«ƒXƒNƒ‰ƒbƒv‚ğ‚·‚×‚ÄÁ‹‚·‚é
+    /// ãƒ¬ãƒ™ãƒ«ã‚¯ãƒªã‚¢ç²¾ç®—æ™‚ã«ãƒã‚¹å†…ã®åºŠç½®ãã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚’ã™ã¹ã¦æ¶ˆå»ã™ã‚‹
     /// </summary>
     public void ClearBusScrapItems()
     {
@@ -155,7 +155,7 @@ public class DisplayTextManager : MonoBehaviour
                 {
                     if (itemData != null)
                     {
-                        total += itemData.Amount;
+                        total += mapGenerator != null ? mapGenerator.GetScrapValue(itemData) : itemData.Amount;
                     }
                 }
             }

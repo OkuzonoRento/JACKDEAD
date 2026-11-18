@@ -22,7 +22,6 @@ public class MapGenerator : MonoBehaviour
     public List<MapChipData> allMapChips;
 
     [Header("生成設定")]
-    [SerializeField] private int targetRoomCount = 9;
     [SerializeField] private float tileSize = 20f;
     [SerializeField] private int maxRetryCount = 50;
 
@@ -31,15 +30,34 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private float busOffsetDistance = 20f;
     [SerializeField] private float busYRotationOffset = -90f;
 
-    [Header("経済・ノルマ・レベル進行設定")]
+    [Header("レベル進行設定")]
     [SerializeField, Min(1)] private int currentStageLevel = 1;
-    [SerializeField] private int currentMapQuota = 1000;
-    [SerializeField] private float quotaMultiplier = 2.5f;
-    [Tooltip("1レベルクリアごとにノルマ金額へ乗算される増加倍率")]
-    [SerializeField, Min(1.0f)] private float quotaGrowthRate = 1.5f;
+    [Tooltip("このレベルでマップサイズ・ノルマが最大になる（以降は最大サイズのまま）")]
+    [SerializeField, Min(2)] private int maxStageLevel = 20;
+    [Tooltip("レベル1の部屋数")]
+    [SerializeField, Min(1)] private int minRoomCount = 5;
+    [Tooltip("最大レベルでの部屋数（レベルに応じて線形に増える）")]
+    [SerializeField, Min(1)] private int maxRoomCount = 40;
 
+    [Header("ノルマ・借金設定")]
+    [Tooltip("レベル1のノルマ（基準値）")]
+    [SerializeField, Min(1)] private int baseQuotaLevel1 = 500;
+    [Tooltip("最大レベルのノルマ（基準値）。レベル1からこの値まで指数的に増える")]
+    [SerializeField, Min(1)] private int baseQuotaFinalLevel = 280000;
+    [Tooltip("基準ノルマに掛けるランダム幅（0.08 = ±8%）")]
+    [SerializeField, Range(0f, 0.5f)] private float quotaRandomRange = 0.08f;
+    [Tooltip("ノルマに対してマップへ配置するスクラップ総価値の倍率")]
+    [SerializeField] private float quotaMultiplier = 2.5f;
+    [Tooltip("最大レベルを超えた後（借金返済後の無限モード）の、1レベルごとのノルマ・価格の増加倍率")]
+    [SerializeField, Min(1f)] private float postMaxLevelGrowthRate = 1.1f;
+
+    [Header("価格補正（レベルが上がるほど価値が上がる）")]
+    [Tooltip("最大レベルでの価格倍率。レベル1の1倍から指数的に増える。スクラップの売値・スロットのベット額に適用される")]
+    [SerializeField, Min(1f)] private float priceMultiplierFinalLevel = 150f;
 
     [Header("スロット自動配置設定")]
+    [Tooltip("このレベル以降のマップにだけスロットマシンを配置する")]
+    [SerializeField, Min(1)] private int slotStartLevel = 5;
     [SerializeField] private List<SlotSpawnCandidate> slotCandidates = new List<SlotSpawnCandidate>();
     [SerializeField, Min(0)] private int minSlotCount = 2;
     [SerializeField, Min(0)] private int maxSlotCount = 4;
@@ -92,7 +110,15 @@ public class MapGenerator : MonoBehaviour
     private const float MaxWalkableFloorHeightAboveRoom = 1.0f;
     private const float FloorHeightMatchTolerance = 0.08f;
     private const float MinFloorColorBrightness = 0.08f;
-    private const int QuotaRoundingUnit = 100;
+    private const int MaxRoomCountDegradeSteps = 5;
+    private const int QuotaSmallRoundingUnit = 50;
+    private const int QuotaMediumRoundingUnit = 500;
+    private const int QuotaLargeRoundingUnit = 1000;
+    private const int QuotaMediumThreshold = 10000;
+    private const int QuotaLargeThreshold = 100000;
+    private const int TotalDebtRoundingUnit = 10000;
+    private const double MaxQuotaValue = 1.5e9;
+    private const double PriceRoundingMinValue = 100;
 
     public int CurrentStageLevel => currentStageLevel;
 
@@ -135,6 +161,107 @@ public class MapGenerator : MonoBehaviour
     public int GetBusDirection() => spawnedBusDirection;
     public int CurrentMapQuota => currentMapQuota;
 
+    // 現在のレベルで生成する部屋数と、今回のマップで確定したノルマ（基準値にランダム幅を掛けたもの）
+    private int currentTargetRoomCount;
+    private int currentMapQuota;
+
+    /// <summary>
+    /// 借金の総額：レベル1〜最大レベルの基準ノルマの合計（1万単位で丸め）。
+    /// 全レベルのノルマを払い切ると、ちょうど借金を完済できる。
+    /// </summary>
+    public int TotalDebt
+    {
+        get
+        {
+            long sum = 0;
+            for (int level = 1; level <= maxStageLevel; level++)
+            {
+                sum += GetBaseQuota(level);
+            }
+            return (int)(Mathf.Round(sum / (float)TotalDebtRoundingUnit) * TotalDebtRoundingUnit);
+        }
+    }
+
+    /// <summary>
+    /// 指定レベルの基準ノルマ。レベル1の値から最大レベルの値まで指数的に増加する
+    /// </summary>
+    public int GetBaseQuota(int level)
+    {
+        double raw;
+        if (level <= maxStageLevel)
+        {
+            double growth = System.Math.Pow((double)baseQuotaFinalLevel / baseQuotaLevel1, 1.0 / (maxStageLevel - 1));
+            raw = baseQuotaLevel1 * System.Math.Pow(growth, System.Math.Max(0, level - 1));
+        }
+        else
+        {
+            // 最大レベル以降（借金返済後の無限モード）は緩やかに増加し続ける
+            raw = baseQuotaFinalLevel * System.Math.Pow(postMaxLevelGrowthRate, level - maxStageLevel);
+        }
+
+        return RoundQuota((float)System.Math.Min(raw, MaxQuotaValue));
+    }
+
+    /// <summary>
+    /// 指定レベルの価格倍率。最大レベルまでは 1 → priceMultiplierFinalLevel へ指数的に増え、以降は緩やかに増え続ける
+    /// </summary>
+    public float GetPriceMultiplier(int level)
+    {
+        if (level <= maxStageLevel)
+        {
+            float t = (level - 1) / (float)(maxStageLevel - 1);
+            return Mathf.Pow(priceMultiplierFinalLevel, Mathf.Max(0f, t));
+        }
+
+        return priceMultiplierFinalLevel * Mathf.Pow(postMaxLevelGrowthRate, level - maxStageLevel);
+    }
+
+    public float CurrentPriceMultiplier => GetPriceMultiplier(currentStageLevel);
+
+    /// <summary>
+    /// 現在のレベルの価格補正を掛けたスクラップの売値
+    /// </summary>
+    public int GetScrapValue(ItemDataAsset item)
+    {
+        if (item == null) return 0;
+        return Mathf.RoundToInt(item.Amount * CurrentPriceMultiplier);
+    }
+
+    /// <summary>
+    /// 基準額（レベル1相当）に現在の価格補正を掛け、上位2桁で丸めた金額を返す（スロットのベット額など）
+    /// </summary>
+    public int ScaleToCurrentPrice(int baseAmount)
+    {
+        double scaled = baseAmount * (double)CurrentPriceMultiplier;
+        if (scaled < PriceRoundingMinValue) return Mathf.RoundToInt((float)scaled);
+
+        double magnitude = System.Math.Pow(10, System.Math.Floor(System.Math.Log10(scaled)) - 1);
+        return (int)System.Math.Min(System.Math.Round(scaled / magnitude) * magnitude, int.MaxValue);
+    }
+
+    /// <summary>
+    /// 指定レベルの部屋数。レベル1の minRoomCount から最大レベルの maxRoomCount まで線形に増加する
+    /// </summary>
+    public int GetRoomCountForLevel(int level)
+    {
+        float t = Mathf.Clamp01((level - 1) / (float)(maxStageLevel - 1));
+        return Mathf.Max(1, Mathf.RoundToInt(Mathf.Lerp(minRoomCount, maxRoomCount, t)));
+    }
+
+    private int RoundQuota(float rawQuota)
+    {
+        int unit = rawQuota < QuotaMediumThreshold ? QuotaSmallRoundingUnit
+                 : rawQuota < QuotaLargeThreshold ? QuotaMediumRoundingUnit
+                 : QuotaLargeRoundingUnit;
+        return Mathf.Max(unit, Mathf.RoundToInt(rawQuota / unit) * unit);
+    }
+
+    private void RollQuotaForCurrentLevel()
+    {
+        float randomFactor = 1f + Random.Range(-quotaRandomRange, quotaRandomRange);
+        currentMapQuota = RoundQuota(GetBaseQuota(currentStageLevel) * randomFactor);
+    }
+
     private void Awake()
     {
         gizmoDrawer = GetComponent<MapGizmoDrawer>();
@@ -142,40 +269,46 @@ public class MapGenerator : MonoBehaviour
 
     private void Start()
     {
+        RollQuotaForCurrentLevel();
+        Debug.Log($"[MAP] 借金総額: ${TotalDebt:N0} / STAGE {currentStageLevel} ノルマ: ${currentMapQuota:N0}");
         GenerateMap();
     }
 
     public void GenerateMap()
     {
-        int retry = 0;
-        bool success = false;
+        int requestedRoomCount = GetRoomCountForLevel(currentStageLevel);
 
-        while (retry < maxRetryCount && !success)
+        // 目標の部屋数に届かない場合は、少しずつ目標を下げて再挑戦する（プレイヤー・バス未配置の詰み防止）
+        for (int step = 0; step <= MaxRoomCountDegradeSteps; step++)
         {
-            retry++;
-            if (TryGenerateMapOnce())
+            currentTargetRoomCount = requestedRoomCount - step;
+            if (currentTargetRoomCount < 1) break;
+
+            for (int retry = 0; retry < maxRetryCount; retry++)
             {
-                success = true;
+                if (TryGenerateMapOnce())
+                {
+                    if (step > 0)
+                    {
+                        Debug.LogWarning($"[MAP] 目標部屋数({requestedRoomCount})を作れなかったため、{currentTargetRoomCount}部屋で生成しました。");
+                    }
+                    return;
+                }
             }
         }
 
-        if (!success)
-        {
-            Debug.LogWarning($"[MAP] 警告: 最大リトライ回数({maxRetryCount})以内に目標数({targetRoomCount})の生成ができませんでした。（現在の生成数: {spawnedRoomList.Count}）");
-        }
+        Debug.LogWarning($"[MAP] 警告: 目標部屋数({requestedRoomCount})の生成に失敗しました。（現在の生成数: {spawnedRoomList.Count}）");
     }
 
     /// <summary>
-    /// 簡易リザルトの「次へ」ボタンから呼ばれ、レベルとノルマを引き上げて新しいマップを再生成する
+    /// 簡易リザルトの「次へ」ボタンから呼ばれ、レベルを上げてノルマを決め直し、新しいマップを再生成する
     /// </summary>
     public void AdvanceToNextLevel()
     {
         currentStageLevel++;
+        RollQuotaForCurrentLevel();
 
-        float rawNextQuota = currentMapQuota * quotaGrowthRate;
-        currentMapQuota = Mathf.RoundToInt(rawNextQuota / QuotaRoundingUnit) * QuotaRoundingUnit;
-
-        Debug.Log($"[MAP] STAGE {currentStageLevel} 開始！ 新ノルマ: ${currentMapQuota}");
+        Debug.Log($"[MAP] STAGE {currentStageLevel} 開始！ 部屋数: {GetRoomCountForLevel(currentStageLevel)} / 新ノルマ: ${currentMapQuota:N0}");
         GenerateMap();
     }
 
@@ -199,7 +332,7 @@ public class MapGenerator : MonoBehaviour
         stack.Push(startPos);
         visited.Add(startPos);
 
-        while (stack.Count > 0 && spawnedRoomList.Count < targetRoomCount)
+        while (stack.Count > 0 && spawnedRoomList.Count < currentTargetRoomCount)
         {
             Vector2Int currentGrid = stack.Peek();
 
@@ -253,7 +386,7 @@ public class MapGenerator : MonoBehaviour
                 Quaternion spawnRotation = Quaternion.Euler(RoomChipBasePitch, result.angle, 0f);
                 Instantiate(result.chip.chipPrefab, worldPos, spawnRotation, transform);
 
-                if (spawnedRoomList.Count >= targetRoomCount) break;
+                if (spawnedRoomList.Count >= currentTargetRoomCount) break;
             }
 
             List<Vector2Int> nextCandidates = new List<Vector2Int>();
@@ -275,7 +408,7 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        if (spawnedRoomList.Count >= targetRoomCount)
+        if (spawnedRoomList.Count >= currentTargetRoomCount)
         {
             Physics.SyncTransforms();
 
@@ -357,6 +490,7 @@ public class MapGenerator : MonoBehaviour
 
     private void SpawnSlotMachines()
     {
+        if (currentStageLevel < slotStartLevel) return;
         if (slotCandidates == null || slotCandidates.Count == 0) return;
 
         int targetSlotCount = Random.Range(minSlotCount, Mathf.Max(minSlotCount, maxSlotCount) + 1);
@@ -983,7 +1117,7 @@ public class MapGenerator : MonoBehaviour
             }
             worldItem.SetItemData(randomScrapData);
 
-            int itemVal = randomScrapData.Amount > 0 ? randomScrapData.Amount : DefaultFallbackScrapValue;
+            int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
             currentTotalValue += itemVal;
         }
 

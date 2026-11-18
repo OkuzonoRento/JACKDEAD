@@ -6,16 +6,31 @@ public class Item : MonoBehaviour, IInteractable
 
     public ItemDataAsset ItemData => itemData;
 
+    private MapGenerator mapGenerator;
+
+    /// <summary>
+    /// 現在のレベルの価格補正を掛けた売値
+    /// </summary>
+    public int CurrentValue
+    {
+        get
+        {
+            if (itemData == null) return 0;
+            if (mapGenerator == null) mapGenerator = FindAnyObjectByType<MapGenerator>();
+            return mapGenerator != null ? mapGenerator.GetScrapValue(itemData) : itemData.Amount;
+        }
+    }
+
     public void SetItemData(ItemDataAsset data)
     {
         itemData = data;
     }
 
-    // --- IInteractable �̎��� ---
+    // --- IInteractable の実装 ---
     public string GetInteractPrompt()
     {
         if (itemData == null) return "Item";
-        return $"{itemData.ItemName}  $  {itemData.Amount}";
+        return $"{itemData.ItemName}  $  {CurrentValue:N0}";
     }
 
     public float GetHoldTime()
