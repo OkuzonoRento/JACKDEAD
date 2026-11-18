@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class MapGizmoDrawer : MonoBehaviour
 {
-    [Header("ƒfƒoƒbƒO•\¦İ’è")]
+    [Header("ãƒ‡ãƒãƒƒã‚°è¡¨ç¤ºè¨­å®š")]
     public bool showDoorGizmos = true;
 
     public struct RoomGizmoInfo
@@ -40,27 +40,27 @@ public class MapGizmoDrawer : MonoBehaviour
             float gizmoHeight = 2f;
             Vector3 center = room.position + Vector3.up * gizmoHeight;
 
-            // ƒ`ƒbƒv‚Ì˜gü
+            // ãƒãƒƒãƒ—ã®æ ç·š
             Gizmos.color = Color.gray;
             Gizmos.DrawWireCube(center, new Vector3(tileSize * 0.9f, 0.1f, tileSize * 0.9f));
 
-            // ”à‚ÌˆÊ’u‚Ü‚Å‚Ì‹——£iƒ`ƒbƒv‚Ì’[•t‹ßj
+            // æ‰‰ã®ä½ç½®ã¾ã§ã®è·é›¢ï¼ˆãƒãƒƒãƒ—ã®ç«¯ä»˜è¿‘ï¼‰
             float doorOffset = tileSize * 0.45f;
-            float markerSize = 0.25f; // ŠÛ‚¢ƒJƒ‰[‚Ì‘å‚«‚³
+            float markerSize = 0.25f; // ä¸¸ã„ã‚«ãƒ©ãƒ¼ã®å¤§ãã•
 
-            // ã (Z+) ‚Ì”à
+            // ä¸Š (Z+) ã®æ‰‰
             Gizmos.color = room.topDoor ? Color.cyan : Color.red;
             Gizmos.DrawSphere(center + Vector3.forward * doorOffset, markerSize);
 
-            // ‰º (Z-) ‚Ì”à
+            // ä¸‹ (Z-) ã®æ‰‰
             Gizmos.color = room.bottomDoor ? Color.cyan : Color.red;
             Gizmos.DrawSphere(center + Vector3.back * doorOffset, markerSize);
 
-            // ¶ (X-) ‚Ì”à
+            // å·¦ (X-) ã®æ‰‰
             Gizmos.color = room.leftDoor ? Color.cyan : Color.red;
             Gizmos.DrawSphere(center + Vector3.left * doorOffset, markerSize);
 
-            // ‰E (X+) ‚Ì”à
+            // å³ (X+) ã®æ‰‰
             Gizmos.color = room.rightDoor ? Color.cyan : Color.red;
             Gizmos.DrawSphere(center + Vector3.right * doorOffset, markerSize);
         }

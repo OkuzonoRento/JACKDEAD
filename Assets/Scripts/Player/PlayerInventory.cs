@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class PlayerInventory : MonoBehaviour
 {
-    [Header("ƒCƒ“ƒxƒ“ƒgƒŠİ’è")]
+    [Header("ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªè¨­å®š")]
     [SerializeField] private int maxSlots = 3;
 
     private ItemDataAsset[] items;
@@ -20,7 +20,7 @@ public class PlayerInventory : MonoBehaviour
     {
         if (item == null)
         {
-            Debug.LogWarning("’Ç‰Á‚·‚éƒAƒCƒeƒ€ƒf[ƒ^‚ª‚ ‚è‚Ü‚¹‚ñB");
+            Debug.LogWarning("è¿½åŠ ã™ã‚‹ã‚¢ã‚¤ãƒ†ãƒ ãƒ‡ãƒ¼ã‚¿ãŒã‚ã‚Šã¾ã›ã‚“ã€‚");
             return false;
         }
 
@@ -29,12 +29,12 @@ public class PlayerInventory : MonoBehaviour
             if (items[i] == null)
             {
                 items[i] = item;
-                Debug.Log($"ƒCƒ“ƒxƒ“ƒgƒŠ‚ÌƒXƒƒbƒg{i + 1}‚É’Ç‰ÁF{item.name}");
+                Debug.Log($"ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªã®ã‚¹ãƒ­ãƒƒãƒˆ{i + 1}ã«è¿½åŠ ï¼š{item.name}");
                 return true;
             }
         }
 
-        Debug.Log("ƒCƒ“ƒxƒ“ƒgƒŠ‚ª‚¢‚Á‚Ï‚¢‚Å‚·I");
+        Debug.Log("ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªãŒã„ã£ã±ã„ã§ã™ï¼");
         return false;
     }
 

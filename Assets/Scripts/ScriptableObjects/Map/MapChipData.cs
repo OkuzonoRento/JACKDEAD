@@ -6,12 +6,12 @@ public class MapChipData : ScriptableObject
     public string chipName;
     public GameObject chipPrefab;
 
-    [Header("Šî–{‚Ì”à‚Ì—L–³i‰ñ“]0“x“_j")]
+    [Header("åŸºæœ¬ã®æ‰‰ã®æœ‰ç„¡ï¼ˆå›è»¢0åº¦æ™‚ç‚¹ï¼‰")]
     public bool hasTopDoor = true;
     public bool hasBottomDoor = true;
     public bool hasLeftDoor = true;
     public bool hasRightDoor = true;
 
-    [Header("İ’è")]
-    public bool allowRotation = true; // ‰ñ“]‚ğ‹–‰Â‚·‚é‚©‚Ç‚¤‚©
+    [Header("è¨­å®š")]
+    public bool allowRotation = true; // å›è»¢ã‚’è¨±å¯ã™ã‚‹ã‹ã©ã†ã‹
 }

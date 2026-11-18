@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class CollectibleItem : MonoBehaviour
 {
-    [Header("アイテムデータ")]
+    [Header("繧｢繧､繝�繝繝�繝ｼ繧ｿ")]
     [SerializeField] private ItemDataAsset itemData;
 
     public ItemDataAsset ItemData => itemData;

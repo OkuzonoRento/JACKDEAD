@@ -13,23 +13,37 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private LayerMask interactableLayer;
     [SerializeField] private Transform cameraTransform;
 
-    [Header("UI参照 (TextMeshPro版)")]
+    [Header("レティクル設定")]
+    [Tooltip("画面中央のレティクルImage")]
+    [SerializeField] private Image reticleImage;
+    [Tooltip("通常時のレティクル色")]
+    [SerializeField] private Color normalReticleColor = Color.white;
+    [Tooltip("インタラクト可能対象に照準が合っているときのレティクル色")]
+    [SerializeField] private Color interactableReticleColor = new Color(0.3f, 1f, 0.4f, 1f);
+
+    [Header("UI参照 (プロンプト・HoldUI)")]
     [SerializeField] private GameObject promptCanvasObj;
     [SerializeField] private RectTransform promptRectTransform;
     [SerializeField] private TextMeshProUGUI promptText;
-    [SerializeField] private Image radialProgressBar;
-
-    [Header("HoldUI 参照 (アイテム中心に重畳)")]
     [SerializeField] private GameObject holdUIObj;
     [SerializeField] private RectTransform holdUIRectTransform;
+    [SerializeField] private Image radialProgressBar;
 
-    [Header("距離に応じた固定サイズ設定")]
+    [Header("距離に応じたHoldUIサイズ設定")]
     [SerializeField] private float closeScale = 1.2f;
     [SerializeField] private float farScale = 0.6f;
     [SerializeField] private float scaleDistanceThreshold = 1.5f;
 
-    [Header("表示オフセット")]
+    [Header("表示オフセット (テキスト用)")]
     [SerializeField] private Vector3 promptWorldOffset = new Vector3(0f, 0.75f, 0f);
+
+    [Header("長押し時間設定（個別管理）")]
+    [Tooltip("アイテム等のデフォルト長押し時間（秒）")]
+    [SerializeField, Min(0.05f)] private float defaultRequiredHoldTime = 1.0f;
+    [Tooltip("スロットのボタン専用の長押し時間（秒）※アイテム等とは別設定")]
+    [SerializeField, Min(0.05f)] private float slotButtonHoldTime = 0.4f;
+
+    private const float MinHoldDuration = 0.05f;
 
     private float currentHoldTime = 0f;
     private bool isHolding = false;
@@ -37,6 +51,7 @@ public class PlayerInteraction : MonoBehaviour
 
     private IInteractable currentInteractable;
     private Transform currentInteractableTransform;
+    private Collider currentInteractableCollider;
     private Camera mainCamera;
 
     private InputActionAsset playerInputActions;
@@ -56,6 +71,8 @@ public class PlayerInteraction : MonoBehaviour
         {
             playerController = GetComponent<PlayerController>();
         }
+
+        UpdateReticleColor(false);
     }
 
     private void OnEnable()
@@ -82,79 +99,90 @@ public class PlayerInteraction : MonoBehaviour
         CheckForInteractables();
         HandleInteractionInput();
         HandleItemDropInput();
-
-        if (currentInteractable != null && currentInteractableTransform != null)
-        {
-            UpdateUIPosition(currentInteractableTransform, promptWorldOffset);
-        }
+        UpdateActiveUIPositions();
     }
 
     private void CheckForInteractables()
     {
-        if (isHolding && currentInteractable != null) return;
+        if (cameraTransform == null) return;
 
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableLayer))
         {
-            // ★ 子オブジェクトのコライダーに当たっても親から取得できるように GetComponentInParent を使用
-            IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
+            IInteractable interactable = hit.collider.GetComponent<IInteractable>();
+            if (interactable == null)
+            {
+                interactable = hit.collider.GetComponentInParent<IInteractable>();
+            }
+
             if (interactable != null)
             {
-                currentInteractable = interactable;
-                currentInteractableTransform = hit.collider.transform;
-                ShowPrompt(interactable);
+                if (currentInteractable != interactable)
+                {
+                    ResetHold();
+                    currentInteractable = interactable;
+                    currentInteractableTransform = hit.collider.transform;
+                    currentInteractableCollider = hit.collider;
+                }
+
+                bool canInteractNow = currentInteractable.CanInteract();
+                UpdateReticleColor(canInteractNow);
+                ShowPrompt(currentInteractable);
                 return;
             }
         }
 
-        if (!isHolding)
-        {
-            ClearPrompt();
-        }
+        UpdateReticleColor(false);
+        ClearPrompt();
     }
 
-    private void UpdateUIPosition(Transform targetTransform, Vector3 offset)
+    private void UpdateReticleColor(bool isInteractableTarget)
     {
-        if (mainCamera == null || targetTransform == null) return;
+        if (reticleImage == null) return;
+        reticleImage.color = isInteractableTarget ? interactableReticleColor : normalReticleColor;
+    }
 
-        // プロンプト文字が空文字（スロットボタンなど）の場合はキャンバスを出さない
-        string promptStr = currentInteractable != null ? currentInteractable.GetInteractPrompt() : "";
-        bool hasPromptText = !string.IsNullOrEmpty(promptStr);
+    private void UpdateActiveUIPositions()
+    {
+        if (mainCamera == null || currentInteractable == null || currentInteractableTransform == null) return;
 
-        if (promptRectTransform != null && promptCanvasObj != null)
+        // 1. 親またはテキストプロンプトの座標更新
+        if (promptRectTransform != null)
         {
-            if (!hasPromptText)
+            Vector3 textWorldPos = currentInteractableTransform.position + promptWorldOffset;
+            Vector3 textScreenPoint = mainCamera.WorldToScreenPoint(textWorldPos);
+
+            if (textScreenPoint.z >= 0f)
             {
-                if (promptCanvasObj.activeSelf) promptCanvasObj.SetActive(false);
+                if (promptCanvasObj != null && !promptCanvasObj.activeSelf)
+                {
+                    promptCanvasObj.SetActive(true);
+                }
+                promptRectTransform.position = textScreenPoint;
             }
             else
             {
-                Vector3 textWorldPos = targetTransform.position + offset;
-                Vector3 textScreenPoint = mainCamera.WorldToScreenPoint(textWorldPos);
-
-                if (textScreenPoint.z >= 0)
+                if (promptCanvasObj != null && promptCanvasObj.activeSelf)
                 {
-                    if (!promptCanvasObj.activeSelf) promptCanvasObj.SetActive(true);
-                    promptRectTransform.position = textScreenPoint;
+                    promptCanvasObj.SetActive(false);
                 }
-                else
-                {
-                    if (promptCanvasObj.activeSelf) promptCanvasObj.SetActive(false);
-                    return;
-                }
+                return;
             }
         }
 
-        // 長押しサークル（HoldUI）を対象の中心に追従させる
-        if (holdUIRectTransform != null)
+        // 2. HoldUIの座標・サイズ更新（親の移動後に上書きすることで、ボタン等の中心へ正確に固定）
+        if (holdUIRectTransform != null && isHolding)
         {
-            Collider col = targetTransform.GetComponent<Collider>();
-            Vector3 centerWorldPos = col != null ? col.bounds.center : targetTransform.position;
+            Vector3 centerWorldPos = currentInteractableCollider != null
+                ? currentInteractableCollider.bounds.center
+                : currentInteractableTransform.position;
+
             Vector3 centerScreenPoint = mainCamera.WorldToScreenPoint(centerWorldPos);
 
-            if (centerScreenPoint.z >= 0)
+            if (centerScreenPoint.z >= 0f)
             {
                 holdUIRectTransform.position = centerScreenPoint;
+
                 float distance = Vector3.Distance(cameraTransform.position, centerWorldPos);
                 float targetScale = distance <= scaleDistanceThreshold ? closeScale : farScale;
                 holdUIRectTransform.localScale = new Vector3(targetScale, targetScale, 1f);
@@ -165,7 +193,7 @@ public class PlayerInteraction : MonoBehaviour
     private void HandleInteractionInput()
     {
         bool isInteractPressed = interactAction != null && interactAction.IsPressed();
-        bool hasTarget = (currentInteractable != null);
+        bool hasTarget = currentInteractable != null;
 
         if (!isInteractPressed)
         {
@@ -188,6 +216,11 @@ public class PlayerInteraction : MonoBehaviour
 
             currentHoldTime += Time.deltaTime;
 
+            // HoldUI が promptCanvasObj の子階層にある場合でも確実に表示されるよう親も有効化
+            if (promptCanvasObj != null && !promptCanvasObj.activeSelf)
+            {
+                promptCanvasObj.SetActive(true);
+            }
             if (holdUIObj != null && !holdUIObj.activeSelf)
             {
                 holdUIObj.SetActive(true);
@@ -197,7 +230,8 @@ public class PlayerInteraction : MonoBehaviour
                 radialProgressBar.gameObject.SetActive(true);
             }
 
-            float targetHoldTime = Mathf.Max(0.05f, currentInteractable.GetHoldTime());
+            // ★ スロットボタンとアイテム等で長押し時間を別々に取得
+            float targetHoldTime = GetTargetHoldDuration(currentInteractable);
             float progress = Mathf.Clamp01(currentHoldTime / targetHoldTime);
 
             if (radialProgressBar != null)
@@ -208,9 +242,11 @@ public class PlayerInteraction : MonoBehaviour
             if (currentHoldTime >= targetHoldTime)
             {
                 hasTriggeredAction = true;
-                currentInteractable.OnInteract();
-                ClearPrompt();
+
+                IInteractable targetToTrigger = currentInteractable;
                 ResetHold();
+                ClearPrompt();
+                targetToTrigger.OnInteract();
             }
         }
         else
@@ -230,6 +266,21 @@ public class PlayerInteraction : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 対象に応じた長押し時間を返す（スロットボタンは専用時間、アイテム等は各自の設定時間）
+    /// </summary>
+    private float GetTargetHoldDuration(IInteractable interactable)
+    {
+        if (interactable is SlotButtonInteractable)
+        {
+            return Mathf.Max(MinHoldDuration, slotButtonHoldTime);
+        }
+
+        float customTime = interactable.GetHoldTime();
+        float resolvedTime = customTime > 0f ? customTime : defaultRequiredHoldTime;
+        return Mathf.Max(MinHoldDuration, resolvedTime);
+    }
+
     private void HandleItemDropInput()
     {
         if (dropAction != null && dropAction.triggered)
@@ -243,27 +294,35 @@ public class PlayerInteraction : MonoBehaviour
 
     private void ShowPrompt(IInteractable interactable)
     {
-        string text = interactable.GetInteractPrompt();
-        bool hasText = !string.IsNullOrEmpty(text);
-
-        if (promptCanvasObj != null)
+        // HoldUIの親が非アクティブにならないよう promptCanvasObj 自体は有効にする
+        if (promptCanvasObj != null && !promptCanvasObj.activeSelf)
         {
-            promptCanvasObj.SetActive(hasText);
+            promptCanvasObj.SetActive(true);
         }
 
-        if (promptText != null && hasText)
+        if (promptText != null)
         {
-            promptText.text = text;
+            // スロットボタンは GetInteractPrompt() が "" なので文字は表示されない
+            promptText.text = interactable.GetInteractPrompt();
         }
-
-        if (holdUIObj != null && !isHolding) holdUIObj.SetActive(false);
     }
 
     private void ClearPrompt()
     {
         currentInteractable = null;
         currentInteractableTransform = null;
-        if (promptCanvasObj != null && !isHolding) promptCanvasObj.SetActive(false);
+        currentInteractableCollider = null;
+
+        if (promptText != null)
+        {
+            promptText.text = "";
+        }
+
+        if (promptCanvasObj != null && promptCanvasObj.activeSelf)
+        {
+            promptCanvasObj.SetActive(false);
+        }
+
         ResetHold();
     }
 
@@ -275,10 +334,13 @@ public class PlayerInteraction : MonoBehaviour
         if (radialProgressBar != null)
         {
             radialProgressBar.fillAmount = 0f;
-            if (holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
+            if (holdUIObj == null)
+            {
+                radialProgressBar.gameObject.SetActive(false);
+            }
         }
 
-        if (holdUIObj != null)
+        if (holdUIObj != null && holdUIObj.activeSelf)
         {
             holdUIObj.SetActive(false);
         }

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 [RequireComponent(typeof(MapGizmoDrawer))]
 public class MapGenerator : MonoBehaviour
@@ -7,13 +8,13 @@ public class MapGenerator : MonoBehaviour
     [System.Serializable]
     public class SlotSpawnCandidate
     {
-        [Tooltip("識別用の名前")]
+        [Tooltip("識別用の名前（例: 通常台1.5x、レア台2.0x）")]
         public string variantName = "Normal Slot";
 
         [Tooltip("スポーンさせるスロットマシンのプレハブ")]
         public GameObject slotPrefab;
 
-        [Tooltip("出現確率（数値が大きいほど選ばれやすい）")]
+        [Tooltip("出現確率の重み（数値が大きいほど出やすい）")]
         [Min(0f)]
         public float spawnWeight = 70f;
     }
@@ -21,81 +22,116 @@ public class MapGenerator : MonoBehaviour
     public List<MapChipData> allMapChips;
 
     [Header("生成設定")]
-    [SerializeField] private int targetRoomCount = 9;
     [SerializeField] private float tileSize = 20f;
-    [Tooltip("マップチップ生成時のX軸ベース回転角度（Blender出力モデル用）")]
-    [SerializeField] private float roomChipBasePitch = -90f;
-
-    [Header("生成リトライ設定")]
-    [Tooltip("指定した数に届かなかった場合に再挑戦する最大回数")]
     [SerializeField] private int maxRetryCount = 50;
 
-    [Header("バス・プレイヤースポーン設定")]
+    [Header("バス設定")]
     [SerializeField] private GameObject busPrefab;
-    [SerializeField] private float busOffsetDistance = 10f;
-    [Tooltip("バスのY軸の向きを微調整するオフセット角度（度）")]
-    [SerializeField] private float busYRotationOffset = 0f;
-    [Tooltip("バス候補部屋として許可する最小隣接部屋数（突き出し部屋除外用）")]
-    [SerializeField, Range(1, 4)] private int minNeighborsForBusRoom = 2;
-    [Tooltip("バス位置からプレイヤーをスポーンさせる際の高さオフセット")]
-    [SerializeField] private Vector3 playerSpawnOffsetFromBus = new Vector3(0f, 1f, 0f);
+    [SerializeField] private float busOffsetDistance = 20f;
+    [SerializeField] private float busYRotationOffset = -90f;
 
-    [Header("経済・ノルマ設定")]
-    [SerializeField] private int currentMapQuota = 1000;
+    [Header("レベル進行設定")]
+    [SerializeField, Min(1)] private int currentStageLevel = 1;
+    [Tooltip("このレベルでマップサイズ・ノルマが最大になる（以降は最大サイズのまま）")]
+    [SerializeField, Min(2)] private int maxStageLevel = 20;
+    [Tooltip("レベル1の部屋数")]
+    [SerializeField, Min(1)] private int minRoomCount = 5;
+    [Tooltip("最大レベルでの部屋数（レベルに応じて線形に増える）")]
+    [SerializeField, Min(1)] private int maxRoomCount = 40;
+
+    [Header("ノルマ・借金設定")]
+    [Tooltip("レベル1のノルマ（基準値）")]
+    [SerializeField, Min(1)] private int baseQuotaLevel1 = 500;
+    [Tooltip("最大レベルのノルマ（基準値）。レベル1からこの値まで指数的に増える")]
+    [SerializeField, Min(1)] private int baseQuotaFinalLevel = 280000;
+    [Tooltip("基準ノルマに掛けるランダム幅（0.08 = ±8%）")]
+    [SerializeField, Range(0f, 0.5f)] private float quotaRandomRange = 0.08f;
+    [Tooltip("ノルマに対してマップへ配置するスクラップ総価値の倍率")]
     [SerializeField] private float quotaMultiplier = 2.5f;
+    [Tooltip("最大レベルを超えた後（借金返済後の無限モード）の、1レベルごとのノルマ・価格の増加倍率")]
+    [SerializeField, Min(1f)] private float postMaxLevelGrowthRate = 1.1f;
+
+    [Header("価格補正（レベルが上がるほど価値が上がる）")]
+    [Tooltip("最大レベルでの価格倍率。レベル1の1倍から指数的に増える。スクラップの売値・スロットのベット額に適用される")]
+    [SerializeField, Min(1f)] private float priceMultiplierFinalLevel = 150f;
+
+    [Header("スロット自動配置設定")]
+    [Tooltip("このレベル以降のマップにだけスロットマシンを配置する")]
+    [SerializeField, Min(1)] private int slotStartLevel = 5;
+    [SerializeField] private List<SlotSpawnCandidate> slotCandidates = new List<SlotSpawnCandidate>();
+    [SerializeField, Min(0)] private int minSlotCount = 2;
+    [SerializeField, Min(0)] private int maxSlotCount = 4;
+    [Tooltip("壁や障害物からスロットを離す最小距離（メートル）")]
+    [SerializeField, Range(0.8f, 4.0f)] private float slotWallClearance = 1.6f;
+    [Tooltip("スロットの向きの微調整オフセット角度（基本は 0 のままで自動で壁を背にします）")]
+    [SerializeField] private float slotRotationYawOffset = 0f;
 
     [Header("スクラップ自動配置設定")]
     [SerializeField] private List<ItemDataAsset> scrapDataList;
-    [Tooltip("スクラップ生成の最大試行ループ回数")]
-    [SerializeField, Min(1)] private int maxScrapSpawnIterations = 300;
-    [Tooltip("部屋のタイルサイズに対するスクラップ配置範囲の比率（0.35なら中心から±35%の範囲）")]
-    [SerializeField, Range(0.05f, 0.48f)] private float scrapSpawnAreaRatio = 0.35f;
-    [Tooltip("スクラップ接地レイキャストを開始する上空高さ")]
-    [SerializeField] private float scrapRaycastStartHeight = 5.0f;
-    [Tooltip("スクラップ接地レイキャストの最大距離")]
-    [SerializeField] private float scrapRaycastDistance = 10.0f;
-    [Tooltip("床面が見つからない場合のスクラップ初期高さ")]
-    [SerializeField] private float scrapFallbackSpawnHeight = 0.5f;
-    [Tooltip("床面ヒット位置からスクラップを少し浮かせるオフセット高さ")]
-    [SerializeField] private float scrapSurfaceOffsetHeight = 0.1f;
-    [Tooltip("プレハブ未設定時のフォールバックCubeのサイズ")]
-    [SerializeField] private float fallbackCubeScale = 0.4f;
-    [Tooltip("アイテム価格が0以下の場合に加算するデフォルト価値")]
-    [SerializeField, Min(1)] private int defaultFallbackScrapValue = 50;
 
-    [Header("スロットマシン設置条件設定")]
-    [Tooltip("配置するスロットマシンのプレハブと出現重みのリスト")]
-    [SerializeField] private List<SlotSpawnCandidate> slotCandidates = new List<SlotSpawnCandidate>();
-    [Tooltip("マップ全体に設置するスロットの最小台数")]
-    [SerializeField, Min(0)] private int minSlotCountPerMap = 2;
-    [Tooltip("マップ全体に設置するスロットの最大台数")]
-    [SerializeField, Min(0)] private int maxSlotCountPerMap = 4;
-    [Tooltip("1部屋あたりに設置できる最大台数")]
-    [SerializeField, Range(1, 4)] private int maxSlotsPerRoom = 1;
-    [Tooltip("候補の部屋にスロットが配置される確率（0〜1）")]
-    [SerializeField, Range(0f, 1f)] private float roomSlotSpawnChance = 0.75f;
-    [Tooltip("スタート部屋（Grid 0,0）には設置しない")]
-    [SerializeField] private bool excludeStartRoomForSlot = true;
-    [Tooltip("バスが接続された部屋には設置しない")]
-    [SerializeField] private bool excludeBusRoomForSlot = true;
-    [Tooltip("バス接続部屋からの最小グリッド距離（マンハッタン距離）")]
-    [SerializeField, Min(0)] private int minManhattanDistanceFromBus = 1;
-    [Tooltip("行き止まりの部屋（扉が1つだけの部屋）を優先して設置する")]
-    [SerializeField] private bool prioritizeDeadEndRooms = true;
+    // --- 内部固定パラメータ（static不使用） ---
+    private const float RoomChipBasePitch = -90f;
+    private const int RightAngleDegrees = 90;
+    private const int CardinalDirectionCount = 4;
+    private const float FullCircleDegrees = 360f;
 
-    [Header("スロット配置位置・向き・接地調整")]
-    [Tooltip("部屋のタイルサイズに対する壁際への配置距離比率（例: 0.38 なら 20m × 0.38 = 中心から7.6m壁寄り）")]
-    [SerializeField, Range(0.1f, 0.48f)] private float slotWallDistanceRatio = 0.38f;
-    [Tooltip("部屋のタイルサイズに対する壁横方向のランダム配置幅比率（0で壁の中央固定）")]
-    [SerializeField, Range(0f, 0.35f)] private float slotWallLateralSpreadRatio = 0.1f;
-    [Tooltip("スロットの正面を部屋の内側に向けるためのY軸回転オフセット角度（度）")]
-    [SerializeField] private float slotRotationYawOffset = 0f;
-    [Tooltip("スロット接地レイキャストを開始する上空高さ")]
-    [SerializeField] private float slotRaycastStartHeight = 5.0f;
-    [Tooltip("スロット接地レイキャストの最大距離")]
-    [SerializeField] private float slotRaycastDistance = 10.0f;
-    [Tooltip("床面ヒット位置からスロットを浮かせる微調整高さ")]
-    [SerializeField] private float slotFloorHeightOffset = 0.0f;
+    private const int MinNeighborsForBusRoom = 2;
+    private const float PlayerSpawnHeightOffset = 1.0f;
+
+    private const int MaxSlotsPerRoom = 1;
+    private const float RoomSlotSpawnChance = 0.9f;
+    private const int MinManhattanDistFromBusForSlot = 1;
+    private const int MaxSlotPlacementAttemptsPerRoom = 60;
+    private const float SlotSampleAreaRatio = 0.38f;
+    private const float SlotFootprintRadius = 0.9f;
+    private const float SlotFrontStandDist = 1.35f;
+    private const float SlotFrontWalkwayDist = 2.3f;
+    private const float SlotFrontSideWidth = 0.6f;
+    private const float SlotMinClearanceBetweenSlots = 3.0f;
+    private const float SlotMinClearanceForScrap = 2.0f;
+    private const float WallSearchStepSize = 0.25f;
+
+    private const int HorizontalClearanceRayCount = 12;
+    private const float ClearanceCheckHeightLow = 0.5f;
+    private const float ClearanceCheckHeightHigh = 1.4f;
+    private const float InsideObstacleSphereRadius = 0.35f;
+
+    private const int MaxScrapSpawnIterations = 450;
+    private const float ScrapSpawnAreaRatio = 0.36f;
+    private const float ScrapFootprintRadius = 0.35f;
+    private const float ScrapSurfaceOffsetHeight = 0.02f;
+    private const float FallbackCubeScale = 0.4f;
+    private const int DefaultFallbackScrapValue = 50;
+
+    private const int RoomFloorScanGridSteps = 7;
+    private const float FloorRaycastStartHeight = 12.0f;
+    private const float FloorRaycastMaxDistance = 24.0f;
+    private const float FloorNormalThreshold = 0.75f;
+    private const float MaxWalkableFloorHeightAboveRoom = 1.0f;
+    private const float FloorHeightMatchTolerance = 0.08f;
+    private const float MinFloorColorBrightness = 0.08f;
+    private const int MaxRoomCountDegradeSteps = 5;
+    private const int QuotaSmallRoundingUnit = 50;
+    private const int QuotaMediumRoundingUnit = 500;
+    private const int QuotaLargeRoundingUnit = 1000;
+    private const int QuotaMediumThreshold = 10000;
+    private const int QuotaLargeThreshold = 100000;
+    private const int TotalDebtRoundingUnit = 10000;
+    private const double MaxQuotaValue = 1.5e9;
+    private const double PriceRoundingMinValue = 100;
+
+    public int CurrentStageLevel => currentStageLevel;
+
+    private readonly int[] allowedRotationAngles = { 0, 90, 180, 270 };
+    private readonly int[] nonRotatedAngles = { 0 };
+    private readonly float[] wallInwardYawAngles = { 180f, 0f, 90f, 270f };
+    private readonly Vector3[] cardinalDirections =
+    {
+        Vector3.forward,
+        Vector3.back,
+        Vector3.right,
+        Vector3.left
+    };
 
     public class GeneratedRoom
     {
@@ -107,14 +143,9 @@ public class MapGenerator : MonoBehaviour
         public bool bottomDoor;
         public bool leftDoor;
         public bool rightDoor;
+        public float walkableFloorY;
+        public bool hasBrightWalkableFloor;
     }
-
-    private const int RightAngleDegrees = 90;
-    private const int CardinalDirectionCount = 4;
-    private const float FullCircleDegrees = 360f;
-    private static readonly int[] AllowedRotationAngles = { 0, 90, 180, 270 };
-    private static readonly int[] NonRotatedAngles = { 0 };
-    private static readonly float[] WallInwardYawAngles = { 180f, 0f, 90f, 270f };
 
     private Dictionary<Vector2Int, GeneratedRoom> generatedRooms = new Dictionary<Vector2Int, GeneratedRoom>();
     private List<GeneratedRoom> spawnedRoomList = new List<GeneratedRoom>();
@@ -130,6 +161,107 @@ public class MapGenerator : MonoBehaviour
     public int GetBusDirection() => spawnedBusDirection;
     public int CurrentMapQuota => currentMapQuota;
 
+    // 現在のレベルで生成する部屋数と、今回のマップで確定したノルマ（基準値にランダム幅を掛けたもの）
+    private int currentTargetRoomCount;
+    private int currentMapQuota;
+
+    /// <summary>
+    /// 借金の総額：レベル1〜最大レベルの基準ノルマの合計（1万単位で丸め）。
+    /// 全レベルのノルマを払い切ると、ちょうど借金を完済できる。
+    /// </summary>
+    public int TotalDebt
+    {
+        get
+        {
+            long sum = 0;
+            for (int level = 1; level <= maxStageLevel; level++)
+            {
+                sum += GetBaseQuota(level);
+            }
+            return (int)(Mathf.Round(sum / (float)TotalDebtRoundingUnit) * TotalDebtRoundingUnit);
+        }
+    }
+
+    /// <summary>
+    /// 指定レベルの基準ノルマ。レベル1の値から最大レベルの値まで指数的に増加する
+    /// </summary>
+    public int GetBaseQuota(int level)
+    {
+        double raw;
+        if (level <= maxStageLevel)
+        {
+            double growth = System.Math.Pow((double)baseQuotaFinalLevel / baseQuotaLevel1, 1.0 / (maxStageLevel - 1));
+            raw = baseQuotaLevel1 * System.Math.Pow(growth, System.Math.Max(0, level - 1));
+        }
+        else
+        {
+            // 最大レベル以降（借金返済後の無限モード）は緩やかに増加し続ける
+            raw = baseQuotaFinalLevel * System.Math.Pow(postMaxLevelGrowthRate, level - maxStageLevel);
+        }
+
+        return RoundQuota((float)System.Math.Min(raw, MaxQuotaValue));
+    }
+
+    /// <summary>
+    /// 指定レベルの価格倍率。最大レベルまでは 1 → priceMultiplierFinalLevel へ指数的に増え、以降は緩やかに増え続ける
+    /// </summary>
+    public float GetPriceMultiplier(int level)
+    {
+        if (level <= maxStageLevel)
+        {
+            float t = (level - 1) / (float)(maxStageLevel - 1);
+            return Mathf.Pow(priceMultiplierFinalLevel, Mathf.Max(0f, t));
+        }
+
+        return priceMultiplierFinalLevel * Mathf.Pow(postMaxLevelGrowthRate, level - maxStageLevel);
+    }
+
+    public float CurrentPriceMultiplier => GetPriceMultiplier(currentStageLevel);
+
+    /// <summary>
+    /// 現在のレベルの価格補正を掛けたスクラップの売値
+    /// </summary>
+    public int GetScrapValue(ItemDataAsset item)
+    {
+        if (item == null) return 0;
+        return Mathf.RoundToInt(item.Amount * CurrentPriceMultiplier);
+    }
+
+    /// <summary>
+    /// 基準額（レベル1相当）に現在の価格補正を掛け、上位2桁で丸めた金額を返す（スロットのベット額など）
+    /// </summary>
+    public int ScaleToCurrentPrice(int baseAmount)
+    {
+        double scaled = baseAmount * (double)CurrentPriceMultiplier;
+        if (scaled < PriceRoundingMinValue) return Mathf.RoundToInt((float)scaled);
+
+        double magnitude = System.Math.Pow(10, System.Math.Floor(System.Math.Log10(scaled)) - 1);
+        return (int)System.Math.Min(System.Math.Round(scaled / magnitude) * magnitude, int.MaxValue);
+    }
+
+    /// <summary>
+    /// 指定レベルの部屋数。レベル1の minRoomCount から最大レベルの maxRoomCount まで線形に増加する
+    /// </summary>
+    public int GetRoomCountForLevel(int level)
+    {
+        float t = Mathf.Clamp01((level - 1) / (float)(maxStageLevel - 1));
+        return Mathf.Max(1, Mathf.RoundToInt(Mathf.Lerp(minRoomCount, maxRoomCount, t)));
+    }
+
+    private int RoundQuota(float rawQuota)
+    {
+        int unit = rawQuota < QuotaMediumThreshold ? QuotaSmallRoundingUnit
+                 : rawQuota < QuotaLargeThreshold ? QuotaMediumRoundingUnit
+                 : QuotaLargeRoundingUnit;
+        return Mathf.Max(unit, Mathf.RoundToInt(rawQuota / unit) * unit);
+    }
+
+    private void RollQuotaForCurrentLevel()
+    {
+        float randomFactor = 1f + Random.Range(-quotaRandomRange, quotaRandomRange);
+        currentMapQuota = RoundQuota(GetBaseQuota(currentStageLevel) * randomFactor);
+    }
+
     private void Awake()
     {
         gizmoDrawer = GetComponent<MapGizmoDrawer>();
@@ -137,27 +269,47 @@ public class MapGenerator : MonoBehaviour
 
     private void Start()
     {
+        RollQuotaForCurrentLevel();
+        Debug.Log($"[MAP] 借金総額: ${TotalDebt:N0} / STAGE {currentStageLevel} ノルマ: ${currentMapQuota:N0}");
         GenerateMap();
     }
 
     public void GenerateMap()
     {
-        int retry = 0;
-        bool success = false;
+        int requestedRoomCount = GetRoomCountForLevel(currentStageLevel);
 
-        while (retry < maxRetryCount && !success)
+        // 目標の部屋数に届かない場合は、少しずつ目標を下げて再挑戦する（プレイヤー・バス未配置の詰み防止）
+        for (int step = 0; step <= MaxRoomCountDegradeSteps; step++)
         {
-            retry++;
-            if (TryGenerateMapOnce())
+            currentTargetRoomCount = requestedRoomCount - step;
+            if (currentTargetRoomCount < 1) break;
+
+            for (int retry = 0; retry < maxRetryCount; retry++)
             {
-                success = true;
+                if (TryGenerateMapOnce())
+                {
+                    if (step > 0)
+                    {
+                        Debug.LogWarning($"[MAP] 目標部屋数({requestedRoomCount})を作れなかったため、{currentTargetRoomCount}部屋で生成しました。");
+                    }
+                    return;
+                }
             }
         }
 
-        if (!success)
-        {
-            Debug.LogWarning($"[MAP] 警告: 最大リトライ回数({maxRetryCount})以内に目標数({targetRoomCount})の生成ができませんでした。（現在の生成数: {spawnedRoomList.Count}）");
-        }
+        Debug.LogWarning($"[MAP] 警告: 目標部屋数({requestedRoomCount})の生成に失敗しました。（現在の生成数: {spawnedRoomList.Count}）");
+    }
+
+    /// <summary>
+    /// 簡易リザルトの「次へ」ボタンから呼ばれ、レベルを上げてノルマを決め直し、新しいマップを再生成する
+    /// </summary>
+    public void AdvanceToNextLevel()
+    {
+        currentStageLevel++;
+        RollQuotaForCurrentLevel();
+
+        Debug.Log($"[MAP] STAGE {currentStageLevel} 開始！ 部屋数: {GetRoomCountForLevel(currentStageLevel)} / 新ノルマ: ${currentMapQuota:N0}");
+        GenerateMap();
     }
 
     private bool TryGenerateMapOnce()
@@ -180,7 +332,7 @@ public class MapGenerator : MonoBehaviour
         stack.Push(startPos);
         visited.Add(startPos);
 
-        while (stack.Count > 0 && spawnedRoomList.Count < targetRoomCount)
+        while (stack.Count > 0 && spawnedRoomList.Count < currentTargetRoomCount)
         {
             Vector2Int currentGrid = stack.Peek();
 
@@ -223,16 +375,18 @@ public class MapGenerator : MonoBehaviour
                     topDoor = doors.top,
                     bottomDoor = doors.bottom,
                     leftDoor = doors.left,
-                    rightDoor = doors.right
+                    rightDoor = doors.right,
+                    walkableFloorY = worldPos.y,
+                    hasBrightWalkableFloor = false
                 };
 
                 generatedRooms[currentGrid] = newRoom;
                 spawnedRoomList.Add(newRoom);
 
-                Quaternion spawnRotation = Quaternion.Euler(roomChipBasePitch, result.angle, 0f);
+                Quaternion spawnRotation = Quaternion.Euler(RoomChipBasePitch, result.angle, 0f);
                 Instantiate(result.chip.chipPrefab, worldPos, spawnRotation, transform);
 
-                if (spawnedRoomList.Count >= targetRoomCount) break;
+                if (spawnedRoomList.Count >= currentTargetRoomCount) break;
             }
 
             List<Vector2Int> nextCandidates = new List<Vector2Int>();
@@ -254,90 +408,152 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        if (spawnedRoomList.Count >= targetRoomCount)
+        if (spawnedRoomList.Count >= currentTargetRoomCount)
         {
+            Physics.SyncTransforms();
+
+            AnalyzeAllRoomsWalkableFloor();
+
+            // 1. バス配置 ➔ 2. スロット配置 ➔ 3. スクラップ配置
             SpawnBusAtOuterDoor();
             SpawnSlotMachines();
+            Physics.SyncTransforms();
             SpawnRandomScraps();
+
             UpdateGizmoDrawer();
-            Debug.Log($"[MAP] マップ生成成功！ (生成数: {spawnedRoomList.Count}個)");
+            Debug.Log($"[MAP] マップ生成成功！ (部屋数: {spawnedRoomList.Count}, スロット数: {spawnedSlotList.Count})");
             return true;
         }
 
         return false;
     }
 
+    private void AnalyzeAllRoomsWalkableFloor()
+    {
+        float scanExtent = tileSize * 0.42f;
+
+        foreach (var room in spawnedRoomList)
+        {
+            float highestBrightFloorY = float.MinValue;
+            float highestAnyFloorY = float.MinValue;
+            bool foundBright = false;
+            bool foundAny = false;
+
+            for (int gx = 0; gx < RoomFloorScanGridSteps; gx++)
+            {
+                float tx = (gx / (float)(RoomFloorScanGridSteps - 1)) * 2f - 1f;
+                for (int gz = 0; gz < RoomFloorScanGridSteps; gz++)
+                {
+                    float tz = (gz / (float)(RoomFloorScanGridSteps - 1)) * 2f - 1f;
+                    Vector3 sampleXZ = room.worldPos + new Vector3(tx * scanExtent, 0f, tz * scanExtent);
+
+                    if (!TryGetTopmostEnvironmentHit(sampleXZ, room.worldPos.y, out RaycastHit topHit)) continue;
+                    if (topHit.normal.y < FloorNormalThreshold) continue;
+
+                    float relY = topHit.point.y - room.worldPos.y;
+                    if (relY < -MaxWalkableFloorHeightAboveRoom || relY > MaxWalkableFloorHeightAboveRoom) continue;
+
+                    if (topHit.point.y > highestAnyFloorY)
+                    {
+                        highestAnyFloorY = topHit.point.y;
+                        foundAny = true;
+                    }
+
+                    if (GetSurfaceBrightness(topHit.collider) >= MinFloorColorBrightness)
+                    {
+                        if (topHit.point.y > highestBrightFloorY)
+                        {
+                            highestBrightFloorY = topHit.point.y;
+                            foundBright = true;
+                        }
+                    }
+                }
+            }
+
+            if (foundBright)
+            {
+                room.walkableFloorY = highestBrightFloorY;
+                room.hasBrightWalkableFloor = true;
+            }
+            else if (foundAny)
+            {
+                room.walkableFloorY = highestAnyFloorY;
+                room.hasBrightWalkableFloor = false;
+            }
+            else
+            {
+                room.walkableFloorY = room.worldPos.y;
+                room.hasBrightWalkableFloor = false;
+            }
+        }
+    }
+
     private void SpawnSlotMachines()
     {
+        if (currentStageLevel < slotStartLevel) return;
         if (slotCandidates == null || slotCandidates.Count == 0) return;
 
-        int maxCount = Mathf.Max(minSlotCountPerMap, maxSlotCountPerMap);
-        int targetSlotCount = Random.Range(minSlotCountPerMap, maxCount + 1);
+        int targetSlotCount = Random.Range(minSlotCount, Mathf.Max(minSlotCount, maxSlotCount) + 1);
         if (targetSlotCount <= 0) return;
 
-        List<GeneratedRoom> normalEligibleRooms = new List<GeneratedRoom>();
-        List<GeneratedRoom> deadEndEligibleRooms = new List<GeneratedRoom>();
+        List<GeneratedRoom> deadEndRooms = new List<GeneratedRoom>();
+        List<GeneratedRoom> normalRooms = new List<GeneratedRoom>();
 
         foreach (var room in spawnedRoomList)
         {
             if (!IsRoomEligibleForSlot(room, out int doorCount)) continue;
 
-            if (doorCount == 1)
-            {
-                deadEndEligibleRooms.Add(room);
-            }
-            else
-            {
-                normalEligibleRooms.Add(room);
-            }
+            if (doorCount == 1) deadEndRooms.Add(room);
+            else normalRooms.Add(room);
         }
 
-        ShuffleList(deadEndEligibleRooms);
-        ShuffleList(normalEligibleRooms);
+        ShuffleList(deadEndRooms);
+        ShuffleList(normalRooms);
 
-        List<GeneratedRoom> orderedCandidateRooms = new List<GeneratedRoom>();
-        if (prioritizeDeadEndRooms)
-        {
-            orderedCandidateRooms.AddRange(deadEndEligibleRooms);
-            orderedCandidateRooms.AddRange(normalEligibleRooms);
-        }
-        else
-        {
-            orderedCandidateRooms.AddRange(deadEndEligibleRooms);
-            orderedCandidateRooms.AddRange(normalEligibleRooms);
-            ShuffleList(orderedCandidateRooms);
-        }
+        List<GeneratedRoom> candidateRooms = new List<GeneratedRoom>(deadEndRooms.Count + normalRooms.Count);
+        candidateRooms.AddRange(deadEndRooms);
+        candidateRooms.AddRange(normalRooms);
 
         int spawnedCount = 0;
 
-        foreach (var room in orderedCandidateRooms)
+        foreach (var room in candidateRooms)
         {
             if (spawnedCount >= targetSlotCount) break;
-            if (Random.value > roomSlotSpawnChance) continue;
-
-            // 扉が存在しない壁面（0:上壁, 1:下壁, 2:左壁, 3:右壁）を抽出
-            List<int> availableWalls = GetAvailableWallsInRoom(room);
-            ShuffleList(availableWalls);
+            if (Random.value > RoomSlotSpawnChance) continue;
 
             int slotsInThisRoom = 0;
-            foreach (int wallDir in availableWalls)
+            while (slotsInThisRoom < MaxSlotsPerRoom && spawnedCount < targetSlotCount)
             {
-                if (spawnedCount >= targetSlotCount || slotsInThisRoom >= maxSlotsPerRoom) break;
-
                 SlotSpawnCandidate candidate = ChooseRandomSlotCandidate();
-                if (candidate == null || candidate.slotPrefab == null) continue;
+                if (candidate == null || candidate.slotPrefab == null) break;
 
-                CalculateWallSlotTransform(room, wallDir, candidate.slotPrefab.transform.localRotation, out Vector3 spawnPos, out Quaternion spawnRot);
+                if (!TryFindOpenFloorSlotPlacement(
+                        room,
+                        out Vector3 targetBottomCenter,
+                        out Vector3 desiredFrontDir))
+                {
+                    break;
+                }
 
-                GameObject slotInstance = Instantiate(candidate.slotPrefab, spawnPos, spawnRot, transform);
+                GameObject slotInstance = Instantiate(
+                    candidate.slotPrefab,
+                    targetBottomCenter,
+                    candidate.slotPrefab.transform.localRotation,
+                    transform
+                );
+
+                // ★ 1. 最も壁に近い方向を「背面」、その反対（desiredFrontDir）を「正面」に向ける
+                AlignSlotFrontToDirection(slotInstance, desiredFrontDir);
+
+                // ★ 2. 回転後のモデル全体の中心(X,Z)と底面(Y)を床座標へピタッと合わせる
+                AlignObjectBoundsToFloor(slotInstance, targetBottomCenter, 0f);
+                Physics.SyncTransforms();
+
                 spawnedSlotList.Add(slotInstance);
-
                 spawnedCount++;
                 slotsInThisRoom++;
             }
         }
-
-        Debug.Log($"[MAP] スロットマシン配置完了: {spawnedCount} / {targetSlotCount} 台");
     }
 
     private bool IsRoomEligibleForSlot(GeneratedRoom room, out int doorCount)
@@ -347,77 +563,443 @@ public class MapGenerator : MonoBehaviour
                   + (room.leftDoor ? 1 : 0)
                   + (room.rightDoor ? 1 : 0);
 
-        // 四方すべてが扉の十字路は壁面がないため除外
-        if (doorCount >= CardinalDirectionCount) return false;
-
-        if (excludeStartRoomForSlot && room.gridPos == Vector2Int.zero) return false;
+        if (room.gridPos == Vector2Int.zero) return false;
 
         if (spawnedBusGridPos.HasValue)
         {
-            if (excludeBusRoomForSlot && room.gridPos == spawnedBusGridPos.Value) return false;
+            if (room.gridPos == spawnedBusGridPos.Value) return false;
 
             int manhattanDist = Mathf.Abs(room.gridPos.x - spawnedBusGridPos.Value.x)
                               + Mathf.Abs(room.gridPos.y - spawnedBusGridPos.Value.y);
-            if (manhattanDist < minManhattanDistanceFromBus) return false;
+            if (manhattanDist < MinManhattanDistFromBusForSlot) return false;
         }
 
         return true;
     }
 
-    private List<int> GetAvailableWallsInRoom(GeneratedRoom room)
+    private bool TryFindOpenFloorSlotPlacement(
+        GeneratedRoom room,
+        out Vector3 validBottomCenter,
+        out Vector3 bestFrontDir)
     {
-        List<int> walls = new List<int>(CardinalDirectionCount);
-        if (!room.topDoor) walls.Add(0);
-        if (!room.bottomDoor) walls.Add(1);
-        if (!room.leftDoor) walls.Add(2);
-        if (!room.rightDoor) walls.Add(3);
-        return walls;
+        validBottomCenter = Vector3.zero;
+        bestFrontDir = Vector3.forward;
+
+        float maxSampleOffset = tileSize * SlotSampleAreaRatio;
+
+        for (int attempt = 0; attempt < MaxSlotPlacementAttemptsPerRoom; attempt++)
+        {
+            float offsetX = Random.Range(-maxSampleOffset, maxSampleOffset);
+            float offsetZ = Random.Range(-maxSampleOffset, maxSampleOffset);
+            Vector3 candidateXZ = room.worldPos + new Vector3(offsetX, 0f, offsetZ);
+
+            // 1. 他のスロットと近すぎないか確認
+            if (IsTooCloseToAnySlot(candidateXZ, SlotMinClearanceBetweenSlots)) continue;
+
+            // 2. スロットの足元（中心＋周囲8点）がすべて茶色い歩行床の上にあるか確認
+            if (!HasSolidWalkableFootprint(room, candidateXZ, SlotFootprintRadius, out float floorY)) continue;
+
+            // 3. 壁や障害物から slotWallClearance 以上離れているか確認
+            if (!HasClearanceFromWallsAndObstacles(candidateXZ, floorY, slotWallClearance)) continue;
+
+            // 4. ★ 4方向のうち「壁に最も近い側」を背面にし、反対側（開けた床側）を正面にする向きを決定
+            if (!TrySelectWallBackedFacingDirection(room, candidateXZ, floorY, out bestFrontDir)) continue;
+
+            validBottomCenter = new Vector3(candidateXZ.x, floorY, candidateXZ.z);
+            return true;
+        }
+
+        return false;
     }
 
-    private void CalculateWallSlotTransform(GeneratedRoom room, int wallDir, Quaternion prefabBaseRot, out Vector3 finalPos, out Quaternion finalRot)
+    /// <summary>
+    /// 前後左右4方向の「壁（または床の端）までの距離」を計測し、
+    /// 背面側（-frontDir）が最も壁に近く、かつ正面側（frontDir）にプレイヤー用の広い床がある向きを選択する
+    /// </summary>
+    private bool TrySelectWallBackedFacingDirection(
+        GeneratedRoom room,
+        Vector3 slotXZ,
+        float floorY,
+        out Vector3 bestFrontDir)
     {
-        Vector3 wallDirVec = Vector3.zero;
-        Vector3 lateralDirVec = Vector3.zero;
+        bestFrontDir = Vector3.forward;
+        bool foundValid = false;
+        float closestBackWallDist = float.MaxValue;
+        float bestFrontOpenDist = -1f;
 
-        switch (wallDir)
+        for (int dirIdx = 0; dirIdx < cardinalDirections.Length; dirIdx++)
         {
-            case 0: // 上壁（北壁）➔ 南（部屋内側）を向く
-                wallDirVec = Vector3.forward;
-                lateralDirVec = Vector3.right;
-                break;
-            case 1: // 下壁（南壁）➔ 北（部屋内側）を向く
-                wallDirVec = Vector3.back;
-                lateralDirVec = Vector3.right;
-                break;
-            case 2: // 左壁（西壁）➔ 東（部屋内側）を向く
-                wallDirVec = Vector3.left;
-                lateralDirVec = Vector3.forward;
-                break;
-            case 3: // 右壁（東壁）➔ 西（部屋内側）を向く
-                wallDirVec = Vector3.right;
-                lateralDirVec = Vector3.forward;
-                break;
+            Vector3 frontDir = cardinalDirections[dirIdx];
+            Vector3 backDir = -frontDir;
+            Vector3 rightDir = new Vector3(frontDir.z, 0f, -frontDir.x);
+
+            // A. 正面（プレイヤーが立つ位置＋左右幅＋奥の通路）に茶色い床があり障害物がないか確認
+            Vector3 standCenter = slotXZ + frontDir * SlotFrontStandDist;
+            if (!IsValidWalkableFloorPoint(room, standCenter, out _)) continue;
+            if (!IsValidWalkableFloorPoint(room, standCenter + rightDir * SlotFrontSideWidth, out _)) continue;
+            if (!IsValidWalkableFloorPoint(room, standCenter - rightDir * SlotFrontSideWidth, out _)) continue;
+            if (!HasClearanceFromWallsAndObstacles(standCenter, floorY, InsideObstacleSphereRadius * 2f)) continue;
+
+            Vector3 walkwayPoint = slotXZ + frontDir * SlotFrontWalkwayDist;
+            if (!IsValidWalkableFloorPoint(room, walkwayPoint, out _)) continue;
+
+            // B. 背面側（backDir）にある壁までの距離と、正面側（frontDir）の開け具合を計測
+            float backWallDist = MeasureDistanceToWallOrEdge(room, slotXZ, floorY, backDir);
+            float frontOpenDist = MeasureDistanceToWallOrEdge(room, slotXZ, floorY, frontDir);
+
+            // 正面よりも背面の方が壁から遠い（＝壁に向かって正面を向けている）向きは除外し、
+            // 最も背面が壁に近い向きを採用する
+            bool isBetter = !foundValid
+                            || (backWallDist < closestBackWallDist - 0.05f)
+                            || (Mathf.Abs(backWallDist - closestBackWallDist) <= 0.05f && frontOpenDist > bestFrontOpenDist);
+
+            if (isBetter)
+            {
+                closestBackWallDist = backWallDist;
+                bestFrontOpenDist = frontOpenDist;
+                bestFrontDir = frontDir;
+                foundValid = true;
+            }
         }
 
-        float wallDistance = tileSize * slotWallDistanceRatio;
-        float maxLateralSpread = tileSize * slotWallLateralSpreadRatio;
-        float lateralOffset = Random.Range(-maxLateralSpread, maxLateralSpread);
+        return foundValid;
+    }
 
-        Vector3 horizontalPos = room.worldPos + (wallDirVec * wallDistance) + (lateralDirVec * lateralOffset);
+    /// <summary>
+    /// 指定した水平方向(dir)へレイキャスト＆床面走査を行い、壁コライダーまたは床の境界までの距離を返す
+    /// </summary>
+    private float MeasureDistanceToWallOrEdge(GeneratedRoom room, Vector3 originXZ, float floorY, Vector3 dir)
+    {
+        float maxCheckDist = tileSize;
+        float wallColliderDist = maxCheckDist;
 
-        Vector3 rayOrigin = horizontalPos + Vector3.up * slotRaycastStartHeight;
-        finalPos = horizontalPos + Vector3.up * slotFloorHeightOffset;
+        Vector3 lowOrigin = new Vector3(originXZ.x, floorY + ClearanceCheckHeightLow, originXZ.z);
+        Vector3 highOrigin = new Vector3(originXZ.x, floorY + ClearanceCheckHeightHigh, originXZ.z);
 
-        if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, slotRaycastDistance))
+        if (Physics.Raycast(lowOrigin, dir, out RaycastHit lowHit, maxCheckDist, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
         {
-            finalPos = hit.point + Vector3.up * slotFloorHeightOffset;
+            wallColliderDist = Mathf.Min(wallColliderDist, lowHit.distance);
+        }
+        if (Physics.Raycast(highOrigin, dir, out RaycastHit highHit, maxCheckDist, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            wallColliderDist = Mathf.Min(wallColliderDist, highHit.distance);
         }
 
-        float inwardYaw = WallInwardYawAngles[Mathf.Clamp(wallDir, 0, WallInwardYawAngles.Length - 1)];
-        Quaternion worldYawRotation = Quaternion.Euler(0f, inwardYaw + slotRotationYawOffset, 0f);
+        // 茶色い歩行床が途切れる（黒い壁や空間に入る）までの距離も計測
+        float floorEdgeDist = maxCheckDist;
+        for (float d = WallSearchStepSize; d <= maxCheckDist; d += WallSearchStepSize)
+        {
+            if (!IsValidWalkableFloorPoint(room, originXZ + dir * d, out _))
+            {
+                floorEdgeDist = d;
+                break;
+            }
+        }
 
-        // プレハブ自体が持つ初期回転（Z=90など）を維持したまま部屋の真ん中へ向ける
-        finalRot = worldYawRotation * prefabBaseRot;
+        return Mathf.Min(wallColliderDist, floorEdgeDist);
+    }
+
+    /// <summary>
+    /// スロットモデル内のボタン・リールの配置から実際の「モデルの正面方向」を検出し、
+    /// desiredFrontDir（壁と反対の開けた方向）へ正面が向くようY軸回転を合わせる
+    /// </summary>
+    private void AlignSlotFrontToDirection(GameObject slotInstance, Vector3 desiredFrontDir)
+    {
+        Vector3 currentFrontDir = DetectSlotWorldFrontDirection(slotInstance);
+        currentFrontDir.y = 0f;
+        desiredFrontDir.y = 0f;
+
+        if (currentFrontDir.sqrMagnitude < 0.0001f || desiredFrontDir.sqrMagnitude < 0.0001f) return;
+
+        float deltaYaw = Vector3.SignedAngle(currentFrontDir.normalized, desiredFrontDir.normalized, Vector3.up) + slotRotationYawOffset;
+        slotInstance.transform.rotation = Quaternion.Euler(0f, deltaYaw, 0f) * slotInstance.transform.rotation;
+    }
+
+    /// <summary>
+    /// スロット筐体の中心とボタン(SlotButtonInteractable)・リール(SlotReelScroller)の座標から、
+    /// 現在ワールド空間でスロットの正面が向いている水平ベクトルを返す
+    /// </summary>
+    private Vector3 DetectSlotWorldFrontDirection(GameObject slotInstance)
+    {
+        Bounds bodyBounds = GetCombinedMeshBounds(slotInstance, out bool hasBounds);
+        Vector3 bodyCenter = hasBounds ? bodyBounds.center : slotInstance.transform.position;
+
+        // 1. ボタンやリールの平均座標（筐体中心よりも正面側に位置するパーツ）を取得
+        Vector3 frontFeatureSum = Vector3.zero;
+        int featureCount = 0;
+
+        SlotButtonInteractable[] buttons = slotInstance.GetComponentsInChildren<SlotButtonInteractable>();
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            if (buttons[i] == null) continue;
+            Renderer r = buttons[i].GetComponent<Renderer>();
+            frontFeatureSum += (r != null) ? r.bounds.center : buttons[i].transform.position;
+            featureCount++;
+        }
+
+        SlotReelScroller[] reels = slotInstance.GetComponentsInChildren<SlotReelScroller>();
+        for (int i = 0; i < reels.Length; i++)
+        {
+            if (reels[i] == null) continue;
+            Renderer r = reels[i].GetComponent<Renderer>();
+            frontFeatureSum += (r != null) ? r.bounds.center : reels[i].transform.position;
+            featureCount++;
+        }
+
+        Vector3 toFrontFeatures = (featureCount > 0)
+            ? (frontFeatureSum / featureCount) - bodyCenter
+            : slotInstance.transform.forward;
+        toFrontFeatures.y = 0f;
+
+        // 2. リールが複数ある場合はリール並び方向（左右軸）に直交する法線を基準にし、ボタン側を正面とする
+        if (reels != null && reels.Length >= 2 && reels[0] != null && reels[reels.Length - 1] != null)
+        {
+            Renderer rLeft = reels[0].GetComponent<Renderer>();
+            Renderer rRight = reels[reels.Length - 1].GetComponent<Renderer>();
+            Vector3 leftPos = (rLeft != null) ? rLeft.bounds.center : reels[0].transform.position;
+            Vector3 rightPos = (rRight != null) ? rRight.bounds.center : reels[reels.Length - 1].transform.position;
+
+            Vector3 reelRight = rightPos - leftPos;
+            reelRight.y = 0f;
+
+            if (reelRight.sqrMagnitude > 0.0001f)
+            {
+                Vector3 normal = Vector3.Cross(reelRight.normalized, Vector3.up).normalized;
+                if (toFrontFeatures.sqrMagnitude > 0.0001f && Vector3.Dot(normal, toFrontFeatures) < 0f)
+                {
+                    normal = -normal;
+                }
+                return normal;
+            }
+        }
+
+        return toFrontFeatures.sqrMagnitude > 0.0001f ? toFrontFeatures.normalized : slotInstance.transform.forward;
+    }
+
+    private bool HasSolidWalkableFootprint(GeneratedRoom room, Vector3 centerXZ, float radius, out float floorY)
+    {
+        if (!IsValidWalkableFloorPoint(room, centerXZ, out floorY)) return false;
+
+        float diag = radius * 0.7071f;
+        Vector3[] offsets =
+        {
+            new Vector3(radius, 0f, 0f),
+            new Vector3(-radius, 0f, 0f),
+            new Vector3(0f, 0f, radius),
+            new Vector3(0f, 0f, -radius),
+            new Vector3(diag, 0f, diag),
+            new Vector3(-diag, 0f, diag),
+            new Vector3(diag, 0f, -diag),
+            new Vector3(-diag, 0f, -diag)
+        };
+
+        for (int i = 0; i < offsets.Length; i++)
+        {
+            if (!IsValidWalkableFloorPoint(room, centerXZ + offsets[i], out float subY))
+            {
+                return false;
+            }
+            if (Mathf.Abs(subY - floorY) > FloorHeightMatchTolerance)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsValidWalkableFloorPoint(GeneratedRoom room, Vector3 worldXZ, out float floorY)
+    {
+        floorY = room.walkableFloorY;
+
+        if (!TryGetTopmostEnvironmentHit(worldXZ, room.worldPos.y, out RaycastHit topHit))
+        {
+            return false;
+        }
+
+        if (topHit.normal.y < FloorNormalThreshold)
+        {
+            return false;
+        }
+
+        if (Mathf.Abs(topHit.point.y - room.walkableFloorY) > FloorHeightMatchTolerance)
+        {
+            return false;
+        }
+
+        if (room.hasBrightWalkableFloor && GetSurfaceBrightness(topHit.collider) < MinFloorColorBrightness)
+        {
+            return false;
+        }
+
+        floorY = topHit.point.y;
+        return true;
+    }
+
+    private bool TryGetTopmostEnvironmentHit(Vector3 worldXZ, float baseRoomY, out RaycastHit topmostHit)
+    {
+        topmostHit = default;
+
+        Vector3 rayOrigin = new Vector3(worldXZ.x, baseRoomY + FloorRaycastStartHeight, worldXZ.z);
+        RaycastHit[] hits = Physics.RaycastAll(
+            rayOrigin,
+            Vector3.down,
+            FloorRaycastMaxDistance,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore
+        );
+
+        if (hits == null || hits.Length == 0) return false;
+
+        float highestY = float.MinValue;
+        bool found = false;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider col = hits[i].collider;
+            if (col == null) continue;
+
+            if (col.GetComponentInParent<SlotMachineController>() != null) continue;
+            if (col.GetComponentInParent<Item>() != null) continue;
+            if (col.GetComponentInParent<PlayerController>() != null) continue;
+
+            if (hits[i].point.y > highestY)
+            {
+                highestY = hits[i].point.y;
+                topmostHit = hits[i];
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private float GetSurfaceBrightness(Collider col)
+    {
+        if (col == null) return 1f;
+        Renderer r = col.GetComponent<Renderer>();
+        if (r == null) r = col.GetComponentInParent<Renderer>();
+        if (r == null || r.sharedMaterial == null) return 1f;
+
+        Material[] mats = r.sharedMaterials;
+        if (mats != null && mats.Length > 1)
+        {
+            float maxB = 0f;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null) continue;
+                float b = ExtractMaterialBrightness(mats[i]);
+                if (b > maxB) maxB = b;
+            }
+            return maxB;
+        }
+
+        return ExtractMaterialBrightness(r.sharedMaterial);
+    }
+
+    private float ExtractMaterialBrightness(Material mat)
+    {
+        if (mat == null) return 1f;
+        if (mat.HasProperty("_BaseColor"))
+        {
+            Color c = mat.GetColor("_BaseColor");
+            return Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+        }
+        if (mat.HasProperty("_Color"))
+        {
+            Color c = mat.GetColor("_Color");
+            return Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+        }
+        return 1f;
+    }
+
+    private bool HasClearanceFromWallsAndObstacles(Vector3 centerXZ, float floorY, float clearance)
+    {
+        Vector3 lowOrigin = new Vector3(centerXZ.x, floorY + ClearanceCheckHeightLow, centerXZ.z);
+        Vector3 highOrigin = new Vector3(centerXZ.x, floorY + ClearanceCheckHeightHigh, centerXZ.z);
+
+        if (Physics.CheckSphere(lowOrigin, InsideObstacleSphereRadius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            return false;
+        }
+
+        float angleStep = FullCircleDegrees / HorizontalClearanceRayCount;
+        for (int i = 0; i < HorizontalClearanceRayCount; i++)
+        {
+            float rad = (i * angleStep) * Mathf.Deg2Rad;
+            Vector3 dir = new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad));
+
+            if (Physics.Raycast(lowOrigin, dir, clearance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                return false;
+            }
+            if (Physics.Raycast(highOrigin, dir, clearance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private Bounds GetCombinedMeshBounds(GameObject obj, out bool hasBounds)
+    {
+        Bounds combinedBounds = default;
+        hasBounds = false;
+
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        if (renderers == null) return combinedBounds;
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer r = renderers[i];
+            if (r == null) continue;
+            if (r is ParticleSystemRenderer) continue;
+            if (r.GetComponent<TMP_Text>() != null || r.GetComponentInParent<TMP_Text>() != null) continue;
+
+            if (!hasBounds)
+            {
+                combinedBounds = r.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                combinedBounds.Encapsulate(r.bounds);
+            }
+        }
+
+        return combinedBounds;
+    }
+
+    private void AlignObjectBoundsToFloor(GameObject obj, Vector3 targetBottomCenter, float extraOffsetY)
+    {
+        Bounds combinedBounds = GetCombinedMeshBounds(obj, out bool hasBounds);
+        if (!hasBounds)
+        {
+            obj.transform.position = targetBottomCenter + Vector3.up * extraOffsetY;
+            return;
+        }
+
+        Vector3 currentBottomCenter = new Vector3(combinedBounds.center.x, combinedBounds.min.y, combinedBounds.center.z);
+        Vector3 desiredBottomCenter = new Vector3(targetBottomCenter.x, targetBottomCenter.y + extraOffsetY, targetBottomCenter.z);
+        obj.transform.position += (desiredBottomCenter - currentBottomCenter);
+    }
+
+    private bool IsTooCloseToAnySlot(Vector3 candidateXZ, float minClearance)
+    {
+        float minSqDist = minClearance * minClearance;
+        for (int i = 0; i < spawnedSlotList.Count; i++)
+        {
+            if (spawnedSlotList[i] == null) continue;
+            Vector3 slotPos = spawnedSlotList[i].transform.position;
+            float dx = candidateXZ.x - slotPos.x;
+            float dz = candidateXZ.z - slotPos.z;
+            if ((dx * dx + dz * dz) < minSqDist)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private SlotSpawnCandidate ChooseRandomSlotCandidate()
@@ -482,9 +1064,9 @@ public class MapGenerator : MonoBehaviour
         }
 
         int safetyCounter = 0;
-        float maxOffset = tileSize * scrapSpawnAreaRatio;
+        float maxOffset = tileSize * ScrapSpawnAreaRatio;
 
-        while (currentTotalValue < targetTotalValue && safetyCounter < maxScrapSpawnIterations)
+        while (currentTotalValue < targetTotalValue && safetyCounter < MaxScrapSpawnIterations)
         {
             safetyCounter++;
 
@@ -492,14 +1074,19 @@ public class MapGenerator : MonoBehaviour
 
             float offsetX = Random.Range(-maxOffset, maxOffset);
             float offsetZ = Random.Range(-maxOffset, maxOffset);
+            Vector3 candidateXZ = targetRoom.worldPos + new Vector3(offsetX, 0f, offsetZ);
 
-            Vector3 rayOrigin = targetRoom.worldPos + new Vector3(offsetX, scrapRaycastStartHeight, offsetZ);
-            Vector3 finalSpawnPos = targetRoom.worldPos + new Vector3(offsetX, scrapFallbackSpawnHeight, offsetZ);
+            if (IsTooCloseToAnySlot(candidateXZ, SlotMinClearanceForScrap)) continue;
 
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, scrapRaycastDistance))
+            if (!HasSolidWalkableFootprint(targetRoom, candidateXZ, ScrapFootprintRadius, out float floorY)) continue;
+
+            Vector3 checkPos = new Vector3(candidateXZ.x, floorY + ClearanceCheckHeightLow, candidateXZ.z);
+            if (Physics.CheckSphere(checkPos, InsideObstacleSphereRadius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
             {
-                finalSpawnPos = hit.point + Vector3.up * scrapSurfaceOffsetHeight;
+                continue;
             }
+
+            Vector3 finalSpawnPos = new Vector3(candidateXZ.x, floorY + ScrapSurfaceOffsetHeight, candidateXZ.z);
 
             ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
 
@@ -515,11 +1102,13 @@ public class MapGenerator : MonoBehaviour
             {
                 scrapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 scrapObj.transform.position = finalSpawnPos;
-                scrapObj.transform.localScale = Vector3.one * fallbackCubeScale;
+                scrapObj.transform.localScale = Vector3.one * FallbackCubeScale;
                 scrapObj.AddComponent<Rigidbody>();
                 scrapObj.AddComponent<BoxCollider>();
                 scrapObj.transform.SetParent(transform);
             }
+
+            AlignObjectBoundsToFloor(scrapObj, new Vector3(candidateXZ.x, floorY, candidateXZ.z), ScrapSurfaceOffsetHeight);
 
             Item worldItem = scrapObj.GetComponent<Item>();
             if (worldItem == null)
@@ -528,11 +1117,11 @@ public class MapGenerator : MonoBehaviour
             }
             worldItem.SetItemData(randomScrapData);
 
-            int itemVal = randomScrapData.Amount > 0 ? randomScrapData.Amount : defaultFallbackScrapValue;
+            int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
             currentTotalValue += itemVal;
         }
 
-        Debug.Log($"[MAP] ノルマ連動スクラップ配置完了（バス周辺除外）！ 目標価値: {targetTotalValue}, 生成総価値: {currentTotalValue}");
+        Debug.Log($"[MAP] ノルマ連動スクラップ配置完了！ 目標価値: {targetTotalValue}, 生成総価値: {currentTotalValue}");
     }
 
     private void SpawnPlayerAtPosition(Vector3 targetPosition)
@@ -555,8 +1144,6 @@ public class MapGenerator : MonoBehaviour
         {
             player.transform.position = targetPosition;
         }
-
-        Debug.Log($"[MAP] プレイヤーをバスの生成位置 ({targetPosition}) にスポーンさせました。");
     }
 
     private void UpdateGizmoDrawer()
@@ -611,7 +1198,7 @@ public class MapGenerator : MonoBehaviour
             if (generatedRooms.ContainsKey(room.gridPos + Vector2Int.left)) neighborCount++;
             if (generatedRooms.ContainsKey(room.gridPos + Vector2Int.right)) neighborCount++;
 
-            if (neighborCount < minNeighborsForBusRoom) continue;
+            if (neighborCount < MinNeighborsForBusRoom) continue;
 
             AddOuterDoorBusCandidates(room, busCandidates);
         }
@@ -650,12 +1237,7 @@ public class MapGenerator : MonoBehaviour
             spawnedBusGridPos = bestCandidate.room.gridPos;
             spawnedBusDirection = bestCandidate.dir;
 
-            SpawnPlayerAtPosition(bestCandidate.pos + playerSpawnOffsetFromBus);
-            Debug.Log($"[バス生成] 最外周の安定した座標: {bestCandidate.room.gridPos} にバスを配置しました。");
-        }
-        else
-        {
-            Debug.LogWarning("[バス生成] 条件を満たすバスの配置位置が見つかりませんでした。");
+            SpawnPlayerAtPosition(bestCandidate.pos + Vector3.up * PlayerSpawnHeightOffset);
         }
     }
 
@@ -668,22 +1250,22 @@ public class MapGenerator : MonoBehaviour
 
         if (isTopEdge && room.topDoor)
         {
-            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[1] + busYRotationOffset, 0f);
+            Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[1] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.forward * busOffsetDistance, rot, 0));
         }
         if (isBottomEdge && room.bottomDoor)
         {
-            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[0] + busYRotationOffset, 0f);
+            Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[0] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.back * busOffsetDistance, rot, 1));
         }
         if (isLeftEdge && room.leftDoor)
         {
-            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[3] + busYRotationOffset, 0f);
+            Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[3] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.left * busOffsetDistance, rot, 2));
         }
         if (isRightEdge && room.rightDoor)
         {
-            Quaternion rot = Quaternion.Euler(0f, WallInwardYawAngles[2] + busYRotationOffset, 0f);
+            Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[2] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.right * busOffsetDistance, rot, 3));
         }
     }
@@ -696,7 +1278,7 @@ public class MapGenerator : MonoBehaviour
 
         foreach (var chip in allMapChips)
         {
-            int[] angles = chip.allowRotation ? AllowedRotationAngles : NonRotatedAngles;
+            int[] angles = chip.allowRotation ? allowedRotationAngles : nonRotatedAngles;
 
             foreach (int angle in angles)
             {

@@ -9,7 +9,7 @@ public class ItemDataAsset : ScriptableObject
     [SerializeField, Min(0.0f)] private float itemWeight = 0.0f;
     [SerializeField] private GameObject itemPrefab;
 
-    [Header("ƒCƒ“ƒ^ƒ‰ƒNƒgÝ’è")]
+    [Header("ã‚¤ãƒ³ã‚¿ãƒ©ã‚¯ãƒˆè¨­å®š")]
     [SerializeField, Min(0.1f)] private float requiredHoldTime = 1.0f;
 
     public int Amount => amount;

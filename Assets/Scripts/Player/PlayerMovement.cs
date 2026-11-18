@@ -4,17 +4,17 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("ƒvƒŒƒCƒ„[ƒRƒ“ƒgƒ[ƒ‰[QÆ")]
+    [Header("ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©ãƒ¼å‚ç…§")]
     [SerializeField] private PlayerController playerController;
 
-    [Header("ˆÚ“®ƒpƒ‰ƒ[ƒ^")]
+    [Header("ç§»å‹•ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿")]
     [SerializeField] private float walkSpeed = 5f;
     [SerializeField] private float sprintSpeed = 8f;
     [SerializeField] private float crouchSpeed = 2.5f;
     [SerializeField] private float jumpHeight = 1.2f;
     [SerializeField] private float gravity = -9.81f * 2f;
 
-    [Header("ƒXƒ^ƒ~ƒiƒpƒ‰ƒ[ƒ^")]
+    [Header("ã‚¹ã‚¿ãƒŸãƒŠãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿")]
     [SerializeField] private float maxStamina = 100f;
     [SerializeField] private float staminaDrainRate = 20f;
     [SerializeField] private float normalRecoveryRate = 8f;
@@ -25,20 +25,20 @@ public class PlayerMovement : MonoBehaviour
 
     private float currentStamina;
 
-    [Header("‹“_‘€ìƒpƒ‰ƒ[ƒ^")]
+    [Header("è¦–ç‚¹æ“ä½œãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿")]
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private float mouseSensitivity = 0.1f;
     [SerializeField] private float upLookLimit = -80f;
     [SerializeField] private float downLookLimit = 80f;
 
-    [Header("‚µ‚á‚ª‚İE‚‚³İ’è")]
+    [Header("ã—ã‚ƒãŒã¿ãƒ»é«˜ã•è¨­å®š")]
     [SerializeField] private float standingHeight = 2.0f;
     [SerializeField] private float crouchingHeight = 1.0f;
     [SerializeField] private float standingCameraY = 0.6f;
     [SerializeField] private float crouchingCameraY = 0.0f;
     [SerializeField] private float heightChangeSpeed = 10f;
 
-    [Header("ƒ_ƒbƒVƒ…E’‹‚Ì‹–ìŠp (FOV) ‰‰o")]
+    [Header("ãƒ€ãƒƒã‚·ãƒ¥ãƒ»æ³¨è¦–æ™‚ã®è¦–é‡è§’ (FOV) æ¼”å‡º")]
     [SerializeField] private Camera targetCamera;
     [SerializeField] private float normalFOV = 60f;
     [SerializeField] private float sprintFOV = 75f;
@@ -60,7 +60,7 @@ public class PlayerMovement : MonoBehaviour
 
     private float cameraPitch = 0f;
 
-    // --- ƒXƒƒbƒg“™‚Ì‹­§ˆÚ“®•‹“_ƒƒbƒN—p ---
+    // --- ã‚¹ãƒ­ãƒƒãƒˆç­‰ã®å¼·åˆ¶ç§»å‹•ï¼†è¦–ç‚¹ãƒ­ãƒƒã‚¯ç”¨ ---
     private bool isControlLocked = false;
     private Vector3 lockStartPos;
     private Vector3 lockTargetStandPos;
@@ -140,7 +140,7 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒvƒŒƒCƒ„[‚Ì‘€ì‚ğƒƒbƒN‚µAw’è‚µ‚½—§‚¿ˆÊ’u‚ÖŠŠ‚ç‚©‚ÉˆÚ“®‚³‚¹‚È‚ª‚ç‹–ìŠp‚ğ‹·‚ß‚Ä’‹“_‚ÖŒü‚¯‚é
+    /// ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®æ“ä½œã‚’ãƒ­ãƒƒã‚¯ã—ã€æŒ‡å®šã—ãŸç«‹ã¡ä½ç½®ã¸æ»‘ã‚‰ã‹ã«ç§»å‹•ã•ã›ãªãŒã‚‰è¦–é‡è§’ã‚’ç‹­ã‚ã¦æ³¨è¦–ç‚¹ã¸å‘ã‘ã‚‹
     /// </summary>
     public void LockControlAndMoveTo(Vector3 targetStandPos, Vector3 lookWorldPos, float transitionDuration = 0.4f)
     {
@@ -161,7 +161,7 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒvƒŒƒCƒ„[‚ÌˆÚ“®E‹“_‘€ìƒƒbƒN‚ğ‰ğœ‚·‚éiFOV‚à’Êí‚Ö©“®‚ÅŠŠ‚ç‚©‚É–ß‚è‚Ü‚·j
+    /// ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ç§»å‹•ãƒ»è¦–ç‚¹æ“ä½œãƒ­ãƒƒã‚¯ã‚’è§£é™¤ã™ã‚‹ï¼ˆFOVã‚‚é€šå¸¸ã¸è‡ªå‹•ã§æ»‘ã‚‰ã‹ã«æˆ»ã‚Šã¾ã™ï¼‰
     /// </summary>
     public void UnlockControl()
     {
@@ -176,14 +176,14 @@ public class PlayerMovement : MonoBehaviour
             velocity.y = -2f;
         }
 
-        // --- ƒƒbƒN’†iƒXƒƒbƒg‰Ò“­’†jF³–ÊˆÊ’u‚ÖˆÚ“® • ‹–ìŠp‚ğ‹·‚ß‚ÄƒŠ[ƒ‹‚ÖŒÅ’è ---
+        // --- ãƒ­ãƒƒã‚¯ä¸­ï¼ˆã‚¹ãƒ­ãƒƒãƒˆç¨¼åƒä¸­ï¼‰ï¼šæ­£é¢ä½ç½®ã¸ç§»å‹• ï¼† è¦–é‡è§’ã‚’ç‹­ã‚ã¦ãƒªãƒ¼ãƒ«ã¸å›ºå®š ---
         if (isControlLocked)
         {
             UpdateLockedMovementAndLook();
             return;
         }
 
-        // --- ’Êí‚Ì‹“_‘€ì (ƒ}ƒEƒX) ---
+        // --- é€šå¸¸æ™‚ã®è¦–ç‚¹æ“ä½œ (ãƒã‚¦ã‚¹) ---
         if (lookAction != null && cameraTransform != null)
         {
             lookInput = lookAction.ReadValue<Vector2>();
@@ -206,7 +206,7 @@ public class PlayerMovement : MonoBehaviour
         bool isMoving = moveInput.sqrMagnitude > 0.01f;
         bool isIdling = !isMoving;
 
-        // 5•ûŒü‚©‚ç‚Ì“Vˆä”»’è
+        // 5æ–¹å‘ã‹ã‚‰ã®å¤©äº•åˆ¤å®š
         bool canStandUp = true;
         if (!isCrouchingInput)
         {
@@ -285,7 +285,7 @@ public class PlayerMovement : MonoBehaviour
             cameraTransform.localPosition = camPos;
         }
 
-        // š ƒƒbƒN‰ğœŒã‚Í‚±‚±‚©‚ç’Êí‚ÌFOVinormalFOVj‚Ü‚½‚Íƒ_ƒbƒVƒ…FOV‚ÖŠŠ‚ç‚©‚É–ß‚é
+        // â˜… ãƒ­ãƒƒã‚¯è§£é™¤å¾Œã¯ã“ã“ã‹ã‚‰é€šå¸¸ã®FOVï¼ˆnormalFOVï¼‰ã¾ãŸã¯ãƒ€ãƒƒã‚·ãƒ¥FOVã¸æ»‘ã‚‰ã‹ã«æˆ»ã‚‹
         if (targetCamera != null)
         {
             float targetFOV = isSprinting ? sprintFOV : normalFOV;
@@ -310,7 +310,7 @@ public class PlayerMovement : MonoBehaviour
         float t = Mathf.Clamp01(lockTransitionElapsed / lockTransitionDuration);
         float smoothT = t * t * (3f - 2f * t);
 
-        // 1. —§‚¿ó‘Ô‚Ì–Úü‚‚³‚ÖŠŠ‚ç‚©‚É‡‚í‚¹‚é
+        // 1. ç«‹ã¡çŠ¶æ…‹ã®ç›®ç·šé«˜ã•ã¸æ»‘ã‚‰ã‹ã«åˆã‚ã›ã‚‹
         controller.height = Mathf.Lerp(controller.height, standingHeight, Time.deltaTime * heightChangeSpeed);
         if (cameraTransform != null)
         {
@@ -319,20 +319,20 @@ public class PlayerMovement : MonoBehaviour
             cameraTransform.localPosition = camPos;
         }
 
-        // 2. š ‹–ìŠpiFOVj‚ğ lockedFOV ‚ÖŠŠ‚ç‚©‚É‹·‚ß‚éiƒY[ƒ€ƒCƒ“j
+        // 2. â˜… è¦–é‡è§’ï¼ˆFOVï¼‰ã‚’ lockedFOV ã¸æ»‘ã‚‰ã‹ã«ç‹­ã‚ã‚‹ï¼ˆã‚ºãƒ¼ãƒ ã‚¤ãƒ³ï¼‰
         if (targetCamera != null)
         {
             targetCamera.fieldOfView = Mathf.Lerp(lockStartFOV, lockedFOV, smoothT);
         }
 
-        // 3. ƒXƒ^ƒ~ƒi‰ñ•œ
+        // 3. ã‚¹ã‚¿ãƒŸãƒŠå›å¾©
         currentStamina = Mathf.Clamp(currentStamina + idleRecoveryRate * Time.deltaTime, 0f, maxStamina);
         if (isExhausted && currentStamina >= staminaThresholdToResume)
         {
             isExhausted = false;
         }
 
-        // 4. ƒXƒƒbƒg³–Ê‚Ì—§‚¿ˆÊ’u‚ÖŠŠ‚ç‚©‚ÉˆÚ“®
+        // 4. ã‚¹ãƒ­ãƒƒãƒˆæ­£é¢ã®ç«‹ã¡ä½ç½®ã¸æ»‘ã‚‰ã‹ã«ç§»å‹•
         Vector3 desiredXZ = Vector3.Lerp(lockStartPos, lockTargetStandPos, smoothT);
         Vector3 moveDelta = new Vector3(
             desiredXZ.x - transform.position.x,
@@ -343,7 +343,7 @@ public class PlayerMovement : MonoBehaviour
         velocity.y += gravity * Time.deltaTime;
         controller.Move(moveDelta);
 
-        // 5. ƒJƒƒ‰‚ğƒXƒƒbƒg’†‰›‚ÖŠŠ‚ç‚©‚É‰ñ“]
+        // 5. ã‚«ãƒ¡ãƒ©ã‚’ã‚¹ãƒ­ãƒƒãƒˆä¸­å¤®ã¸æ»‘ã‚‰ã‹ã«å›è»¢
         if (cameraTransform != null)
         {
             Vector3 dirToTarget = lockLookWorldPos - cameraTransform.position;

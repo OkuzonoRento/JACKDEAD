@@ -3,38 +3,51 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    [Header("Player Input Actions ƒAƒZƒbƒg")]
+    [Header("Player Input Actions ã‚¢ã‚»ãƒƒãƒˆ")]
     [SerializeField] private InputActionAsset playerInputActions;
 
-    [Header("ƒvƒŒƒCƒ„[ƒf[ƒ^QÆ")]
+    [Header("ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãƒ‡ãƒ¼ã‚¿å‚ç…§")]
     public PlayerDataAsset PlayerData;
 
-    [Header("“Š±İ’è")]
-    [SerializeField, Tooltip("ƒAƒCƒeƒ€‚ğ“Š‚°‚éÛ‚ÌŠî€‚Æ‚È‚é¨‚¢id‚³‚ÅŠ„‚ç‚ê‚Ü‚·j")]
-    private float baseThrowForce = 3.5f; // © ƒCƒ“ƒXƒyƒNƒ^[‚©‚ç•ÏX‰Â”\‚É‚È‚è‚Ü‚µ‚½I
+    [Header("æŠ•æ“²è¨­å®š")]
+    [SerializeField, Tooltip("ã‚¢ã‚¤ãƒ†ãƒ ã‚’æŠ•ã’ã‚‹éš›ã®åŸºæº–ã¨ãªã‚‹å‹¢ã„ï¼ˆé‡ã•ã§å‰²ã‚‰ã‚Œã¾ã™ï¼‰")]
+    private float baseThrowForce = 3.5f;
+
+    [Header("æ­£æ°—åº¦ãƒ»ã‚¯ãƒªã‚¢æ™‚å›å¾©è¨­å®š")]
+    [SerializeField, Tooltip("1ç§’ã‚ãŸã‚Šã®åŸºæœ¬æ­£æ°—åº¦æ¸›å°‘é‡")]
+    private float sanityDrainPerSecond = 0.15f;
+    [SerializeField, Tooltip("å„ãƒãƒƒãƒ—ã‚¯ãƒªã‚¢æ™‚ã«å›å¾©ã™ã‚‹æ­£æ°—åº¦ï¼ˆSanityï¼‰ã®é‡")]
+    private float sanityRecoveryOnClear = 20f;
+
+    [Header("è½ä¸‹æ­»è¨­å®š")]
+    [SerializeField, Tooltip("ã“ã®Yåº§æ¨™ã‚ˆã‚Šä¸‹ã«è½ã¡ãŸã‚‰æ­»äº¡ã™ã‚‹ï¼ˆãƒãƒƒãƒ—ã®åºŠã¯ Y=0 ä»˜è¿‘ï¼‰")]
+    private float fallDeathHeight = -30f;
 
     private float _health;
     private float _sanity;
     private float _dopamine;
     private float _stamina;
 
-    private float _maxHealth;
-    private float _maxSanity;
-    private float _maxDopamine;
-    private float _maxStamina;
+    private float _maxHealth = 100f;
+    private float _maxSanity = 100f;
+    private float _maxDopamine = 100f;
+    private float _maxStamina = 100f;
 
-    [Header("ƒCƒ“ƒxƒ“ƒgƒŠ (ŠƒAƒCƒeƒ€)")]
+    private bool pauseSanityDrain = false;
+    private bool statusInitialized = false;
+    private bool isGameOver = false;
+
+    [Header("ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª (æ‰€æŒã‚¢ã‚¤ãƒ†ãƒ )")]
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
 
-    [Header("ŒoÏEŠ‹à")]
+    [Header("çµŒæ¸ˆãƒ»æ‰€æŒé‡‘")]
     [SerializeField] private int playerMoney = 0;
     public int PlayerMoney => playerMoney;
 
-    [Header("‘I‘ğ’†ƒXƒƒbƒgŠÇ—")]
+    [Header("é¸æŠä¸­ã‚¹ãƒ­ãƒƒãƒˆç®¡ç†")]
     [SerializeField] private int selectedSlotIndex = 0;
     public int SelectedSlotIndex => selectedSlotIndex;
 
-    // ŠO•”iPlayerMovement‚âPlayerInteractionj‚©‚çQÆ‚Å‚«‚é‚æ‚¤‚ÉƒvƒƒpƒeƒB‚Æ‚µ‚ÄŒöŠJ
     public InputActionAsset PlayerInputActionsAsset => playerInputActions;
 
     private InputAction slot1Action;
@@ -45,6 +58,11 @@ public class PlayerController : MonoBehaviour
     public float Sanity => _sanity;
     public float Dopamine => _dopamine;
     public float Stamina => _stamina;
+
+    public float MaxHealth => _maxHealth;
+    public float MaxSanity => _maxSanity;
+    public float MaxDopamine => _maxDopamine;
+    public float MaxStamina => _maxStamina;
 
     private void Awake()
     {
@@ -100,16 +118,110 @@ public class PlayerController : MonoBehaviour
                     Inventory[i] = PlayerData.Inventory[i];
                 }
             }
+
+            statusInitialized = true;
         }
     }
 
     private void Update()
     {
-        ConsumeSanity(Time.deltaTime * 0.15f);
+        if (!pauseSanityDrain)
+        {
+            ConsumeSanity(Time.deltaTime * sanityDrainPerSecond);
+        }
         HandleSlotSelectionInput();
+        CheckGameOver();
     }
 
-    // --- ƒXƒƒbƒg‘I‘ğ (”šƒL[ • ƒ}ƒEƒXƒzƒC[ƒ‹) ---
+    public void SetPauseSanityDrain(bool pause)
+    {
+        pauseSanityDrain = pause;
+    }
+
+    /// <summary>
+    /// ä½“åŠ›ã¾ãŸã¯æ­£æ°—åº¦ãŒå°½ããŸã‚‰å…¨æ»…ï¼ˆã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼ï¼‰æ¼”å‡ºã‚’ä¸€åº¦ã ã‘é–‹å§‹ã™ã‚‹
+    /// </summary>
+    private void CheckGameOver()
+    {
+        if (isGameOver || !statusInitialized) return;
+
+        string deathReason;
+        if (transform.position.y < fallDeathHeight)
+        {
+            // ãƒãƒƒãƒ—ã®å¤–ã¸è½ä¸‹ã—ãŸå ´åˆã¯å³æ­»
+            _health = 0f;
+            deathReason = "FELL TO DEATH";
+        }
+        else if (_health <= 0f)
+        {
+            deathReason = "YOU DIED";
+        }
+        else if (_sanity <= 0f)
+        {
+            deathReason = "LOST YOUR SANITY";
+        }
+        else
+        {
+            return;
+        }
+
+        isGameOver = true;
+        pauseSanityDrain = true;
+
+        // ã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼æ¼”å‡ºã¨ã‚¿ã‚¤ãƒˆãƒ«ã¸ã®ã‚·ãƒ¼ãƒ³æ¨ç§»ã¯ ResultUIController ãŒæ‹…å½“ã™ã‚‹
+        ResultUIController resultUI = FindAnyObjectByType<ResultUIController>();
+        if (resultUI != null)
+        {
+            resultUI.BeginGameOver(deathReason);
+        }
+        else
+        {
+            Debug.LogWarning("[ã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼] ResultUIController ãŒã‚·ãƒ¼ãƒ³ã«ã‚ã‚Šã¾ã›ã‚“ã€‚");
+            ResetForNewRun();
+        }
+    }
+
+    /// <summary>
+    /// å…¨æ»…å¾Œã®æœ€åˆã‹ã‚‰ã‚„ã‚Šç›´ã—ï¼šæ‰€æŒé‡‘ãƒ»ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªãƒ»é€²è¡Œåº¦ãƒ»ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹ã‚’åˆæœŸçŠ¶æ…‹ã«æˆ»ã™
+    /// </summary>
+    public void ResetForNewRun()
+    {
+        if (PlayerData != null)
+        {
+            PlayerData.PlayerMoney = 0;
+            PlayerData.CurrentStageLevel = 1;
+            PlayerData.TotalRepaidDebt = 0;
+            PlayerData.Inventory = new ItemDataAsset[3];
+        }
+
+        for (int i = 0; i < Inventory.Length; i++)
+        {
+            Inventory[i] = null;
+        }
+        playerMoney = 0;
+        selectedSlotIndex = 0;
+
+        StatusSetUp();
+
+        isGameOver = false;
+        pauseSanityDrain = false;
+    }
+
+    public void RestoreHealth(float amount)
+    {
+        _health = Mathf.Clamp(_health + amount, 0f, _maxHealth);
+    }
+
+    public void RestoreSanity(float amount)
+    {
+        _sanity = Mathf.Clamp(_sanity + amount, 0f, _maxSanity);
+    }
+
+    public void RestoreDopamine(float amount)
+    {
+        _dopamine = Mathf.Clamp(_dopamine + amount, 0f, _maxDopamine);
+    }
+
     private void HandleSlotSelectionInput()
     {
         if (slot1Action != null && slot1Action.triggered) SelectSlot(0);
@@ -138,11 +250,10 @@ public class PlayerController : MonoBehaviour
         if (index >= 0 && index < Inventory.Length)
         {
             selectedSlotIndex = index;
-            Debug.Log($"[ƒCƒ“ƒxƒ“ƒgƒŠ] ƒXƒƒbƒg [{selectedSlotIndex + 1}] ‚ğ‘I‘ğ‚µ‚Ü‚µ‚½B");
+            Debug.Log($"[ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª] ã‚¹ãƒ­ãƒƒãƒˆ [{selectedSlotIndex + 1}] ã‚’é¸æŠã—ã¾ã—ãŸã€‚");
         }
     }
 
-    // --- QƒL[FƒAƒCƒeƒ€“Š± ---
     public void DropSelectedInventoryItem(Transform cameraTransform)
     {
         if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
@@ -166,7 +277,6 @@ public class PlayerController : MonoBehaviour
             Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
             if (rb == null) rb = droppedObj.AddComponent<Rigidbody>();
 
-            // ƒCƒ“ƒXƒyƒNƒ^[‚Åİ’è‚µ‚½•Ï”ibaseThrowForcej‚ğg—p‚µ‚Ü‚·
             float weightFactor = Mathf.Max(0.1f, itemDataToDrop.ItemWeight);
             float throwForce = baseThrowForce / weightFactor;
 
@@ -177,14 +287,13 @@ public class PlayerController : MonoBehaviour
             rb.linearVelocity = Vector3.zero;
             rb.AddForce(throwDirection * throwForce, ForceMode.VelocityChange);
 
-            Debug.Log($"[ƒCƒ“ƒxƒ“ƒgƒŠ] {itemDataToDrop.ItemName} ‚ğ“Š‚°‚Ü‚µ‚½id‚³: {itemDataToDrop.ItemWeight}jB");
+            Debug.Log($"[ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª] {itemDataToDrop.ItemName} ã‚’æŠ•ã’ã¾ã—ãŸï¼ˆé‡ã•: {itemDataToDrop.ItemWeight}ï¼‰ã€‚");
         }
 
         Inventory[selectedSlotIndex] = null;
         SaveInventoryToData();
     }
 
-    // --- EƒL[FƒAƒCƒeƒ€g—p ---
     public void UseSelectedInventoryItem()
     {
         if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
@@ -192,12 +301,11 @@ public class PlayerController : MonoBehaviour
         ItemDataAsset itemDataToUse = Inventory[selectedSlotIndex];
         if (itemDataToUse == null) return;
 
-        Debug.Log($"[ƒCƒ“ƒxƒ“ƒgƒŠ] {itemDataToUse.ItemName} ‚ğg—p‚µ‚Ü‚µ‚½I");
+        Debug.Log($"[ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒª] {itemDataToUse.ItemName} ã‚’ä½¿ç”¨ã—ã¾ã—ãŸï¼");
         Inventory[selectedSlotIndex] = null;
         SaveInventoryToData();
     }
 
-    // --- ƒCƒ“ƒxƒ“ƒgƒŠ‚É‹ó‚«‚ª‚ ‚é‚©ƒ`ƒFƒbƒN ---
     public bool HasInventorySpace()
     {
         if (Inventory == null) return false;
@@ -208,33 +316,27 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    // --- ƒAƒCƒeƒ€‚ğE‚Á‚ÄƒCƒ“ƒxƒ“ƒgƒŠ‚ÉŠi”[‚·‚é ---
     public bool TryAddItem(ItemDataAsset itemData)
     {
         if (itemData == null || Inventory == null) return false;
 
-        // 1. Œ»İ‘I‘ğ’†‚ÌƒXƒƒbƒg‚ª‹ó‚¢‚Ä‚¢‚ê‚Î—Dæ‚µ‚Ä“ü‚ê‚é
         if (selectedSlotIndex >= 0 && selectedSlotIndex < Inventory.Length && Inventory[selectedSlotIndex] == null)
         {
             Inventory[selectedSlotIndex] = itemData;
             SaveInventoryToData();
-            Debug.Log($"[ƒCƒ“ƒxƒ“ƒgƒŠ] ‘I‘ğ’†ƒXƒƒbƒg [{selectedSlotIndex + 1}] ‚É {itemData.ItemName} ‚ğŠi”[‚µ‚Ü‚µ‚½I");
             return true;
         }
 
-        // 2. ‹ó‚¢‚Ä‚¢‚È‚¯‚ê‚ÎAæ“ª‚©‚ç‹ó‚¢‚Ä‚¢‚éƒXƒƒbƒg‚ğ’T‚µ‚Ä“ü‚ê‚é
         for (int i = 0; i < Inventory.Length; i++)
         {
             if (Inventory[i] == null)
             {
                 Inventory[i] = itemData;
                 SaveInventoryToData();
-                Debug.Log($"[ƒCƒ“ƒxƒ“ƒgƒŠ] ƒXƒƒbƒg [{i + 1}] ‚É {itemData.ItemName} ‚ğŠi”[‚µ‚Ü‚µ‚½I");
                 return true;
             }
         }
 
-        Debug.LogWarning("[ƒCƒ“ƒxƒ“ƒgƒŠ] –”t‚Ì‚½‚ßE‚¦‚Ü‚¹‚ñI");
         return false;
     }
 
@@ -253,7 +355,7 @@ public class PlayerController : MonoBehaviour
 
     public void ConsumeSanity(float amount)
     {
-        if (amount <= 0) return;
+        if (amount <= 0f) return;
         if (_dopamine > 0f)
         {
             float consumeDopamine = Mathf.Min(_dopamine, amount);
@@ -264,6 +366,33 @@ public class PlayerController : MonoBehaviour
         else
         {
             _sanity = Mathf.Max(0f, _sanity - amount);
+        }
+    }
+
+    /// <summary>
+    /// ã‚¯ãƒªã‚¢ç²¾ç®—æ™‚ã«ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªå†…ã®ã‚¢ã‚¤ãƒ†ãƒ ã‚’ã™ã¹ã¦ç©ºã«ã—ã¦ä¿å­˜ã™ã‚‹
+    /// </summary>
+    public void ClearAllInventoryItems()
+    {
+        if (Inventory == null) return;
+        for (int i = 0; i < Inventory.Length; i++)
+        {
+            Inventory[i] = null;
+        }
+        SaveInventoryToData();
+    }
+
+    /// <summary>
+    /// ã‚¹ãƒ†ãƒ¼ã‚¸ã‚¯ãƒªã‚¢æ™‚ã®æ­£æ°—åº¦å›å¾©ã¨é€²è¡Œãƒ‡ãƒ¼ã‚¿ä¿å­˜
+    /// </summary>
+    public void OnStageCleared(int repaidQuota)
+    {
+        _sanity = Mathf.Clamp(_sanity + sanityRecoveryOnClear, 0f, _maxSanity);
+
+        if (PlayerData != null)
+        {
+            PlayerData.TotalRepaidDebt += repaidQuota;
+            PlayerData.CurrentStageLevel += 1;
         }
     }
 

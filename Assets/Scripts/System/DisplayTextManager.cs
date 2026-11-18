@@ -1,75 +1,117 @@
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
-using System.Collections.Generic;
 
 public class DisplayTextManager : MonoBehaviour
 {
-    [Header("UI ƒeƒLƒXƒgQÆi3DƒeƒLƒXƒgj")]
-    [SerializeField] private TextMeshPro quotaText;       // –{“ú‚Ìƒmƒ‹ƒ}
-    [SerializeField] private TextMeshPro incomeText;      // –{“ú‚Ìû“ü
-    [SerializeField] private TextMeshPro remainingText;   // c‚è•ÔÏŠz
+    [Header("UI ãƒ†ã‚­ã‚¹ãƒˆå‚ç…§ï¼ˆ3Dãƒ†ã‚­ã‚¹ãƒˆï¼‰")]
+    [SerializeField] private TextMeshPro quotaText;
+    [SerializeField] private TextMeshPro incomeText;
+    [SerializeField] private TextMeshPro remainingText;
 
     private MapGenerator mapGenerator;
     private PlayerController playerController;
 
-    // ƒoƒX‚Ì’†iƒgƒŠƒK[“àj‚É‚ ‚éƒXƒNƒ‰ƒbƒv‚ğŠÇ—‚·‚éƒZƒbƒg
-    private HashSet<Item> itemsInBus = new HashSet<Item>();
+    // ãƒã‚¹ã®ä¸­ï¼ˆãƒˆãƒªã‚¬ãƒ¼å†…ï¼‰ã«ã‚ã‚‹ã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚’ç®¡ç†ã™ã‚‹ã‚»ãƒƒãƒˆ
+    private readonly HashSet<Item> itemsInBus = new HashSet<Item>();
 
-    // ƒvƒŒƒCƒ„[‚ªƒoƒX‚ÌƒGƒŠƒA“à‚É“ü‚Á‚Ä‚¢‚é‚©‚Ç‚¤‚©
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒãƒã‚¹ã®ã‚¨ãƒªã‚¢å†…ã«å…¥ã£ã¦ã„ã‚‹ã‹ã©ã†ã‹
     private bool isPlayerInBus = false;
 
-    void Start()
+    public bool IsPlayerInBus => isPlayerInBus;
+
+    private void Start()
     {
-        // ƒvƒŒƒnƒu‚©‚ç‚Å‚àƒV[ƒ“ã‚Ìƒ}ƒl[ƒWƒƒ[‚âƒvƒŒƒCƒ„[‚ğ©“®æ“¾
         mapGenerator = FindAnyObjectByType<MapGenerator>();
         playerController = FindAnyObjectByType<PlayerController>();
     }
 
-    void Update()
+    private void Update()
     {
         UpdateQuotaUI();
     }
 
-    // === ƒgƒŠƒK[‚É“ü‚Á‚½‚Æ‚«‚Ìˆ—iƒXƒNƒ‰ƒbƒv • ƒvƒŒƒCƒ„[j ===
     private void OnTriggerEnter(Collider other)
     {
-        // 1. ƒXƒNƒ‰ƒbƒv‚ªƒoƒX“à‚É“ü‚Á‚½ê‡
+        RegisterColliderInBus(other);
+    }
+
+    // ãƒã‚¹å†…ã§Qã‚­ãƒ¼æŠ•æ“²ã•ã‚ŒãŸã‚¢ã‚¤ãƒ†ãƒ ï¼ˆInstantiateå¾Œã«ItemãŒä»˜ä¸ã•ã‚Œã‚‹ã‚±ãƒ¼ã‚¹ï¼‰ã‚‚ç¢ºå®Ÿã«æ‹¾ã†
+    private void OnTriggerStay(Collider other)
+    {
+        RegisterColliderInBus(other);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
         Item item = other.GetComponent<Item>();
+        if (item == null) item = other.GetComponentInParent<Item>();
+
         if (item != null)
         {
-            if (!itemsInBus.Contains(item))
-            {
-                itemsInBus.Add(item);
-            }
+            itemsInBus.Remove(item);
         }
 
-        // 2. ƒvƒŒƒCƒ„[‚ªƒoƒX“à‚É“ü‚Á‚½iæ‚Á‚½jê‡
         PlayerController player = other.GetComponent<PlayerController>();
+        if (player == null) player = other.GetComponentInParent<PlayerController>();
+
+        if (player != null || other.CompareTag("Player"))
+        {
+            isPlayerInBus = false;
+        }
+    }
+
+    private void RegisterColliderInBus(Collider other)
+    {
+        Item item = other.GetComponent<Item>();
+        if (item == null) item = other.GetComponentInParent<Item>();
+
+        if (item != null && item.ItemData != null)
+        {
+            itemsInBus.Add(item);
+        }
+
+        PlayerController player = other.GetComponent<PlayerController>();
+        if (player == null) player = other.GetComponentInParent<PlayerController>();
+
         if (player != null || other.CompareTag("Player"))
         {
             isPlayerInBus = true;
         }
     }
 
-    // === ƒgƒŠƒK[‚©‚ço‚½‚Æ‚«‚Ìˆ—iƒXƒNƒ‰ƒbƒv • ƒvƒŒƒCƒ„[j ===
-    private void OnTriggerExit(Collider other)
+    /// <summary>
+    /// ãƒˆãƒ©ãƒƒã‚¯ï¼ˆãƒã‚¹ï¼‰ã®ãƒˆãƒªã‚¬ãƒ¼å†…ã«ã‚ã‚‹åºŠç½®ãã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã®åˆè¨ˆé‡‘é¡ã‚’è¿”ã™ï¼ˆDepartureLeverã¨å…±é€šåˆ©ç”¨ï¼‰
+    /// </summary>
+    public int GetBusScrapTotalValue()
     {
-        // 1. ƒXƒNƒ‰ƒbƒv‚ªƒoƒX‚ÌŠO‚Éo‚½ê‡
-        Item item = other.GetComponent<Item>();
-        if (item != null)
+        int total = 0;
+        itemsInBus.RemoveWhere(item => item == null);
+
+        foreach (var item in itemsInBus)
         {
-            if (itemsInBus.Contains(item))
+            if (item != null && item.ItemData != null)
             {
-                itemsInBus.Remove(item);
+                total += item.CurrentValue;
             }
         }
+        return total;
+    }
 
-        // 2. ƒvƒŒƒCƒ„[‚ªƒoƒX‚ÌŠO‚Éo‚½ê‡
-        PlayerController player = other.GetComponent<PlayerController>();
-        if (player != null || other.CompareTag("Player"))
+    /// <summary>
+    /// ãƒ¬ãƒ™ãƒ«ã‚¯ãƒªã‚¢ç²¾ç®—æ™‚ã«ãƒã‚¹å†…ã®åºŠç½®ãã‚¹ã‚¯ãƒ©ãƒƒãƒ—ã‚’ã™ã¹ã¦æ¶ˆå»ã™ã‚‹
+    /// </summary>
+    public void ClearBusScrapItems()
+    {
+        itemsInBus.RemoveWhere(item => item == null);
+        foreach (var item in itemsInBus)
         {
-            isPlayerInBus = false;
+            if (item != null)
+            {
+                Destroy(item.gameObject);
+            }
         }
+        itemsInBus.Clear();
     }
 
     private void UpdateQuotaUI()
@@ -85,16 +127,10 @@ public class DisplayTextManager : MonoBehaviour
             playerController = FindAnyObjectByType<PlayerController>();
         }
 
-        // 1. ƒmƒ‹ƒ}‹àŠz‚Ìæ“¾
         int currentQuota = mapGenerator.CurrentMapQuota;
-
-        // 2. û“ü‚ÌŒvZiŠ‹à { ƒoƒX“àƒXƒNƒ‰ƒbƒv { ƒCƒ“ƒxƒ“ƒgƒŠj
         int totalIncome = CalculateTotalIncome();
-
-        // 3. c‚è•ÔÏŠz‚ÌŒvZiƒmƒ‹ƒ} - û“üj
         int remaining = Mathf.Max(0, currentQuota - totalIncome);
 
-        // UI‚Ö‚Ì”½‰fi$000000 ƒtƒH[ƒ}ƒbƒgj
         if (quotaText != null)
             quotaText.text = $"${currentQuota:D6}";
 
@@ -105,36 +141,24 @@ public class DisplayTextManager : MonoBehaviour
             remainingText.text = $"${remaining:D6}";
     }
 
-    private int CalculateTotalIncome()
+    public int CalculateTotalIncome()
     {
-        int total = 0;
+        int total = GetBusScrapTotalValue();
 
-        // A. ƒoƒX“à‚É‚ ‚é°’u‚«ƒXƒNƒ‰ƒbƒv‚Ì‹àŠz‚ğ‡Z
-        itemsInBus.RemoveWhere(item => item == null);
-        foreach (var item in itemsInBus)
-        {
-            if (item != null && item.ItemData != null)
-            {
-                total += item.ItemData.Amount;
-            }
-        }
-
-        // B. yƒvƒŒƒCƒ„[‚ªƒoƒX‚Éæ‚Á‚Ä‚¢‚éê‡‚Ì‚İzƒCƒ“ƒxƒ“ƒgƒŠ“à‚Ì‹àŠz‚ğ‡Z
-        if (isPlayerInBus && playerController != null && playerController.Inventory != null)
-        {
-            foreach (var itemData in playerController.Inventory)
-            {
-                if (itemData != null)
-                {
-                    total += itemData.Amount;
-                }
-            }
-        }
-
-        // C. yƒvƒŒƒCƒ„[‚ªƒoƒX‚Éæ‚Á‚Ä‚¢‚éê‡‚Ì‚İzƒvƒŒƒCƒ„[‚ÌŠ‹à‚àû“ü‚Æ‚µ‚Ä‡Z‚·‚é
         if (isPlayerInBus && playerController != null)
         {
             total += playerController.PlayerMoney;
+
+            if (playerController.Inventory != null)
+            {
+                foreach (var itemData in playerController.Inventory)
+                {
+                    if (itemData != null)
+                    {
+                        total += mapGenerator != null ? mapGenerator.GetScrapValue(itemData) : itemData.Amount;
+                    }
+                }
+            }
         }
 
         return total;

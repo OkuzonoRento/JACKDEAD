@@ -4,22 +4,39 @@ using TMPro;
 
 public class SlotButtonInteractable : MonoBehaviour, IInteractable
 {
-    [Header("ƒJƒWƒmƒ}ƒVƒ“–{‘Ì‚ÌQÆ")]
+    [Header("ã‚«ã‚¸ãƒãƒã‚·ãƒ³æœ¬ä½“ã®å‚ç…§")]
     [SerializeField] private SlotMachineController slotMachine;
 
-    [Header("‚±‚Ìƒ{ƒ^ƒ“‚Ìƒxƒbƒg‹àŠz")]
+    [Header("ãƒ™ãƒƒãƒˆé‡‘é¡ãƒ»é•·æŠ¼ã—æ™‚é–“è¨­å®š")]
     [SerializeField] private int customBetAmount = 1000;
+    [Tooltip("ãƒœã‚¿ãƒ³ã‚’é•·æŠ¼ã—ã—ã¦ã‚²ãƒ¼ã‚¸ãŒæº€ã‚¿ãƒ³ã«ãªã‚‹ã¾ã§ã®æ™‚é–“ï¼ˆç§’ï¼‰")]
+    [SerializeField, Min(0.05f)] private float holdTime = 0.5f;
 
-    [Header("ƒ{ƒ^ƒ“ã‚ÌƒeƒLƒXƒg•\¦")]
+    [Header("ãƒœã‚¿ãƒ³ä¸Šã®ãƒ†ã‚­ã‚¹ãƒˆè¡¨ç¤º")]
     [SerializeField] private TextMeshPro buttonText;
+    [SerializeField] private Color availableTextColor = Color.white;
+    [SerializeField] private Color unavailableTextColor = Color.gray;
 
-    [Header("ƒ{ƒ^ƒ“‰Ÿ‚µ‚İ‰‰o")]
-    [Tooltip("‰Ÿ‚µ‚½‚Æ‚«‚Éƒ{ƒ^ƒ“‚ª’¾‚İ‚Şƒ[ƒJƒ‹ˆÚ“®—Ê")]
+    [Header("ãƒœã‚¿ãƒ³æŠ¼ã—è¾¼ã¿æ¼”å‡º")]
+    [Tooltip("æŠ¼ã—ãŸã¨ãã«ãƒœã‚¿ãƒ³ãŒæ²ˆã¿è¾¼ã‚€ãƒ­ãƒ¼ã‚«ãƒ«ç§»å‹•é‡")]
     [SerializeField] private Vector3 pressLocalOffset = new Vector3(0f, -0.02f, 0f);
     [SerializeField] private float pressDuration = 0.08f;
 
     private Vector3 initialLocalPos;
     private bool isAnimatingPress = false;
+    private MapGenerator mapGenerator;
+
+    /// <summary>
+    /// customBetAmountï¼ˆãƒ¬ãƒ™ãƒ«1åŸºæº–ï¼‰ã«ç¾åœ¨ã®ãƒ¬ãƒ™ãƒ«ã®ä¾¡æ ¼è£œæ­£ã‚’æ›ã‘ãŸå®Ÿéš›ã®ãƒ™ãƒƒãƒˆé¡
+    /// </summary>
+    private int CurrentBetAmount
+    {
+        get
+        {
+            if (mapGenerator == null) mapGenerator = FindAnyObjectByType<MapGenerator>();
+            return mapGenerator != null ? mapGenerator.ScaleToCurrentPrice(customBetAmount) : customBetAmount;
+        }
+    }
 
     private void Awake()
     {
@@ -45,24 +62,24 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
     {
         if (buttonText != null)
         {
-            buttonText.text = $"${customBetAmount}";
+            buttonText.text = $"${CurrentBetAmount:N0}";
 
             if (slotMachine != null)
             {
-                bool canPlay = !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(customBetAmount);
-                buttonText.color = canPlay ? Color.white : Color.gray;
+                bool canPlay = CanInteract();
+                buttonText.color = canPlay ? availableTextColor : unavailableTextColor;
             }
         }
     }
 
     public string GetInteractPrompt() => "";
 
-    public float GetHoldTime() => 0.1f;
+    public float GetHoldTime() => holdTime;
 
     public bool CanInteract()
     {
         if (slotMachine == null) return false;
-        return !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(customBetAmount);
+        return !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(CurrentBetAmount);
     }
 
     public void OnInteract()
@@ -73,7 +90,7 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
             {
                 StartCoroutine(AnimateButtonPress());
             }
-            slotMachine.OnPressBetButton(customBetAmount);
+            slotMachine.OnPressBetButton(CurrentBetAmount);
         }
     }
 
