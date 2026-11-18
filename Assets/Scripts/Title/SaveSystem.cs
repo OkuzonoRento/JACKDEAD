@@ -1,0 +1,84 @@
+using System.IO;
+using UnityEngine;
+
+[System.Serializable]
+public class GameSaveData
+{
+    public bool hasSaveData = false;
+    public int currentMoney = 0;         // 所持金
+    public int remainingDebt = 1000000;  // 残り借金（初期100万）
+    public int currentDay = 1;           // 経過日数
+
+    // 体のパーツ（true = 残っている, false = 売却済み）
+    public bool hasLeftArm = true;
+    public bool hasRightArm = true;
+    public bool hasLeftEye = true;
+    public bool hasLegs = true;
+}
+
+public static class SaveSystem
+{
+    public static bool IsMultiplayerMode { get; set; } = false;
+    public static int ActiveSlotIndex { get; private set; } = 1;
+    public static GameSaveData CurrentData { get; private set; } = new GameSaveData();
+
+    private static string GetSavePath(int slotIndex)
+    {
+        return Path.Combine(Application.persistentDataPath, $"save_slot{slotIndex}.json");
+    }
+
+    public static bool HasSaveFile(int slotIndex)
+    {
+        return File.Exists(GetSavePath(slotIndex));
+    }
+
+    public static GameSaveData PeekSaveData(int slotIndex)
+    {
+        string path = GetSavePath(slotIndex);
+        if (File.Exists(path))
+        {
+            string json = File.ReadAllText(path);
+            return JsonUtility.FromJson<GameSaveData>(json);
+        }
+        return null;
+    }
+
+    public static GameSaveData SelectAndLoadSlot(bool isMultiplayer, int slotIndex)
+    {
+        IsMultiplayerMode = isMultiplayer;
+        ActiveSlotIndex = slotIndex;
+
+        string path = GetSavePath(slotIndex);
+        if (File.Exists(path))
+        {
+            string json = File.ReadAllText(path);
+            CurrentData = JsonUtility.FromJson<GameSaveData>(json);
+        }
+        else
+        {
+            CurrentData = new GameSaveData();
+            CurrentData.hasSaveData = true;
+            SaveCurrentGame();
+        }
+        return CurrentData;
+    }
+
+    public static void SaveCurrentGame()
+    {
+        CurrentData.hasSaveData = true;
+        string path = GetSavePath(ActiveSlotIndex);
+        string json = JsonUtility.ToJson(CurrentData, true);
+        File.WriteAllText(path, json);
+        Debug.Log($"セーブ完了 (Slot {ActiveSlotIndex})");
+    }
+
+    public static void DeleteSlot(int slotIndex)
+    {
+        string path = GetSavePath(slotIndex);
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+            Debug.Log($"データ削除 (Slot {slotIndex})");
+        }
+    }
+}
