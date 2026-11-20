@@ -6,6 +6,9 @@ public class Item : MonoBehaviour, IInteractable
 
     public ItemDataAsset ItemData => itemData;
 
+    /// <summary>マルチプレイ同期用のID（0 = 同期しない）。マップ生成時のスクラップは生成順の連番、落とした物は GameplaySync.AllocateDropId()</summary>
+    public int NetId { get; set; }
+
     private MapGenerator mapGenerator;
 
     /// <summary>
@@ -53,8 +56,13 @@ public class Item : MonoBehaviour, IInteractable
         PlayerController pc = FindAnyObjectByType<PlayerController>();
         if (pc != null && itemData != null)
         {
+            // マルチプレイ：すでに他の人が拾っていたら拾えない。参加者はホストの許可が出てから受け取る（同時に拾っても複製されない）
+            if (GameplaySync.IsClaimed(this)) return;
+            if (GameplaySync.RequestPickIfClient(this)) return;
+
             if (pc.TryAddItem(itemData))
             {
+                GameplaySync.NotifyItemPicked(this);
                 Destroy(gameObject);
             }
         }

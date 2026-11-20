@@ -80,6 +80,17 @@ public class Title3DSystem : MonoBehaviour
     {
         PlayClickSound();
         selectedMultiplayer = true;
+
+        // マルチ：まず「ルームを作る／参加する」を選ぶ。セーブ選択はルームを作る場合のみ（MultiLobbyUI 内で行う）
+        if (NetworkSession.Instance != null)
+        {
+            if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+            MultiLobbyUI.Open(() =>
+            {
+                if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+            });
+            return;
+        }
         OpenSaveSlotPanel();
     }
 
@@ -129,18 +140,6 @@ public class Title3DSystem : MonoBehaviour
         PlayClickSound();
 
         SaveSystem.SelectAndLoadSlot(selectedMultiplayer, slotNumber);
-
-        // マルチはロビーシーンを使わず、タイトル上のロビーUIで部屋作成・参加を行う（開始はホストの StartGame が全員を遷移させる）
-        if (selectedMultiplayer && NetworkSession.Instance != null)
-        {
-            if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
-            MultiLobbyUI.Open(() =>
-            {
-                isStartingGame = false;
-                if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
-            });
-            return;
-        }
 
         string targetScene = selectedMultiplayer ? multiLobbySceneName : singlePlaySceneName;
         StartCoroutine(TransitionToScene(targetScene));

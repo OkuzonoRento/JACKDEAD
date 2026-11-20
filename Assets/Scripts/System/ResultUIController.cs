@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
@@ -87,6 +88,31 @@ public class ResultUIController : MonoBehaviour
 
     public bool IsResultShowing => isResultShowing;
     public bool IsTransitioning => isTransitioning;
+
+    // Space / Enter / 左クリックで、リザルト演出を早送りする（最終結果が出たあとにもう一度押すと次のステージへ）
+    private bool skipRequested = false;
+
+    private void Update()
+    {
+        if (!isResultShowing || isTransitioning) return;
+
+        Keyboard kb = Keyboard.current;
+        Mouse mouse = Mouse.current;
+        bool pressed = (kb != null && (kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame))
+                    || (mouse != null && mouse.leftButton.wasPressedThisFrame);
+        if (pressed) skipRequested = true;
+    }
+
+    /// <summary>指定秒数待つ。スキップが押されたら即座に抜ける</summary>
+    private IEnumerator WaitSkippable(float seconds)
+    {
+        float elapsed = 0f;
+        while (elapsed < seconds && !skipRequested)
+        {
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+    }
 
     private void Awake()
     {
@@ -182,6 +208,7 @@ public class ResultUIController : MonoBehaviour
     public void ShowStageClearResult(int clearedStageLevel, int totalCollectedAssets, int quotaAmount, int surplusMoney)
     {
         isResultShowing = true;
+        skipRequested = false;
 
         if (resultPanelObj != null)
         {
@@ -223,7 +250,7 @@ public class ResultUIController : MonoBehaviour
             yield return StartCoroutine(AnimateRectPop(stageClearTitleText.rectTransform, titleDefaultScale, TitlePopDuration));
         }
 
-        yield return new WaitForSeconds(stepInterval);
+        yield return WaitSkippable(stepInterval);
 
         // --- 2. 目標ノルマ額をポップ表示 ---
         if (quotaAmountText != null)
@@ -233,7 +260,7 @@ public class ResultUIController : MonoBehaviour
             yield return StartCoroutine(AnimateRectPop(quotaAmountText.rectTransform, quotaTextDefaultScale, TitlePopDuration));
         }
 
-        yield return new WaitForSeconds(stepInterval * 0.6f);
+        yield return WaitSkippable(stepInterval * 0.6f);
 
         // --- 3. 総資産（収集額＋所持金）を 0 からカウントアップ ---
         if (totalCollectedText != null)
@@ -244,7 +271,7 @@ public class ResultUIController : MonoBehaviour
             );
         }
 
-        yield return new WaitForSeconds(stepInterval);
+        yield return WaitSkippable(stepInterval);
 
         // --- 4. ノルマ精算後の残り所持金（利益）をカウントアップ＆緑フラッシュ ---
         if (surplusMoneyText != null)
@@ -263,7 +290,7 @@ public class ResultUIController : MonoBehaviour
             yield return StartCoroutine(AnimateRectPop(debtStatusText.rectTransform, Vector3.one, TitlePopDuration));
         }
 
-        yield return new WaitForSeconds(stepInterval * 0.6f);
+        yield return WaitSkippable(stepInterval * 0.6f);
 
         // --- 5. ステータスゲージ（体力・正気度・ドーパミン）を滑らかに上昇 ---
         yield return StartCoroutine(AnimateStatusGauges(countUpDuration));
@@ -283,7 +310,9 @@ public class ResultUIController : MonoBehaviour
         }
 
         // --- 7. 余韻のあと自動で次のステージへ遷移 ---
-        yield return new WaitForSeconds(autoAdvanceDelay);
+        // 演出を早送りした場合も、最終結果を確認できるよう、ここでもう一度ボタン待ちに戻す（もう一度押せば次へ）
+        skipRequested = false;
+        yield return WaitSkippable(autoAdvanceDelay);
         AdvanceToNextStage();
     }
 
@@ -323,7 +352,7 @@ public class ResultUIController : MonoBehaviour
         if (targetRect == null) yield break;
 
         float elapsed = 0f;
-        while (elapsed < duration)
+        while (elapsed < duration && !skipRequested)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
@@ -350,7 +379,7 @@ public class ResultUIController : MonoBehaviour
         Color baseColor = targetText.color;
         float elapsed = 0f;
 
-        while (elapsed < duration)
+        while (elapsed < duration && !skipRequested)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
@@ -393,7 +422,7 @@ public class ResultUIController : MonoBehaviour
             : 0f;
 
         float elapsed = 0f;
-        while (elapsed < duration)
+        while (elapsed < duration && !skipRequested)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);

@@ -572,6 +572,11 @@ public class MapGenerator : MonoBehaviour
                 Physics.SyncTransforms();
 
                 spawnedSlotList.Add(slotInstance);
+
+                // マルチプレイ同期用：生成順の連番IDを振る（全員同じシードなので同じ台が同じIDになる）
+                SlotMachineController slotController = slotInstance.GetComponentInChildren<SlotMachineController>();
+                if (slotController != null) slotController.NetId = spawnedSlotList.Count;
+
                 spawnedCount++;
                 slotsInThisRoom++;
             }
@@ -1086,6 +1091,7 @@ public class MapGenerator : MonoBehaviour
         }
 
         int safetyCounter = 0;
+        int scrapNetId = 0;
         float maxOffset = tileSize * ScrapSpawnAreaRatio;
 
         while (currentTotalValue < targetTotalValue && safetyCounter < MaxScrapSpawnIterations)
@@ -1138,6 +1144,7 @@ public class MapGenerator : MonoBehaviour
                 worldItem = scrapObj.AddComponent<Item>();
             }
             worldItem.SetItemData(randomScrapData);
+            worldItem.NetId = ++scrapNetId; // マルチプレイ同期用の連番ID
 
             int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
             currentTotalValue += itemVal;

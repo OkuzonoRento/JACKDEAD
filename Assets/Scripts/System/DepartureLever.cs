@@ -69,20 +69,23 @@ public class DepartureLever : MonoBehaviour, IInteractable
     /// <summary>
     /// 他プレイヤーがレバーを引いたとき、全員のマップが食い違わないよう同じクリア処理を実行する
     /// </summary>
-    private void OnRemoteStageClear(int clearedLevel)
+    private void OnRemoteStageClear(int clearedLevel, int newSharedMoney)
     {
         MapGenerator mapGen = FindAnyObjectByType<MapGenerator>();
         if (mapGen == null || mapGen.CurrentStageLevel != clearedLevel) return;
 
-        ExecuteClear(true);
+        ExecuteClear(true, newSharedMoney);
     }
 
     public void OnPullLever()
     {
-        ExecuteClear(false);
+        ExecuteClear(false, 0);
     }
 
-    private void ExecuteClear(bool triggeredByRemote)
+    /// <summary>
+    /// triggeredByRemote=true のとき remoteSharedMoney は、レバーを引いた人が精算した共有所持金
+    /// </summary>
+    private void ExecuteClear(bool triggeredByRemote, int remoteSharedMoney)
     {
         if (isActivated) return;
 
@@ -104,10 +107,15 @@ public class DepartureLever : MonoBehaviour, IInteractable
         // 2. ノルマ達成の場合
         isActivated = true;
 
+        // 所持金は全員共通。精算はレバーを引いた人が行い、結果の所持金を他の参加者へ配る
+        // （強制クリア時に所持金がマイナスにならないよう、余剰は0以上にする）
+        int surplusProfit = triggeredByRemote ? remoteSharedMoney : Mathf.Max(0, totalAssets - quota);
+        if (triggeredByRemote) totalAssets = quota + surplusProfit;
+
         // マルチプレイ中は、他の参加者にもクリアを通知する
         if (!triggeredByRemote && NetworkSession.Instance != null)
         {
-            NetworkSession.Instance.BroadcastStageClear(currentLevel);
+            NetworkSession.Instance.BroadcastStageClear(currentLevel, surplusProfit);
         }
 
         // トラック内のスクラップオブジェクトを消去
@@ -116,17 +124,20 @@ public class DepartureLever : MonoBehaviour, IInteractable
             displayTextManager.ClearBusScrapItems();
         }
 
-        // 強制クリア時に所持金がマイナスにならないよう、余剰は0以上にする
-        int surplusProfit = Mathf.Max(0, totalAssets - quota);
-
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null)
         {
             // 手持ちインベントリのスクラップも精算して空にする
             player.ClearAllInventoryItems();
 
-            // ノルマを支払った残額（超えた分の利益）を新しい所持金として反映
-            player.AddMoney(surplusProfit - player.PlayerMoney);
+            // ノルマを支払った残額（超えた分の利益）を新しい共有所持金として反映（この時点では他の人へ配らない）
+            player.SetMoneyLocal(surplusProfit);
+
+            // 引いた人以外の手持ちスクラップは精算額に入っていないので、売却益を共有所持金へ足す（全員へ配られる）
+            if (triggeredByRemote && inventoryItemsValue > 0)
+            {
+                player.AddMoney(inventoryItemsValue);
+            }
 
             // ステージクリア時の正気度回復 ＆ 進行データ保存
             player.OnStageCleared(quota);

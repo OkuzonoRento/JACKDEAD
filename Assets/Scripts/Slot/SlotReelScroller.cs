@@ -17,6 +17,8 @@ public class SlotReelScroller : MonoBehaviour
     private void InitMaterial()
     {
         if (reelMaterial != null) return;
+        // プレハブアセット（シーン外）では Renderer.material を使えないので何もしない
+        if (!gameObject.scene.IsValid()) return;
         reelRenderer = GetComponent<Renderer>();
         if (reelRenderer != null)
         {

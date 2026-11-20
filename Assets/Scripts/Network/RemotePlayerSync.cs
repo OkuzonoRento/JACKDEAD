@@ -13,6 +13,9 @@ public class RemotePlayerSync : MonoBehaviour
 {
     private const string MsgPose = "jd.pose";           // 参加者 → ホスト
     private const string MsgPoseRelay = "jd.poseRelay"; // ホスト → 参加者（誰の位置かを付けて中継）
+    private const string MsgState = "jd.state";           // 参加者 → ホスト（体力・正気度・手持ち）
+    private const string MsgStateRelay = "jd.stateRelay"; // ホスト → 参加者
+    private const float StateSendInterval = 0.5f;
 
     private const float SendInterval = 1f / 15f;
     private const float SmoothingSpeed = 15f;
@@ -20,6 +23,7 @@ public class RemotePlayerSync : MonoBehaviour
     private const float LabelHeightOffset = 1.4f;
     private const float LabelFontSize = 3f;
     private const float StaleTimeoutSeconds = 5f;
+    private const float CrouchHeightScale = 0.6f;
 
     private readonly List<ulong> staleIds = new List<ulong>();
 
@@ -29,8 +33,14 @@ public class RemotePlayerSync : MonoBehaviour
         public TextMeshPro label;
         public Vector3 targetFeetPos;
         public float targetYaw;
+        public bool crouching;
+        public float heightScale = 1f; // しゃがみ中は縮める（滑らかに補間）
         public bool initialized;
         public float lastReceivedTime;
+
+        // プレイヤーの状態（体力・正気度・手持ちアイテム）
+        public string playerName = "Player";
+        public string heldItem = "";
     }
 
     private readonly Dictionary<ulong, RemoteAvatar> avatars = new Dictionary<ulong, RemoteAvatar>();
@@ -38,7 +48,10 @@ public class RemotePlayerSync : MonoBehaviour
     private NetworkManager networkManager;
     private Transform localPlayer;
     private CharacterController localController;
+    private PlayerMovement localMovement;
     private float sendTimer;
+    private float stateTimer;
+    private PlayerController localPc;
 
     private void Start()
     {
@@ -52,6 +65,8 @@ public class RemotePlayerSync : MonoBehaviour
         CustomMessagingManager messaging = networkManager.CustomMessagingManager;
         messaging.RegisterNamedMessageHandler(MsgPose, OnPoseFromClient);
         messaging.RegisterNamedMessageHandler(MsgPoseRelay, OnPoseRelayed);
+        messaging.RegisterNamedMessageHandler(MsgState, OnStateFromClient);
+        messaging.RegisterNamedMessageHandler(MsgStateRelay, OnStateRelayed);
         networkManager.OnClientDisconnectCallback += OnClientDisconnected;
     }
 
@@ -64,6 +79,8 @@ public class RemotePlayerSync : MonoBehaviour
         {
             networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(MsgPose);
             networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(MsgPoseRelay);
+            networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(MsgState);
+            networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(MsgStateRelay);
         }
     }
 
@@ -72,7 +89,99 @@ public class RemotePlayerSync : MonoBehaviour
         if (networkManager == null || !networkManager.IsListening) return;
 
         SendLocalPose();
+        SendLocalState();
         SmoothAvatars();
+    }
+
+    // ------------------------------------------------------------------
+    // プレイヤーの状態（体力・正気度・手持ちアイテム）
+    // ------------------------------------------------------------------
+
+    private void SendLocalState()
+    {
+        if (localPc == null) localPc = FindAnyObjectByType<PlayerController>();
+        if (localPc == null) return;
+
+        stateTimer += Time.unscaledDeltaTime;
+        if (stateTimer < StateSendInterval) return;
+        stateTimer = 0f;
+
+        string held = "";
+        if (localPc.Inventory != null && localPc.SelectedSlotIndex >= 0 && localPc.SelectedSlotIndex < localPc.Inventory.Length)
+        {
+            ItemDataAsset item = localPc.Inventory[localPc.SelectedSlotIndex];
+            if (item != null) held = item.ItemName;
+        }
+
+        if (networkManager.IsHost)
+        {
+            BroadcastState(networkManager.LocalClientId, held, ulong.MaxValue);
+        }
+        else
+        {
+            using (FastBufferWriter writer = new FastBufferWriter(96, Allocator.Temp))
+            {
+                writer.WriteValueSafe(held);
+                networkManager.CustomMessagingManager.SendNamedMessage(
+                    MsgState, NetworkManager.ServerClientId, writer, NetworkDelivery.Reliable);
+            }
+        }
+    }
+
+    private void BroadcastState(ulong sourceId, string held, ulong exceptClientId)
+    {
+        foreach (ulong clientId in networkManager.ConnectedClientsIds)
+        {
+            if (clientId == networkManager.LocalClientId || clientId == exceptClientId) continue;
+
+            using (FastBufferWriter writer = new FastBufferWriter(96, Allocator.Temp))
+            {
+                writer.WriteValueSafe(sourceId);
+                writer.WriteValueSafe(held);
+                networkManager.CustomMessagingManager.SendNamedMessage(
+                    MsgStateRelay, clientId, writer, NetworkDelivery.Reliable);
+            }
+        }
+    }
+
+    // ホスト側：参加者の状態を反映し、他の参加者へ中継する
+    private void OnStateFromClient(ulong senderId, FastBufferReader reader)
+    {
+        reader.ReadValueSafe(out string held);
+
+        ApplyState(senderId, held);
+        BroadcastState(senderId, held, senderId);
+    }
+
+    // 参加者側：ホストが中継した他プレイヤーの状態を反映する
+    private void OnStateRelayed(ulong senderId, FastBufferReader reader)
+    {
+        reader.ReadValueSafe(out ulong sourceId);
+        reader.ReadValueSafe(out string held);
+
+        if (sourceId == networkManager.LocalClientId) return;
+        ApplyState(sourceId, held);
+    }
+
+    private void ApplyState(ulong clientId, string held)
+    {
+        // アバターは位置メッセージで作られる。まだ無ければ、次の状態送信（0.5秒後）で反映する
+        if (!avatars.TryGetValue(clientId, out RemoteAvatar avatar)) return;
+
+        avatar.heldItem = held;
+        RefreshLabel(avatar);
+    }
+
+    /// <summary>名前の下に、体力・正気度・手持ちアイテムを小さく表示する。倒れている人は赤く表示</summary>
+    private static void RefreshLabel(RemoteAvatar avatar)
+    {
+        if (avatar.label == null) return;
+
+        string text = avatar.playerName;
+        if (!string.IsNullOrEmpty(avatar.heldItem)) text += $"\n<size=60%>[{avatar.heldItem}]</size>";
+
+        avatar.label.color = Color.white;
+        if (avatar.label.text != text) avatar.label.text = text;
     }
 
     // ------------------------------------------------------------------
@@ -87,6 +196,7 @@ public class RemotePlayerSync : MonoBehaviour
             if (player == null) return;
             localPlayer = player.transform;
             localController = player.GetComponent<CharacterController>();
+            localMovement = player.GetComponent<PlayerMovement>();
         }
 
         sendTimer += Time.unscaledDeltaTime;
@@ -96,12 +206,13 @@ public class RemotePlayerSync : MonoBehaviour
         Vector3 feetPos = localPlayer.position;
         if (localController != null) feetPos.y = localController.bounds.min.y;
         float yaw = localPlayer.eulerAngles.y;
+        bool crouching = localMovement != null && localMovement.IsCrouching;
         string playerName = NetworkSession.Instance != null ? NetworkSession.Instance.LocalPlayerName : "Player";
 
         if (networkManager.IsHost)
         {
             // ホストの位置は、全参加者へ id=0 として配る
-            BroadcastRelay(networkManager.LocalClientId, playerName, feetPos, yaw, ulong.MaxValue);
+            BroadcastRelay(networkManager.LocalClientId, playerName, feetPos, yaw, crouching, ulong.MaxValue);
         }
         else
         {
@@ -110,13 +221,14 @@ public class RemotePlayerSync : MonoBehaviour
                 writer.WriteValueSafe(playerName);
                 writer.WriteValueSafe(feetPos);
                 writer.WriteValueSafe(yaw);
+                writer.WriteValueSafe(crouching);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgPose, NetworkManager.ServerClientId, writer, NetworkDelivery.UnreliableSequenced);
             }
         }
     }
 
-    private void BroadcastRelay(ulong sourceId, string playerName, Vector3 feetPos, float yaw, ulong exceptClientId)
+    private void BroadcastRelay(ulong sourceId, string playerName, Vector3 feetPos, float yaw, bool crouching, ulong exceptClientId)
     {
         foreach (ulong clientId in networkManager.ConnectedClientsIds)
         {
@@ -128,6 +240,7 @@ public class RemotePlayerSync : MonoBehaviour
                 writer.WriteValueSafe(playerName);
                 writer.WriteValueSafe(feetPos);
                 writer.WriteValueSafe(yaw);
+                writer.WriteValueSafe(crouching);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgPoseRelay, clientId, writer, NetworkDelivery.UnreliableSequenced);
             }
@@ -144,9 +257,10 @@ public class RemotePlayerSync : MonoBehaviour
         reader.ReadValueSafe(out string playerName);
         reader.ReadValueSafe(out Vector3 feetPos);
         reader.ReadValueSafe(out float yaw);
+        reader.ReadValueSafe(out bool crouching);
 
-        UpdateAvatar(senderId, playerName, feetPos, yaw);
-        BroadcastRelay(senderId, playerName, feetPos, yaw, senderId);
+        UpdateAvatar(senderId, playerName, feetPos, yaw, crouching);
+        BroadcastRelay(senderId, playerName, feetPos, yaw, crouching, senderId);
     }
 
     // 参加者側：ホストが中継した他プレイヤーの位置を反映する
@@ -156,9 +270,10 @@ public class RemotePlayerSync : MonoBehaviour
         reader.ReadValueSafe(out string playerName);
         reader.ReadValueSafe(out Vector3 feetPos);
         reader.ReadValueSafe(out float yaw);
+        reader.ReadValueSafe(out bool crouching);
 
         if (sourceId == networkManager.LocalClientId) return;
-        UpdateAvatar(sourceId, playerName, feetPos, yaw);
+        UpdateAvatar(sourceId, playerName, feetPos, yaw, crouching);
     }
 
     private void OnClientDisconnected(ulong clientId)
@@ -174,7 +289,7 @@ public class RemotePlayerSync : MonoBehaviour
     // アバター表示
     // ------------------------------------------------------------------
 
-    private void UpdateAvatar(ulong clientId, string playerName, Vector3 feetPos, float yaw)
+    private void UpdateAvatar(ulong clientId, string playerName, Vector3 feetPos, float yaw, bool crouching)
     {
         if (!avatars.TryGetValue(clientId, out RemoteAvatar avatar))
         {
@@ -184,8 +299,10 @@ public class RemotePlayerSync : MonoBehaviour
 
         avatar.targetFeetPos = feetPos;
         avatar.targetYaw = yaw;
+        avatar.crouching = crouching;
         avatar.lastReceivedTime = Time.unscaledTime;
-        if (avatar.label != null && avatar.label.text != playerName) avatar.label.text = playerName;
+        avatar.playerName = playerName;
+        RefreshLabel(avatar);
 
         // 最初の1回は補間せず、その位置へ即座に置く
         if (!avatar.initialized)
@@ -252,7 +369,15 @@ public class RemotePlayerSync : MonoBehaviour
         {
             if (avatar.root == null) continue;
 
-            Vector3 targetPos = avatar.targetFeetPos + Vector3.up * (AvatarHeight * 0.5f);
+            // しゃがみ中は縮めて表示する（名前表示は縦に潰れないよう打ち消す）
+            avatar.heightScale = Mathf.Lerp(avatar.heightScale, avatar.crouching ? CrouchHeightScale : 1f, t);
+            avatar.root.transform.localScale = new Vector3(1f, avatar.heightScale, 1f);
+            if (avatar.label != null)
+            {
+                avatar.label.transform.localScale = new Vector3(1f, 1f / avatar.heightScale, 1f);
+            }
+
+            Vector3 targetPos = avatar.targetFeetPos + Vector3.up * (AvatarHeight * 0.5f * avatar.heightScale);
             avatar.root.transform.position = Vector3.Lerp(avatar.root.transform.position, targetPos, t);
             avatar.root.transform.rotation = Quaternion.Slerp(
                 avatar.root.transform.rotation, Quaternion.Euler(0f, avatar.targetYaw, 0f), t);

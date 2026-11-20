@@ -96,6 +96,8 @@ public class PlayerInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (PauseMenu.IsOpen) return;
+
         CheckForInteractables();
         HandleInteractionInput();
         HandleItemDropInput();

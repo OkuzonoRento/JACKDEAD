@@ -1642,6 +1642,7 @@ MonoBehaviour:
   quotaText: {fileID: 5223296644866194160}
   incomeText: {fileID: 2402984130248468717}
   remainingText: {fileID: 170461518818431654}
+  levelText: {fileID: 3449655421964904369}
 --- !u!65 &2305710386019513194
 BoxCollider:
   m_ObjectHideFlags: 0

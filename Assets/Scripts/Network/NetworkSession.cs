@@ -65,7 +65,7 @@ public class NetworkSession : MonoBehaviour
     /// <summary>ホストのセーブデータ（ゲーム開始時に配布される）。参加者はこれを元にプレイする</summary>
     public GameSaveData SharedSave { get; private set; }
 
-    public event System.Action<int> StageClearReceived;
+    public event System.Action<int, int> StageClearReceived; // (クリアしたレベル, 精算後の共有所持金)
 
     private NetworkManager networkManager;
     private UnityTransport transport;
@@ -138,6 +138,7 @@ public class NetworkSession : MonoBehaviour
         {
             State = NetworkSessionState.InGame;
             new GameObject("RemotePlayerSync").AddComponent<RemotePlayerSync>();
+            new GameObject("GameplaySync").AddComponent<GameplaySync>();
         }
     }
 
@@ -575,26 +576,27 @@ public class NetworkSession : MonoBehaviour
     /// <summary>
     /// ステージクリアを全員に知らせる（レバーを引いた人から呼ぶ）
     /// </summary>
-    public void BroadcastStageClear(int clearedLevel)
+    public void BroadcastStageClear(int clearedLevel, int newMoney)
     {
         if (!IsOnline || networkManager == null || !networkManager.IsListening) return;
 
         if (networkManager.IsHost)
         {
-            SendStageClear(clearedLevel, ulong.MaxValue);
+            SendStageClear(clearedLevel, newMoney, ulong.MaxValue);
         }
         else
         {
             using (FastBufferWriter writer = new FastBufferWriter(16, Allocator.Temp))
             {
                 writer.WriteValueSafe(clearedLevel);
+                writer.WriteValueSafe(newMoney);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgStageClear, NetworkManager.ServerClientId, writer, NetworkDelivery.ReliableSequenced);
             }
         }
     }
 
-    private void SendStageClear(int clearedLevel, ulong exceptClientId)
+    private void SendStageClear(int clearedLevel, int newMoney, ulong exceptClientId)
     {
         foreach (ulong clientId in networkManager.ConnectedClientsIds)
         {
@@ -603,6 +605,7 @@ public class NetworkSession : MonoBehaviour
             using (FastBufferWriter writer = new FastBufferWriter(16, Allocator.Temp))
             {
                 writer.WriteValueSafe(clearedLevel);
+                writer.WriteValueSafe(newMoney);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgStageClear, clientId, writer, NetworkDelivery.ReliableSequenced);
             }
@@ -612,13 +615,14 @@ public class NetworkSession : MonoBehaviour
     private void OnStageClearMessage(ulong senderId, FastBufferReader reader)
     {
         reader.ReadValueSafe(out int clearedLevel);
+        reader.ReadValueSafe(out int newMoney);
 
         // ホストは、送ってきた人以外の参加者へ転送する
         if (networkManager.IsHost)
         {
-            SendStageClear(clearedLevel, senderId);
+            SendStageClear(clearedLevel, newMoney, senderId);
         }
 
-        StageClearReceived?.Invoke(clearedLevel);
+        StageClearReceived?.Invoke(clearedLevel, newMoney);
     }
 }

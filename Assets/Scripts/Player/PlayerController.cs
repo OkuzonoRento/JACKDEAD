@@ -224,6 +224,8 @@ public class PlayerController : MonoBehaviour
 
     private void HandleSlotSelectionInput()
     {
+        if (PauseMenu.IsOpen) return;
+
         if (slot1Action != null && slot1Action.triggered) SelectSlot(0);
         if (slot2Action != null && slot2Action.triggered) SelectSlot(1);
         if (slot3Action != null && slot3Action.triggered) SelectSlot(2);
@@ -273,6 +275,7 @@ public class PlayerController : MonoBehaviour
             Item itemComp = droppedObj.GetComponent<Item>();
             if (itemComp == null) itemComp = droppedObj.AddComponent<Item>();
             itemComp.SetItemData(itemDataToDrop);
+            itemComp.NetId = GameplaySync.AllocateDropId();
 
             Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
             if (rb == null) rb = droppedObj.AddComponent<Rigidbody>();
@@ -286,6 +289,7 @@ public class PlayerController : MonoBehaviour
 
             rb.linearVelocity = Vector3.zero;
             rb.AddForce(throwDirection * throwForce, ForceMode.VelocityChange);
+            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, throwDirection * throwForce);
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }
@@ -396,9 +400,28 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 所持金を増減する。所持金は全員共通なので、マルチプレイ中は増減分を他の参加者にも配る
+    /// </summary>
     public void AddMoney(int amount)
     {
+        if (amount == 0) return;
         playerMoney += amount;
+        SaveMoneyToData();
+        GameplaySync.NotifyMoneyDelta(amount);
+    }
+
+    /// <summary>他の参加者から届いた所持金の増減を反映する（再送しない）</summary>
+    public void ApplySharedMoneyDelta(int amount)
+    {
+        playerMoney += amount;
+        SaveMoneyToData();
+    }
+
+    /// <summary>所持金をこの値にする（他の参加者へは配らない。ステージクリア精算用）</summary>
+    public void SetMoneyLocal(int amount)
+    {
+        playerMoney = amount;
         SaveMoneyToData();
     }
 
