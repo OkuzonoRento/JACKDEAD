@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 using TMPro;
 
 public class Title3DSystem : MonoBehaviour
@@ -16,6 +17,12 @@ public class Title3DSystem : MonoBehaviour
     public GameObject settingsPanel;
     public Image fadeOverlay;
 
+
+    [Header("�Z�b�e�B���O�J�{�^���i�󗓂ł����������j")]
+    public Button settingOpenButton;
+    public Button settingBackButton;
+
+    [Header("�Z�[�u�X���b�gUI�i3�g���j")]
     [Header("セーブスロットUI（3枠分）")]
     public TextMeshProUGUI modeHeaderText;
     public TextMeshProUGUI[] slotInfoTexts;
@@ -35,6 +42,7 @@ public class Title3DSystem : MonoBehaviour
     private Vector3 initialCamPos;
     private bool isStartingGame = false;
     private bool selectedMultiplayer = false;
+    private CanvasGroup mainMenuCanvasGroup;
 
     void Start()
     {
@@ -45,16 +53,83 @@ public class Title3DSystem : MonoBehaviour
         if (cameraTransform != null)
             initialCamPos = cameraTransform.localPosition;
 
-        if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
-        if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
-        if (settingsPanel != null) settingsPanel.SetActive(false);
-
+        // 1. FadeOverlay����ʂ̃N���b�N���z��Ȃ��悤�ɋ�������
         if (fadeOverlay != null)
+        {
+            fadeOverlay.raycastTarget = false;
             StartCoroutine(FadeScreen(1f, 0f, 1.0f));
+        }
+
+        // 2. �p�l���̎��������i�C���X�y�N�^�[���󗓂ł����O���猩����j
+        if (mainMenuPanel == null) mainMenuPanel = GameObject.Find("MainMenuPanel");
+        if (settingsPanel == null) settingsPanel = GameObject.Find("SettingsPanel");
+
+        if (mainMenuPanel != null)
+        {
+            mainMenuPanel.SetActive(true);
+            mainMenuCanvasGroup = mainMenuPanel.GetComponent<CanvasGroup>();
+            if (mainMenuCanvasGroup == null)
+                mainMenuCanvasGroup = mainMenuPanel.AddComponent<CanvasGroup>();
+        }
+
+        if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
+
+        // 3. �{�^���������Ō����ăN���b�N�C�x���g�������ڑ�
+        AutoBindSettingsButtons();
+
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+    }
+
+    private void AutoBindSettingsButtons()
+    {
+        // SETTING�{�^���������������Đڑ�
+        if (settingOpenButton == null && mainMenuPanel != null)
+        {
+            foreach (Button btn in mainMenuPanel.GetComponentsInChildren<Button>(true))
+            {
+                if (btn.name.ToUpper().Contains("SETTING"))
+                {
+                    settingOpenButton = btn;
+                    break;
+                }
+            }
+        }
+        if (settingOpenButton != null)
+        {
+            settingOpenButton.onClick.RemoveListener(OnClickOpenSettings);
+            settingOpenButton.onClick.AddListener(OnClickOpenSettings);
+        }
+
+        // BACK�{�^���������������Đڑ�
+        if (settingBackButton == null && settingsPanel != null)
+        {
+            foreach (Button btn in settingsPanel.GetComponentsInChildren<Button>(true))
+            {
+                if (btn.name.ToUpper().Contains("BACK"))
+                {
+                    settingBackButton = btn;
+                    break;
+                }
+            }
+        }
+        if (settingBackButton != null)
+        {
+            settingBackButton.onClick.RemoveListener(OnClickBackFromSettings);
+            settingBackButton.onClick.AddListener(OnClickBackFromSettings);
+        }
     }
 
     void Update()
     {
+        // �ݒ��ʂ��J���Ă���Ƃ���Esc�L�[�ŕ���
+        if (settingsPanel != null && settingsPanel.activeSelf)
+        {
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                OnClickBackFromSettings();
+            }
+        }
+
         if (cameraTransform == null) return;
 
         if (!isStartingGame)
@@ -159,18 +234,37 @@ public class Title3DSystem : MonoBehaviour
         mainMenuPanel.SetActive(true);
     }
 
-    public void OnClickSettings()
+    // �ݒ�{�^�����������Ƃ��i�����j���[�𔖈Â����b�N���J���j
+    public void OnClickOpenSettings()
     {
         PlayClickSound();
-        mainMenuPanel.SetActive(false);
-        settingsPanel.SetActive(true);
+        if (settingsPanel != null)
+        {
+            settingsPanel.SetActive(true);
+            settingsPanel.transform.SetAsLastSibling(); // �őO�ʂɕ\��
+        }
+
+        if (mainMenuCanvasGroup != null)
+        {
+            mainMenuCanvasGroup.interactable = false;
+            mainMenuCanvasGroup.blocksRaycasts = false;
+            mainMenuCanvasGroup.alpha = 0.45f; // �����������Â����ĉE�̐ݒ�p�l�����ۗ�������
+        }
     }
 
+    // �ݒ��ʂ���BACK���������Ƃ�
     public void OnClickBackFromSettings()
     {
         PlayClickSound();
-        settingsPanel.SetActive(false);
-        mainMenuPanel.SetActive(true);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        if (mainMenuCanvasGroup != null)
+        {
+            mainMenuCanvasGroup.interactable = true;
+            mainMenuCanvasGroup.blocksRaycasts = true;
+            mainMenuCanvasGroup.alpha = 1.0f;
+        }
     }
 
     public void OnClickQuit()
