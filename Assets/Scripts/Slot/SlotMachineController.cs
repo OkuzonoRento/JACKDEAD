@@ -175,6 +175,54 @@ public class SlotMachineController : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        PlayerController.Damaged += OnPlayerDamaged;
+    }
+
+    private void OnDisable()
+    {
+        PlayerController.Damaged -= OnPlayerDamaged;
+    }
+
+    // 回している最中にプレイヤーがダメージを受けたら、その回転は即中止（賭け金は戻らない・配当もなし）
+    private void OnPlayerDamaged()
+    {
+        if (!isPlaying) return;
+
+        StopAllCoroutines();
+        AbortVisual();
+
+        if (playerMovement != null) playerMovement.UnlockControl();
+
+        isPlaying = false;
+        GameplaySync.NotifySlotEnd(this, true);
+        Debug.Log("[スロット] 攻撃を受けたため、回転を中止しました（賭け金は戻りません）。");
+    }
+
+    /// <summary>リールの回転・本体の揺れ・レバーを止めて、元の見た目に戻す（他プレイヤーの画面でも中止の通知で呼ばれる）</summary>
+    public void AbortVisual()
+    {
+        remoteRollCoroutine = null;
+        remoteBusy = false;
+
+        if (reels != null)
+        {
+            float stopOffset = GetTargetStopOffset();
+            foreach (SlotReelScroller reel in reels)
+            {
+                if (reel != null) reel.Halt(stopOffset);
+            }
+        }
+
+        if (machineBodyTransform != null)
+        {
+            machineBodyTransform.localPosition = bodyInitialLocalPos;
+            machineBodyTransform.localScale = bodyInitialLocalScale;
+        }
+        if (leverTransform != null) leverTransform.localRotation = leverInitialLocalRot;
+    }
+
     private void OnDestroy()
     {
         if (isPlaying && playerMovement != null)
@@ -474,6 +522,7 @@ public class SlotMachineController : MonoBehaviour
     {
         isPlaying = true;
         GameplaySync.NotifySlotBegin(this);
+        EnemyNoise.Emit(transform.position, EnemyNoise.Slot);
 
         if (playerController != null)
         {

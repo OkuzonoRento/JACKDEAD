@@ -69,6 +69,14 @@ public class SlotReelScroller : MonoBehaviour
         isStopping = false;
     }
 
+    /// <summary>回転を即座に止めて、指定の位置に置く（演出の中断用）</summary>
+    public void Halt(float offsetY)
+    {
+        isRolling = false;
+        isStopping = false;
+        SetOffset(Mathf.Repeat(offsetY, 1f));
+    }
+
     public IEnumerator StopAt(float targetOffsetY, float stopDuration)
     {
         InitMaterial();

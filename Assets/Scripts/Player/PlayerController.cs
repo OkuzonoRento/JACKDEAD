@@ -13,6 +13,8 @@ public class PlayerController : MonoBehaviour
     [Header("投擲設定")]
     [SerializeField, Tooltip("アイテムを投げる際の基準となる勢い（重さで割られます）")]
     private float baseThrowForce = 3.5f;
+    [SerializeField, Tooltip("投げるときの速さの上限（m/s）。軽いアイテムが飛びすぎないようにする")]
+    private float maxThrowSpeed = 11f;
 
     [Header("正気度・クリア時回復設定")]
     [SerializeField, Tooltip("1秒あたりの基本正気度減少量")]
@@ -59,11 +61,22 @@ public class PlayerController : MonoBehaviour
     private readonly float[] heldFuse = new float[3];
     private readonly bool[] heldFuseActive = new bool[3];
 
+    /// <summary>ローカルのプレイヤーが実際にダメージを受けたときに通知される（スロットの回転を中止するなど）</summary>
+    public static event System.Action Damaged;
+
     /// <summary>レバーでクリアしたあと、リザルト演出と次のステージへの移行が終わるまでは無敵</summary>
     public bool IsInvulnerable()
     {
         ResultUIController resultUI = FindAnyObjectByType<ResultUIController>();
         return resultUI != null && (resultUI.IsResultShowing || resultUI.IsTransitioning);
+    }
+
+    /// <summary>爆発などで吹き飛ばされる。着地するまで操作できない</summary>
+    public void Launch(Vector3 velocity, float recoveryStunSeconds = 2.5f)
+    {
+        if (IsDown || IsInvulnerable()) return;
+        PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null) movement.Launch(velocity, recoveryStunSeconds);
     }
 
     /// <summary>スタンする（Box が当たったとき）。しばらく動けず、視界が揺れる</summary>
@@ -80,6 +93,7 @@ public class PlayerController : MonoBehaviour
         if (amount <= 0f || IsDown || !statusInitialized || IsInvulnerable()) return;
         _health = Mathf.Max(0f, _health - amount);
         Debug.Log($"[ダメージ] {reason} {amount:0.#} → 体力 {_health:0}/{_maxHealth:0}");
+        Damaged?.Invoke();
     }
 
     private static BombBox GetBombSettings(ItemDataAsset data)
@@ -461,7 +475,8 @@ public class PlayerController : MonoBehaviour
             ? cameraTransform.position + cameraTransform.forward * 1.2f
             : transform.position + transform.forward * 1.5f + Vector3.up * 0.5f;
 
-        float throwForce = baseThrowForce / Mathf.Max(0.1f, itemDataToDrop.ItemWeight);
+        // 軽いアイテム（Box など）が飛びすぎないよう、投げる速さに上限を設ける
+        float throwForce = Mathf.Min(baseThrowForce / Mathf.Max(0.1f, itemDataToDrop.ItemWeight), maxThrowSpeed);
         Vector3 throwDirection = cameraTransform != null
             ? (cameraTransform.forward + Vector3.up * 0.2f).normalized
             : (transform.forward + Vector3.up * 0.2f).normalized;
@@ -505,6 +520,7 @@ public class PlayerController : MonoBehaviour
                 }
             }
             GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity, fuseToCarry);
+            EnemyNoise.Emit(spawnPosition, EnemyNoise.ItemDrop);
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }

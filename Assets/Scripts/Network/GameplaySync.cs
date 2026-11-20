@@ -203,10 +203,11 @@ public class GameplaySync : MonoBehaviour
         Instance.Send(new NetEvent { type = EventType.SlotRoll, id = slot.NetId, text = string.Join(",", results) });
     }
 
-    public static void NotifySlotEnd(SlotMachineController slot)
+    /// <param name="aborted">攻撃を受けて途中で中止したとき true（他の人の画面でも回転を止める）</param>
+    public static void NotifySlotEnd(SlotMachineController slot, bool aborted = false)
     {
         if (Instance == null || slot == null || slot.NetId == 0) return;
-        Instance.Send(new NetEvent { type = EventType.SlotEnd, id = slot.NetId });
+        Instance.Send(new NetEvent { type = EventType.SlotEnd, id = slot.NetId, text = aborted ? "abort" : "" });
     }
 
     // ------------------------------------------------------------------
@@ -371,7 +372,11 @@ public class GameplaySync : MonoBehaviour
             case EventType.SlotEnd:
             {
                 SlotMachineController slot = FindSlot(e.id);
-                if (slot != null) slot.SetRemoteBusy(false);
+                if (slot != null)
+                {
+                    slot.SetRemoteBusy(false);
+                    if (e.text == "abort") slot.AbortVisual();
+                }
                 break;
             }
         }

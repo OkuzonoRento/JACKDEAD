@@ -26,8 +26,9 @@ public class EnemyBrain : MonoBehaviour
 
     [Header("索敵")]
     [SerializeField, Tooltip("この距離まで見える")] private float sightRange = 22f;
-    [SerializeField, Tooltip("視界の左右の広さ（度）。正面からこの角度まで見える")] private float sightHalfAngle = 70f;
-    [SerializeField, Tooltip("この距離以内なら、視界の外・壁の向こうでも気づく")] private float hearRange = 6f;
+    [SerializeField, Tooltip("視界の左右の広さ（度）。正面からこの角度まで見える（人間は片側およそ60度）")] private float sightHalfAngle = 60f;
+    [SerializeField, Tooltip("音のした場所を推測するときのずれ（音源までの距離に対する割合）。遠いほど正確に分からない")] private float noiseGuessError = 0.2f;
+    [SerializeField, Tooltip("音を聞いて調べに行くときの移動速度（歩きと走りの中間）")] private float noiseInvestigateSpeed = 3.5f;
     [SerializeField] private float eyeHeight = 1.6f;
     [SerializeField, Tooltip("見失ってから、追うのをやめるまでの時間（秒）")] private float loseSightTime = 6f;
 
@@ -203,6 +204,54 @@ public class EnemyBrain : MonoBehaviour
         BuildAnimationGraph();
     }
 
+    // ------------------------------------------------------------------
+    // 聴覚：聞こえる範囲の音がしたら、音源の位置を推測して歩いて調べに行く
+    // ------------------------------------------------------------------
+
+    private float investigateSpeed;
+
+    private void OnEnable()
+    {
+        EnemyNoise.Heard += OnNoiseHeard;
+    }
+
+    private void OnDisable()
+    {
+        EnemyNoise.Heard -= OnNoiseHeard;
+    }
+
+    private void OnNoiseHeard(Vector3 source, float loudness)
+    {
+        // 判断するのはホスト（敵を動かしている側）だけ。すでにプレイヤーが見えているときは、そちらを優先
+        if (isPuppet || agent == null || !agent.isOnNavMesh || targetVisible || stunTimer > 0f) return;
+
+        float dist = Vector3.Distance(transform.position, source);
+
+        // 壁を挟んでいても音は弱まらない（距離だけで聞こえるかどうかが決まる）
+        if (dist > loudness) return;
+
+        // 音源の正確な位置までは分からない：遠いほど、推測が大きくずれる
+        Vector3 guess = source + Random.insideUnitSphere * (dist * noiseGuessError);
+        guess.y = source.y;
+        if (!NavMesh.SamplePosition(guess, out NavMeshHit hit, 4f, NavMesh.AllAreas)) return;
+
+        // すでに別の音を調べているときは、より近い音を優先する
+        if (noticed && investigateSpeed <= noiseInvestigateSpeed + 0.01f)
+        {
+            if (Vector3.Distance(transform.position, hit.position) > Vector3.Distance(transform.position, lastKnownPos)) return;
+        }
+        else if (noticed)
+        {
+            return; // プレイヤーを追っている最中（見失った直後など）は、そちらを優先
+        }
+
+        noticed = true;
+        lastKnownPos = hit.position;
+        loseTimer = 0f;
+        investigateSpeed = noiseInvestigateSpeed;
+        hasPatrolDest = false;
+    }
+
     private void OnDestroy()
     {
         if (graph.IsValid()) graph.Destroy();
@@ -280,6 +329,7 @@ public class EnemyBrain : MonoBehaviour
             noticed = true;
             lastKnownPos = visibleTargetPos;
             loseTimer = 0f;
+            investigateSpeed = chaseSpeed; // 見失ったら、最後に見た場所へ走って向かう
             UpdateEngage(dt);
         }
         else
@@ -367,7 +417,7 @@ public class EnemyBrain : MonoBehaviour
     {
         loseTimer += dt;
         agent.isStopped = false;
-        agent.speed = chaseSpeed;
+        agent.speed = investigateSpeed;
         agent.SetDestination(lastKnownPos);
 
         if (loseTimer > loseSightTime)
@@ -476,28 +526,50 @@ public class EnemyBrain : MonoBehaviour
         }
     }
 
+    private static readonly RaycastHit[] SightHits = new RaycastHit[32];
+
+    /// <summary>
+    /// 目から相手の体までの間に、当たり判定（壁・床・天井・設置物・他の敵）がなければ true。
+    /// 薄い板の当たり判定は、裏側から見ると光線が素通りしてしまうので、裏面も判定に含めて調べる。
+    /// </summary>
+    private bool HasLineOfSight(Vector3 eye, Vector3 target)
+    {
+        int itemsLayer = LayerMask.NameToLayer("Items");
+        int mask = ~(1 << 2);
+        if (itemsLayer >= 0) mask &= ~(1 << itemsLayer);
+
+        Vector3 delta = target - eye;
+        float distance = delta.magnitude;
+        if (distance < 0.01f) return true;
+
+        bool previous = Physics.queriesHitBackfaces;
+        Physics.queriesHitBackfaces = true;
+        int count = Physics.RaycastNonAlloc(eye, delta / distance, SightHits, distance, mask, QueryTriggerInteraction.Ignore);
+        Physics.queriesHitBackfaces = previous;
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider col = SightHits[i].collider;
+            if (col == null) continue;
+            if (col.GetComponentInParent<EnemyBrain>() == this) continue;        // 自分の体は無視
+            if (col.GetComponentInParent<PlayerController>() != null) continue;  // 見ようとしている本人
+            return false;
+        }
+        return true;
+    }
+
     private void ConsiderTarget(Vector3 eye, Vector3 chest, ref float bestDist)
     {
         Vector3 to = chest - eye;
         float dist = to.magnitude;
         if (dist >= bestDist || dist > sightRange) return;
 
-        bool inHearing = dist <= hearRange;
-        if (!inHearing)
-        {
-            Vector3 flat = new Vector3(to.x, 0f, to.z);
-            if (Vector3.Angle(transform.forward, flat) > sightHalfAngle) return;
-        }
+        // 人間と同じ視界：正面の一定の広さの中だけが見える（真後ろや真横は見えない）
+        Vector3 flat = new Vector3(to.x, 0f, to.z);
+        if (Vector3.Angle(transform.forward, flat) > sightHalfAngle) return;
 
-        // 壁などに遮られていないか（近くで気づく場合は、壁越しでも気づく）
-        if (!inHearing)
-        {
-            int mask = ~((1 << LayerMask.NameToLayer("Items")) | (1 << 2));
-            if (Physics.Linecast(eye, chest, out RaycastHit hit, mask, QueryTriggerInteraction.Ignore))
-            {
-                if (hit.collider.GetComponentInParent<PlayerController>() == null) return;
-            }
-        }
+        // 当たり判定に遮られていたら見えない
+        if (!HasLineOfSight(eye, chest)) return;
 
         bestDist = dist;
         targetVisible = true;

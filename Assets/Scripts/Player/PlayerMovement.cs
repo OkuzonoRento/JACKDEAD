@@ -184,12 +184,95 @@ public class PlayerMovement : MonoBehaviour
         isControlLocked = false;
     }
 
-    // スタン（Box が当たったとき）：しばらく操作できず、視界が揺れる
+    // スタン（Box が当たったとき）：しばらく操作できない。しゃがみと同じ姿勢になり、描画の画角が狭まる
     private float stunTimer;
-    private const float StunWobbleDegrees = 7f;
-    private const float StunWobbleSpeed = 16f;
+    private float footstepTimer;
+    private const float StunFovScale = 0.65f; // スタン中の画角（通常の何倍まで狭めるか）
 
-    public bool IsStunned => stunTimer > 0f;
+    /// <summary>スタン・吹き飛び中でも、視点（カメラ）だけは動かせる</summary>
+    private void HandleLookWhileStunned()
+    {
+        if (lookAction == null || cameraTransform == null) return;
+
+        lookInput = lookAction.ReadValue<Vector2>();
+        float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity) / SettingsManager.DefaultSensitivity;
+        transform.Rotate(Vector3.up * (lookInput.x * mouseSensitivity * sensScale));
+
+        cameraPitch -= lookInput.y * mouseSensitivity * sensScale;
+        cameraPitch = Mathf.Clamp(cameraPitch, upLookLimit, downLookLimit);
+    }
+
+    /// <summary>スタン・吹き飛び中の姿勢：しゃがみと同じ高さ・カメラ位置にし、画角を狭める（他の人にもしゃがみとして見える）</summary>
+    private void ApplyStunPose()
+    {
+        IsCrouching = true;
+        float dt = Time.deltaTime;
+
+        controller.height = Mathf.Lerp(controller.height, crouchingHeight, dt * heightChangeSpeed);
+
+        if (cameraTransform != null)
+        {
+            Vector3 camPos = cameraTransform.localPosition;
+            camPos.y = Mathf.Lerp(camPos.y, crouchingCameraY, dt * heightChangeSpeed);
+            cameraTransform.localPosition = camPos;
+            cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
+        }
+
+        if (targetCamera != null)
+        {
+            targetCamera.fieldOfView = Mathf.Lerp(targetCamera.fieldOfView, normalFOV * StunFovScale, dt * fovChangeSpeed);
+        }
+    }
+
+    // 吹き飛ばし（爆発など）：空中にいる間は操作を受け付けない
+    private float knockTimer;
+    private float knockAge;
+    private Vector3 knockVelocity;
+    private const float KnockMaxSeconds = 2f;
+    private const float KnockMinSeconds = 0.3f;
+    private float knockRecoveryStun = 2.5f; // 着地してから動けるようになるまで（Launch で指定）
+
+    /// <summary>スタン中、または吹き飛んでいる間は true（移動・視点・拾う操作ができない）</summary>
+    public bool IsStunned => stunTimer > 0f || knockTimer > 0f;
+
+    /// <summary>指定の速度で吹き飛ばす（水平成分は空気抵抗で弱まり、地面に着くと終わる）</summary>
+    /// <param name="recoveryStunSeconds">着地したあと、さらに動けない時間（秒）</param>
+    public void Launch(Vector3 launchVelocity, float recoveryStunSeconds = 2.5f)
+    {
+        if (isControlLocked) return; // スロットで固定中は動かさない
+
+        knockRecoveryStun = recoveryStunSeconds;
+        knockVelocity = new Vector3(launchVelocity.x, 0f, launchVelocity.z);
+        velocity.y = launchVelocity.y;
+        knockTimer = KnockMaxSeconds;
+        knockAge = 0f;
+        moveInput = Vector2.zero;
+    }
+
+    private void UpdateKnockedBack()
+    {
+        float dt = Time.deltaTime;
+        knockAge += dt;
+        moveInput = Vector2.zero;
+        HandleLookWhileStunned();
+        ApplyStunPose();
+
+        // 水平の勢いは徐々に弱まる（地面についたら強く）
+        float drag = controller.isGrounded ? 6f : 0.8f;
+        knockVelocity *= Mathf.Exp(-drag * dt);
+
+        velocity.y += gravity * dt;
+        controller.Move((knockVelocity + Vector3.up * velocity.y) * dt);
+
+        knockTimer -= dt;
+        if (knockAge > KnockMinSeconds && controller.isGrounded)
+        {
+            // 着地：少しふらつく
+            knockTimer = 0f;
+            velocity.y = -2f;
+            stunTimer = Mathf.Max(stunTimer, knockRecoveryStun);
+        }
+    }
 
     public void Stun(float seconds)
     {
@@ -197,19 +280,13 @@ public class PlayerMovement : MonoBehaviour
         moveInput = Vector2.zero;
     }
 
-    // スタン中の動き：入力は受け付けず、重力だけが効く。視界が左右に傾いて揺れる
+    // スタン中の動き：入力は受け付けず、重力だけが効く。しゃがみの姿勢で、画角が狭まる
     private void UpdateStunned()
     {
         stunTimer -= Time.deltaTime;
         moveInput = Vector2.zero;
-        IsCrouching = false;
-
-        if (cameraTransform != null)
-        {
-            float fade = Mathf.Clamp01(stunTimer);
-            float roll = Mathf.Sin(Time.time * StunWobbleSpeed) * StunWobbleDegrees * fade;
-            cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, roll);
-        }
+        HandleLookWhileStunned();
+        ApplyStunPose();
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
@@ -224,6 +301,12 @@ public class PlayerMovement : MonoBehaviour
         if (isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
+        }
+
+        if (knockTimer > 0f && !isControlLocked)
+        {
+            UpdateKnockedBack();
+            return;
         }
 
         if (stunTimer > 0f && !isControlLocked)
@@ -331,6 +414,14 @@ public class PlayerMovement : MonoBehaviour
         float currentSpeed = walkSpeed;
         if (isSprinting) currentSpeed = sprintSpeed;
         else if (isCrouching) currentSpeed = crouchSpeed;
+
+        // 足音：走る＞歩く＞しゃがみ歩き の順に遠くまで聞こえる（立ち止まっているときは無音）。敵が聞き取る
+        footstepTimer -= Time.deltaTime;
+        if (footstepTimer <= 0f && isMoving && isGrounded)
+        {
+            footstepTimer = 0.35f;
+            EnemyNoise.Emit(transform.position, isSprinting ? EnemyNoise.Sprint : (isCrouching ? EnemyNoise.Crouch : EnemyNoise.Walk));
+        }
 
         float targetControllerHeight = isCrouching ? crouchingHeight : standingHeight;
         float targetCameraY = isCrouching ? crouchingCameraY : standingCameraY;

@@ -161,14 +161,10 @@ public class BombBox : MonoBehaviour
 
     private void CheckDirectHit()
     {
-        if (Time.time < nextHitTime) return;
+        if (bounced || Time.time < nextHitTime) return;
         if (rb == null || rb.linearVelocity.magnitude < hitMinSpeed) return;
 
-        if (localPlayer == null)
-        {
-            localPlayer = FindAnyObjectByType<PlayerController>();
-            if (localPlayer != null) localController = localPlayer.GetComponent<CharacterController>();
-        }
+        EnsureLocalPlayer();
         if (localPlayer == null || localController == null || localPlayer.IsDown) return;
 
         // Box の中心がプレイヤーのカプセルに十分近ければ直撃
@@ -176,10 +172,28 @@ public class BombBox : MonoBehaviour
         playerBounds.Expand(0.3f);
         if (!playerBounds.Contains(transform.position)) return;
 
+        HitLocalPlayer();
+    }
+
+    private void EnsureLocalPlayer()
+    {
+        if (localPlayer != null) return;
+        localPlayer = FindAnyObjectByType<PlayerController>();
+        if (localPlayer != null) localController = localPlayer.GetComponent<CharacterController>();
+    }
+
+    private void HitLocalPlayer()
+    {
         nextHitTime = Time.time + hitInterval;
+        bounced = true; // 当たったら、そのあとはもう当たらない（一度バウンドしたのと同じ）
         localPlayer.TakeDamage(directHitDamage, "HIT BY BOX");
         localPlayer.Stun(stunDuration);
     }
+
+    // 一度でも何かに当たって跳ねたら、その Box はダメージもスタンも与えなくなる（爆発だけは残る）
+    private bool bounced;
+    private float spawnTime;
+    private float lastBounceNoiseTime = -10f;
 
     // 敵に動いている Box が当たったらスタンさせる（敵・味方どちらが投げた Box でも同じ。判定は敵を動かしているホストだけ）
     private EnemyBrain thrower;
@@ -195,13 +209,38 @@ public class BombBox : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         if (exploded || rb == null) return;
-        if (collision.relativeVelocity.magnitude < hitMinSpeed) return;
+        float impact = collision.relativeVelocity.magnitude;
 
+        // 敵に当たった：動いていればスタン（自分を投げた敵には、投げた直後は当たらない扱い）
         EnemyBrain enemy = collision.collider.GetComponentInParent<EnemyBrain>();
-        if (enemy == null) return;
-        if (enemy == thrower && Time.time - throwTime < 1.5f) return;
+        if (enemy != null)
+        {
+            if (enemy == thrower && Time.time - throwTime < 1.5f) return;
+            if (!bounced && impact >= hitMinSpeed) enemy.Stun(stunDuration);
+            bounced = true;
+            return;
+        }
 
-        enemy.Stun(stunDuration);
+        // 自分（ローカルのプレイヤー）に当たった：動いていればダメージとスタン
+        PlayerController player = collision.collider.GetComponentInParent<PlayerController>();
+        if (player != null)
+        {
+            if (!bounced && impact >= hitMinSpeed && !player.IsDown)
+            {
+                localPlayer = player;
+                HitLocalPlayer();
+            }
+            bounced = true;
+            return;
+        }
+
+        // 床・壁・他のものに当たって跳ねた：以降はダメージもスタンもしない。跳ねる音は敵に聞こえる
+        if (impact >= 1f) bounced = true;
+        if (impact >= 3f && Time.time - lastBounceNoiseTime > 0.4f)
+        {
+            lastBounceNoiseTime = Time.time;
+            EnemyNoise.Emit(transform.position, EnemyNoise.BoxBounce);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -211,9 +250,12 @@ public class BombBox : MonoBehaviour
     public static void ExplodeAt(Vector3 position, float radius, float maxDamage)
     {
         SpawnExplosionEffect(position, radius);
+        EnemyNoise.Emit(position, EnemyNoise.Explosion);
 
         // 敵へのダメージ（敵ごとに無効かどうかを持つ。判定するのはホストだけ）
         EnemyBrain.DamageEnemiesInRadius(position, radius, maxDamage);
+
+        BlastItems(position, radius);
 
         PlayerController pc = FindAnyObjectByType<PlayerController>();
         if (pc == null || pc.IsDown) return;
@@ -229,6 +271,35 @@ public class BombBox : MonoBehaviour
         float falloff = 1f - Mathf.Clamp01(distance / radius);
         float damage = Mathf.Max(1f, maxDamage * Mathf.Lerp(0.25f, 1f, falloff));
         pc.TakeDamage(damage, "BLOWN UP");
+
+        // 爆心から離れる向きへ吹き飛ばす（近いほど強く、少し上へ浮く）。着地するまで操作できない
+        Vector3 away = bodyCenter - position;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) away = Random.insideUnitSphere;
+        away.y = 0f;
+        away = away.normalized;
+
+        float horizontalSpeed = Mathf.Lerp(3.5f, 8f, falloff);
+        float upwardSpeed = Mathf.Lerp(3f, 6f, falloff);
+        // 着地してからのスタン時間（近いほど長い）
+        float recoveryStun = Mathf.Lerp(2f, 4f, falloff);
+        pc.Launch(away * horizontalSpeed + Vector3.up * upwardSpeed, recoveryStun);
+    }
+
+    /// <summary>範囲内の落ちているアイテム（他の Box を含む）を吹き飛ばす。近いほど強い</summary>
+    private static void BlastItems(Vector3 position, float radius)
+    {
+        int itemsLayer = LayerMask.NameToLayer("Items");
+        if (itemsLayer < 0) return;
+
+        Collider[] hits = Physics.OverlapSphere(position, radius, 1 << itemsLayer, QueryTriggerInteraction.Ignore);
+        System.Collections.Generic.HashSet<Rigidbody> blasted = new System.Collections.Generic.HashSet<Rigidbody>();
+        foreach (Collider col in hits)
+        {
+            Rigidbody body = col.attachedRigidbody;
+            if (body == null || body.isKinematic || !blasted.Add(body)) continue;
+            body.AddExplosionForce(8f, position, radius, 1f, ForceMode.VelocityChange);
+        }
     }
 
     private static void SpawnExplosionEffect(Vector3 position, float radius)

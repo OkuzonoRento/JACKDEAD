@@ -477,6 +477,24 @@ public class RemotePlayerSync : MonoBehaviour
             avatars[clientId] = avatar;
         }
 
+        // 他プレイヤーの足音：位置の変化から速さを割り出し、敵に聞こえる音として通知する（敵を動かすホストだけが使う）
+        if (avatar.initialized && networkManager != null && networkManager.IsHost)
+        {
+            float elapsed = Time.unscaledTime - avatar.lastReceivedTime;
+            if (elapsed > 0.02f && elapsed < 0.6f)
+            {
+                Vector3 delta = feetPos - avatar.targetFeetPos;
+                delta.y = 0f;
+                float speed = delta.magnitude / elapsed;
+                // ステージ開始のワープなど、極端に速い移動は足音にしない
+                if (speed > 0.5f && speed < 12f)
+                {
+                    float loudness = crouching ? EnemyNoise.Crouch : (speed > 5f ? EnemyNoise.Sprint : EnemyNoise.Walk);
+                    EnemyNoise.Emit(feetPos, loudness);
+                }
+            }
+        }
+
         avatar.targetFeetPos = feetPos;
         avatar.targetYaw = yaw;
         avatar.crouching = crouching;
