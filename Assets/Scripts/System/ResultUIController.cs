@@ -89,19 +89,9 @@ public class ResultUIController : MonoBehaviour
     public bool IsResultShowing => isResultShowing;
     public bool IsTransitioning => isTransitioning;
 
-    // Space / Enter / 左クリックで、リザルト演出を早送りする（最終結果が出たあとにもう一度押すと次のステージへ）
+    // リザルトのスキップは無し。マルチプレイで全員が同じタイミングで次のステージへ出現できるよう、
+    // 演出は全員同じ長さで最後まで流れる（skipRequested は常に false のまま）
     private bool skipRequested = false;
-
-    private void Update()
-    {
-        if (!isResultShowing || isTransitioning) return;
-
-        Keyboard kb = Keyboard.current;
-        Mouse mouse = Mouse.current;
-        bool pressed = (kb != null && (kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame))
-                    || (mouse != null && mouse.leftButton.wasPressedThisFrame);
-        if (pressed) skipRequested = true;
-    }
 
     /// <summary>指定秒数待つ。スキップが押されたら即座に抜ける</summary>
     private IEnumerator WaitSkippable(float seconds)

@@ -247,12 +247,31 @@ public class EnemyBrain : MonoBehaviour
     // AI（ホスト／ソロ）
     // ------------------------------------------------------------------
 
+    private float stunTimer;
+
+    /// <summary>Box が当たってスタンする（その場で動けなくなり、構えも中断される）。判定するのはホストだけ</summary>
+    public void Stun(float seconds)
+    {
+        if (isPuppet) return;
+        stunTimer = Mathf.Max(stunTimer, seconds);
+        winding = false;
+    }
+
     private void UpdateAI()
     {
         if (agent == null || !agent.isOnNavMesh) return;
 
         float dt = Time.deltaTime;
         cooldownTimer -= dt;
+
+        if (stunTimer > 0f)
+        {
+            stunTimer -= dt;
+            agent.isStopped = true;
+            winding = false;
+            animState = AnimState.Idle;
+            return;
+        }
 
         FindVisibleTarget();
 
@@ -518,6 +537,7 @@ public class EnemyBrain : MonoBehaviour
         rb.angularVelocity = Random.insideUnitSphere * 6f;
 
         BombBox bomb = obj.GetComponent<BombBox>();
+        if (bomb != null) bomb.SetThrower(this);
         if (boxItemData != null)
         {
             GameplaySync.NotifyItemDropped(item, boxItemData, origin, velocity, bomb != null ? bomb.FuseTime : -1f);

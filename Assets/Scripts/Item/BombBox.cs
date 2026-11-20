@@ -26,6 +26,10 @@ public class BombBox : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("この速さ（m/s）以上で動いているときだけ直撃扱いにする")]
     private float hitMinSpeed = 2f;
 
+    [Header("スタン")]
+    [SerializeField, Min(0f), Tooltip("動いている Box が当たったとき、相手がスタン（動けなくなる）する時間（秒）")]
+    private float stunDuration = 2f;
+
     [Header("物理")]
     [SerializeField, Range(0f, 1f)] private float bounciness = 0.3f;
 
@@ -174,6 +178,30 @@ public class BombBox : MonoBehaviour
 
         nextHitTime = Time.time + hitInterval;
         localPlayer.TakeDamage(directHitDamage, "HIT BY BOX");
+        localPlayer.Stun(stunDuration);
+    }
+
+    // 敵に動いている Box が当たったらスタンさせる（敵・味方どちらが投げた Box でも同じ。判定は敵を動かしているホストだけ）
+    private EnemyBrain thrower;
+    private float throwTime;
+
+    /// <summary>敵が投げた Box。投げた直後は、投げた本人（自分の体に当たる）をスタンさせない</summary>
+    public void SetThrower(EnemyBrain enemy)
+    {
+        thrower = enemy;
+        throwTime = Time.time;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (exploded || rb == null) return;
+        if (collision.relativeVelocity.magnitude < hitMinSpeed) return;
+
+        EnemyBrain enemy = collision.collider.GetComponentInParent<EnemyBrain>();
+        if (enemy == null) return;
+        if (enemy == thrower && Time.time - throwTime < 1.5f) return;
+
+        enemy.Stun(stunDuration);
     }
 
     // ------------------------------------------------------------------

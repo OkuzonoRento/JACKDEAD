@@ -184,6 +184,37 @@ public class PlayerMovement : MonoBehaviour
         isControlLocked = false;
     }
 
+    // スタン（Box が当たったとき）：しばらく操作できず、視界が揺れる
+    private float stunTimer;
+    private const float StunWobbleDegrees = 7f;
+    private const float StunWobbleSpeed = 16f;
+
+    public bool IsStunned => stunTimer > 0f;
+
+    public void Stun(float seconds)
+    {
+        stunTimer = Mathf.Max(stunTimer, seconds);
+        moveInput = Vector2.zero;
+    }
+
+    // スタン中の動き：入力は受け付けず、重力だけが効く。視界が左右に傾いて揺れる
+    private void UpdateStunned()
+    {
+        stunTimer -= Time.deltaTime;
+        moveInput = Vector2.zero;
+        IsCrouching = false;
+
+        if (cameraTransform != null)
+        {
+            float fade = Mathf.Clamp01(stunTimer);
+            float roll = Mathf.Sin(Time.time * StunWobbleSpeed) * StunWobbleDegrees * fade;
+            cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, roll);
+        }
+
+        velocity.y += gravity * Time.deltaTime;
+        controller.Move(velocity * Time.deltaTime);
+    }
+
     private void Update()
     {
         // ポーズメニュー表示中・観戦中は操作を受け付けない
@@ -193,6 +224,12 @@ public class PlayerMovement : MonoBehaviour
         if (isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
+        }
+
+        if (stunTimer > 0f && !isControlLocked)
+        {
+            UpdateStunned();
+            return;
         }
 
         // --- ロック中（スロット稼働中）：正面位置へ移動 ＆ 視野角を狭めてリールへ固定 ---

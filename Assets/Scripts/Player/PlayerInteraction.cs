@@ -97,7 +97,8 @@ public class PlayerInteraction : MonoBehaviour
     private void Update()
     {
         PlayerController owner = GetComponentInParent<PlayerController>();
-        if (PauseMenu.IsOpen || (owner != null && owner.IsSpectating)) return;
+        PlayerMovement stunnedCheck = owner != null ? owner.GetComponent<PlayerMovement>() : null;
+        if (PauseMenu.IsOpen || (owner != null && owner.IsSpectating) || (stunnedCheck != null && stunnedCheck.IsStunned)) return;
 
         CheckForInteractables();
         HandleInteractionInput();

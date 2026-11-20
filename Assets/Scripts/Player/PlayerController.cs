@@ -59,10 +59,25 @@ public class PlayerController : MonoBehaviour
     private readonly float[] heldFuse = new float[3];
     private readonly bool[] heldFuseActive = new bool[3];
 
+    /// <summary>レバーでクリアしたあと、リザルト演出と次のステージへの移行が終わるまでは無敵</summary>
+    public bool IsInvulnerable()
+    {
+        ResultUIController resultUI = FindAnyObjectByType<ResultUIController>();
+        return resultUI != null && (resultUI.IsResultShowing || resultUI.IsTransitioning);
+    }
+
+    /// <summary>スタンする（Box が当たったとき）。しばらく動けず、視界が揺れる</summary>
+    public void Stun(float seconds)
+    {
+        if (seconds <= 0f || IsDown || IsInvulnerable()) return;
+        PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null) movement.Stun(seconds);
+    }
+
     /// <summary>ダメージを受ける（敵のBox・爆発など）。体力が0になれば CheckGameOver が処理する</summary>
     public void TakeDamage(float amount, string reason = "")
     {
-        if (amount <= 0f || IsDown || !statusInitialized) return;
+        if (amount <= 0f || IsDown || !statusInitialized || IsInvulnerable()) return;
         _health = Mathf.Max(0f, _health - amount);
         Debug.Log($"[ダメージ] {reason} {amount:0.#} → 体力 {_health:0}/{_maxHealth:0}");
     }
