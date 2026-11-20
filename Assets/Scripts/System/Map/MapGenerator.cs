@@ -1288,6 +1288,38 @@ public class MapGenerator : MonoBehaviour
         Debug.Log($"[ENEMY] 敵を {spawned}/{count} 体配置しました。");
     }
 
+    /// <summary>
+    /// 自分の席番号に応じて、基準点の周りへずらした出現位置を返す（席ごとに向きが違うので全員がばらける）。
+    /// 壁や物にめり込む位置は避けて、近い順に空いている場所を探す。オンラインでなければそのまま
+    /// </summary>
+    private Vector3 GetSeatSpawnPosition(Vector3 basePos)
+    {
+        NetworkSession net = NetworkSession.Instance;
+        if (net == null || !net.IsOnline || Unity.Netcode.NetworkManager.Singleton == null) return basePos;
+
+        int seat = (int)(Unity.Netcode.NetworkManager.Singleton.LocalClientId % 8);
+        int itemsLayer = LayerMask.NameToLayer("Items");
+        int mask = ~(1 << 2);
+        if (itemsLayer >= 0) mask &= ~(1 << itemsLayer);
+
+        float[] radii = { 1.0f, 1.7f, 2.4f };
+        foreach (float radius in radii)
+        {
+            for (int step = 0; step < 8; step++)
+            {
+                // 席ごとに最初の向きを変え、空いていなければ45度ずつ回して探す
+                float angle = (seat * 45f + step * 45f) * Mathf.Deg2Rad;
+                Vector3 candidate = basePos + new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * radius;
+
+                if (!Physics.CheckCapsule(candidate + Vector3.up * 0.6f, candidate + Vector3.up * 1.4f, 0.4f, mask, QueryTriggerInteraction.Ignore))
+                {
+                    return candidate;
+                }
+            }
+        }
+        return basePos;
+    }
+
     private void SpawnPlayerAtPosition(Vector3 targetPosition)
     {
         PlayerController player = FindAnyObjectByType<PlayerController>();
@@ -1296,6 +1328,9 @@ public class MapGenerator : MonoBehaviour
             Debug.LogWarning("[MAP] シーン内に PlayerController が見つかりませんでした！");
             return;
         }
+
+        // マルチプレイ：全員が同じ点に出ると重なるので、席番号ごとに少しずつずらす
+        targetPosition = GetSeatSpawnPosition(targetPosition);
 
         CharacterController charController = player.GetComponent<CharacterController>();
         if (charController != null)

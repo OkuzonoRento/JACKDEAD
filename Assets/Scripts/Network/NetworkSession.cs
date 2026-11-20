@@ -244,6 +244,13 @@ public class NetworkSession : MonoBehaviour
             transport = networkManager.GetComponent<UnityTransport>();
         }
 
+        // 受信キューの既定（128パケット）は、3人以上で位置などを頻繁にやりとりするとあふれ、
+        // リレーとの接続が切れる（"Receive queue is full" → Transport failure）。余裕を持たせる
+        if (transport != null)
+        {
+            transport.MaxPacketQueueSize = 2048;
+        }
+
         networkManager.OnClientDisconnectCallback += OnClientDisconnected;
     }
 

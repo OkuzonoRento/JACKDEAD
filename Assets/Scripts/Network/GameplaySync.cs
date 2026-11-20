@@ -236,6 +236,17 @@ public class GameplaySync : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 敵の位置のように毎秒何回も送るものは、信頼性なし（古いものは捨てる）で送る。
+    /// 信頼性ありで大量に送ると送信キューが詰まり、通信が切断されるため。敵が倒された通知だけは確実に届ける
+    /// </summary>
+    private static NetworkDelivery DeliveryFor(NetEvent e)
+    {
+        bool isDeadNotice = e.type == EventType.EnemyPose && (int)e.v2.y == 9;
+        if (e.type == EventType.EnemyPose && !isDeadNotice) return NetworkDelivery.UnreliableSequenced;
+        return NetworkDelivery.ReliableSequenced;
+    }
+
     private void WriteAndSend(NetEvent e, ulong targetClientId)
     {
         string text = e.text ?? "";
@@ -247,7 +258,7 @@ public class GameplaySync : MonoBehaviour
             writer.WriteValueSafe(e.v1);
             writer.WriteValueSafe(e.v2);
             networkManager.CustomMessagingManager.SendNamedMessage(
-                MsgEvent, targetClientId, writer, NetworkDelivery.ReliableSequenced);
+                MsgEvent, targetClientId, writer, DeliveryFor(e));
         }
     }
 

@@ -15,9 +15,9 @@ public class RemotePlayerSync : MonoBehaviour
     private const string MsgPoseRelay = "jd.poseRelay"; // ホスト → 参加者（誰の位置かを付けて中継）
     private const string MsgState = "jd.state";           // 参加者 → ホスト（体力・正気度・手持ち）
     private const string MsgStateRelay = "jd.stateRelay"; // ホスト → 参加者
-    private const float StateSendInterval = 0.2f;
+    private const float StateSendInterval = 0.25f;
 
-    private const float SendInterval = 1f / 15f;
+    private const float SendInterval = 1f / 10f;
     private const float SmoothingSpeed = 15f;
     private const float AvatarHeight = 2f;
     private const float LabelHeightOffset = 1.4f;
@@ -219,7 +219,7 @@ public class RemotePlayerSync : MonoBehaviour
             {
                 WriteStatus(writer, status);
                 networkManager.CustomMessagingManager.SendNamedMessage(
-                    MsgState, NetworkManager.ServerClientId, writer, NetworkDelivery.Reliable);
+                    MsgState, NetworkManager.ServerClientId, writer, NetworkDelivery.UnreliableSequenced);
             }
         }
     }
@@ -261,7 +261,7 @@ public class RemotePlayerSync : MonoBehaviour
                 writer.WriteValueSafe(sourceId);
                 WriteStatus(writer, status);
                 networkManager.CustomMessagingManager.SendNamedMessage(
-                    MsgStateRelay, clientId, writer, NetworkDelivery.Reliable);
+                    MsgStateRelay, clientId, writer, NetworkDelivery.UnreliableSequenced);
             }
         }
     }
