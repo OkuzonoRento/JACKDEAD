@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -36,6 +37,20 @@ public class PlayerController : MonoBehaviour
     private bool pauseSanityDrain = false;
     private bool statusInitialized = false;
     private bool isGameOver = false;
+
+    [Header("マルチプレイ：倒れたときの観戦・復活")]
+    [SerializeField, Range(0f, 1f), Tooltip("復活時の体力の減少割合（最大体力に対して。0.7 = 7割減＝最大体力の3割で復活）。最大体力そのものは減らない")]
+    private float reviveHealthLossRate = 0.7f;
+    [SerializeField, Range(0f, 1f), Tooltip("復活時の正気度の減少割合（最大正気度に対して。0.6 = 6割減＝最大正気度の4割で復活）。最大正気度そのものは減らない")]
+    private float reviveSanityLossRate = 0.6f;
+
+    private bool isSpectating = false;
+    private string spectateDeathReason = "YOU DIED";
+    private SpectatorController spectator;
+    private Vector3 lastSafePosition;
+
+    /// <summary>倒れて仲間を観戦中（マルチプレイのみ。次のステージで復活する）</summary>
+    public bool IsSpectating => isSpectating;
 
     [Header("インベントリ (所持アイテム)")]
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
@@ -125,6 +140,12 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        // 落下死のとき観戦中に体を戻せるよう、最後に安全だった位置を覚えておく
+        if (!isSpectating && transform.position.y > fallDeathHeight + 10f)
+        {
+            lastSafePosition = transform.position;
+        }
+
         if (!pauseSanityDrain)
         {
             ConsumeSanity(Time.deltaTime * sanityDrainPerSecond);
@@ -143,7 +164,7 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void CheckGameOver()
     {
-        if (isGameOver || !statusInitialized) return;
+        if (isGameOver || isSpectating || !statusInitialized) return;
 
         string deathReason;
         if (transform.position.y < fallDeathHeight)
@@ -165,6 +186,10 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        // マルチプレイで他に生きている人がいれば、ゲームオーバーにはならず観戦に回る（次のステージで復活）
+        // （観戦に入るのは体力が0になった場合のみ。正気度が尽きた場合は従来どおりゲームオーバー）
+        if (_health <= 0f && TryBeginSpectating(deathReason)) return;
+
         isGameOver = true;
         pauseSanityDrain = true;
 
@@ -181,11 +206,105 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private bool TryBeginSpectating(string deathReason)
+    {
+        NetworkSession net = NetworkSession.Instance;
+        if (net == null || !net.IsOnline || RemotePlayerSync.Instance == null || GameplaySync.Instance == null) return false;
+
+        List<ulong> alive = new List<ulong>();
+        RemotePlayerSync.Instance.GetAliveRemoteIds(alive);
+        if (alive.Count == 0) return false; // 自分が最後の1人なら全滅 → ゲームオーバー
+
+        isSpectating = true;
+        spectateDeathReason = deathReason;
+        pauseSanityDrain = true;
+
+        // 落下死の場合は、マップの外に体が残らないよう最後に立っていた場所へ戻す
+        if (transform.position.y < fallDeathHeight)
+        {
+            CharacterController cc = GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+            transform.position = lastSafePosition;
+            if (cc != null) cc.enabled = true;
+        }
+
+        // 持っているアイテムはその場に落とす
+        DropAllItemsOnDeath();
+
+        PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null) movement.SetSpectating(true);
+
+        spectator = SpectatorController.Begin(this);
+        GameplaySync.NotifyLocalDead(true);
+        Debug.Log($"[観戦] 倒れました（{deathReason}）。生きている仲間を観戦します。");
+        return true;
+    }
+
+    /// <summary>
+    /// 倒れて観戦中なら復活させる。ステージクリア後の次のステージで、プレイヤーがバス（トラック）へ移された直後に呼ぶ。
+    /// 最大体力・最大正気度は変えず、現在の体力・正気度だけが減った状態で復活する
+    /// </summary>
+    public void ReviveIfSpectating()
+    {
+        if (!isSpectating) return;
+
+        if (spectator != null)
+        {
+            spectator.End();
+            spectator = null;
+        }
+
+        _health = Mathf.Max(1f, _maxHealth * (1f - reviveHealthLossRate));
+        _sanity = Mathf.Max(1f, _maxSanity * (1f - reviveSanityLossRate));
+
+        isSpectating = false;
+        pauseSanityDrain = false;
+
+        PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null) movement.SetSpectating(false);
+
+        GameplaySync.NotifyLocalDead(false);
+        Debug.Log($"[観戦] 復活しました。体力 {_health:0}/{_maxHealth:0} / 正気度 {_sanity:0}/{_maxSanity:0}");
+    }
+
+    /// <summary>観戦中に、生きている仲間が全員いなくなった（全滅）ときに SpectatorController から呼ばれる</summary>
+    public void BeginGameOverFromSpectating()
+    {
+        if (isGameOver) return;
+        isGameOver = true;
+        isSpectating = false;
+
+        if (spectator != null)
+        {
+            spectator.End();
+            spectator = null;
+        }
+
+        ResultUIController resultUI = FindAnyObjectByType<ResultUIController>();
+        if (resultUI != null)
+        {
+            resultUI.BeginGameOver(spectateDeathReason);
+        }
+        else
+        {
+            ResetForNewRun();
+        }
+    }
+
     /// <summary>
     /// 全滅後の最初からやり直し：所持金・インベントリ・進行度・ステータスを初期状態に戻す
     /// </summary>
     public void ResetForNewRun()
     {
+        if (spectator != null)
+        {
+            spectator.End();
+            spectator = null;
+        }
+        isSpectating = false;
+        PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null) movement.SetSpectating(false);
+
         if (PlayerData != null)
         {
             PlayerData.PlayerMoney = 0;
@@ -224,7 +343,7 @@ public class PlayerController : MonoBehaviour
 
     private void HandleSlotSelectionInput()
     {
-        if (PauseMenu.IsOpen) return;
+        if (PauseMenu.IsOpen || isSpectating) return;
 
         if (slot1Action != null && slot1Action.triggered) SelectSlot(0);
         if (slot2Action != null && slot2Action.triggered) SelectSlot(1);
@@ -263,12 +382,28 @@ public class PlayerController : MonoBehaviour
         ItemDataAsset itemDataToDrop = Inventory[selectedSlotIndex];
         if (itemDataToDrop == null) return;
 
+        Vector3 spawnPosition = cameraTransform != null
+            ? cameraTransform.position + cameraTransform.forward * 1.2f
+            : transform.position + transform.forward * 1.5f + Vector3.up * 0.5f;
+
+        float throwForce = baseThrowForce / Mathf.Max(0.1f, itemDataToDrop.ItemWeight);
+        Vector3 throwDirection = cameraTransform != null
+            ? (cameraTransform.forward + Vector3.up * 0.2f).normalized
+            : (transform.forward + Vector3.up * 0.2f).normalized;
+
+        SpawnDroppedItem(selectedSlotIndex, spawnPosition, throwDirection * throwForce);
+    }
+
+    /// <summary>
+    /// スロットのアイテムを、指定の位置・初速でワールドに出し、スロットを空にする（マルチプレイでは他の人にも同じ物が出る）
+    /// </summary>
+    private void SpawnDroppedItem(int slotIndex, Vector3 spawnPosition, Vector3 velocity)
+    {
+        ItemDataAsset itemDataToDrop = Inventory[slotIndex];
+        if (itemDataToDrop == null) return;
+
         if (itemDataToDrop.ItemPrefab != null)
         {
-            Vector3 spawnPosition = cameraTransform != null
-                ? cameraTransform.position + cameraTransform.forward * 1.2f
-                : transform.position + transform.forward * 1.5f + Vector3.up * 0.5f;
-
             GameObject droppedObj = Instantiate(itemDataToDrop.ItemPrefab, spawnPosition, Quaternion.identity);
             droppedObj.layer = LayerMask.NameToLayer("Items");
 
@@ -280,22 +415,31 @@ public class PlayerController : MonoBehaviour
             Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
             if (rb == null) rb = droppedObj.AddComponent<Rigidbody>();
 
-            float weightFactor = Mathf.Max(0.1f, itemDataToDrop.ItemWeight);
-            float throwForce = baseThrowForce / weightFactor;
-
-            Vector3 throwDirection = cameraTransform != null
-                ? (cameraTransform.forward + Vector3.up * 0.2f).normalized
-                : (transform.forward + Vector3.up * 0.2f).normalized;
-
             rb.linearVelocity = Vector3.zero;
-            rb.AddForce(throwDirection * throwForce, ForceMode.VelocityChange);
-            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, throwDirection * throwForce);
+            rb.AddForce(velocity, ForceMode.VelocityChange);
+            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity);
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }
 
-        Inventory[selectedSlotIndex] = null;
+        Inventory[slotIndex] = null;
         SaveInventoryToData();
+    }
+
+    /// <summary>倒れたとき、持っているアイテムをすべてその場に落とす（周囲に少し散らす）</summary>
+    private void DropAllItemsOnDeath()
+    {
+        if (Inventory == null) return;
+
+        for (int i = 0; i < Inventory.Length; i++)
+        {
+            if (Inventory[i] == null) continue;
+
+            float angle = (360f / Inventory.Length) * i;
+            Vector3 dir = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+            Vector3 spawnPosition = transform.position + Vector3.up * 1.0f + dir * 0.6f;
+            SpawnDroppedItem(i, spawnPosition, dir * 1.5f + Vector3.up * 1.5f);
+        }
     }
 
     public void UseSelectedInventoryItem()
@@ -391,6 +535,7 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public void OnStageCleared(int repaidQuota)
     {
+
         _sanity = Mathf.Clamp(_sanity + sanityRecoveryOnClear, 0f, _maxSanity);
 
         if (PlayerData != null)

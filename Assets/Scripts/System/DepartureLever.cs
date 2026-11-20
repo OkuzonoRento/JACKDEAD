@@ -154,6 +154,7 @@ public class DepartureLever : MonoBehaviour, IInteractable
         else if (mapGen != null)
         {
             mapGen.AdvanceToNextLevel();
+            if (player != null) player.ReviveIfSpectating();
         }
     }
 

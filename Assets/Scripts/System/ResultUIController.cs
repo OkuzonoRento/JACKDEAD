@@ -473,6 +473,8 @@ public class ResultUIController : MonoBehaviour
             mapGenerator.AdvanceToNextLevel();
             GameSaveBridge.SaveProgress(playerController, mapGenerator);
         }
+        // 倒れて観戦中だった人は、次のステージのバス（トラック）の中で復活する（マップ生成でバスへ移動済み）
+        if (playerController != null) playerController.ReviveIfSpectating();
         if (playerMovement != null) playerMovement.UnlockControl();
         if (playerController != null) playerController.SetPauseSanityDrain(false);
 
@@ -538,6 +540,12 @@ public class ResultUIController : MonoBehaviour
         // 次回のプレイが最初から始まるよう、進行データを初期化してからタイトルへ
         GameSaveBridge.DeleteSaveOnDeath();
         if (playerController != null) playerController.ResetForNewRun();
+
+        // マルチプレイ中は部屋からも抜ける（全員が倒れた場合、各自がここへ来る）
+        if (NetworkSession.Instance != null && NetworkSession.Instance.IsOnline)
+        {
+            NetworkSession.Instance.LeaveRoom();
+        }
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;

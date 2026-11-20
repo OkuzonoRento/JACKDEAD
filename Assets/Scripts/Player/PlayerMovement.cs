@@ -76,6 +76,20 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>しゃがみ中か（マルチプレイで他プレイヤーに見せるために公開）</summary>
     public bool IsCrouching { get; private set; }
 
+    private bool isSpectating = false;
+
+    /// <summary>倒れて観戦中は、移動・視点操作を止める（カメラは SpectatorController が動かす）</summary>
+    public void SetSpectating(bool spectating)
+    {
+        isSpectating = spectating;
+        if (spectating)
+        {
+            moveInput = Vector2.zero;
+            lookInput = Vector2.zero;
+            IsCrouching = false;
+        }
+    }
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
@@ -172,8 +186,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        // ポーズメニュー表示中は操作を受け付けない
-        if (PauseMenu.IsOpen) return;
+        // ポーズメニュー表示中・観戦中は操作を受け付けない
+        if (PauseMenu.IsOpen || isSpectating) return;
 
         isGrounded = controller.isGrounded;
         if (isGrounded && velocity.y < 0)
