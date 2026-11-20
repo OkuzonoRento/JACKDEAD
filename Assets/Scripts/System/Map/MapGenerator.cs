@@ -575,7 +575,7 @@ public class MapGenerator : MonoBehaviour
 
                 // マルチプレイ同期用：生成順の連番IDを振る（全員同じシードなので同じ台が同じIDになる）
                 SlotMachineController slotController = slotInstance.GetComponentInChildren<SlotMachineController>();
-                if (slotController != null) slotController.NetId = spawnedSlotList.Count;
+                if (slotController != null) slotController.NetId = currentStageLevel * 1000 + spawnedSlotList.Count;
 
                 spawnedCount++;
                 slotsInThisRoom++;
@@ -1144,7 +1144,7 @@ public class MapGenerator : MonoBehaviour
                 worldItem = scrapObj.AddComponent<Item>();
             }
             worldItem.SetItemData(randomScrapData);
-            worldItem.NetId = ++scrapNetId; // マルチプレイ同期用の連番ID
+            worldItem.NetId = currentStageLevel * 100000 + (++scrapNetId); // マルチプレイ同期用ID（ステージごとに重ならないよう、ステージ番号を含める）
 
             int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
             currentTotalValue += itemVal;

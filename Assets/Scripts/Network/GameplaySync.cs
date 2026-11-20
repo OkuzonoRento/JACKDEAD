@@ -12,7 +12,9 @@ using UnityEngine;
 public class GameplaySync : MonoBehaviour
 {
     private const string MsgEvent = "jd.ev";
-    private const int DropIdBase = 1 << 20; // これ未満はマップ生成時のスクラップ、以上はプレイヤーが落とした物
+    // NetId の範囲：マップのスクラップ＝ステージ番号×100000＋連番（ステージごとに重ならない）/ 落とした物＝10億＋席番号×1億＋連番
+    private const int DropIdBase = 1000000000;
+    private const int DropIdStride = 100000000;
 
     private enum EventType : byte
     {
@@ -25,7 +27,9 @@ public class GameplaySync : MonoBehaviour
         PickGrant = 7,   // ホスト → 要求者：拾ってよい
         PickDeny = 8,    // ホスト → 要求者：先に他の人が拾った
         MoneyDelta = 9,  // id = 共有所持金の増減額
-        ItemSettle = 10  // id = NetId / v1 = 静止した位置 / v2 = 静止した回転（オイラー角）
+        ItemSettle = 10, // id = NetId / v1 = 静止した位置 / v2 = 静止した回転（オイラー角）
+        PlayerDead = 11,  // id = 倒れたプレイヤーの席番号（clientId）
+        PlayerAlive = 12  // id = 復活したプレイヤーの席番号
     }
 
     private struct NetEvent
@@ -79,12 +83,30 @@ public class GameplaySync : MonoBehaviour
     // 呼び出し口（オフライン・未接続のときは何もしない）
     // ------------------------------------------------------------------
 
+    // 倒れている（観戦中の）プレイヤーの席番号
+    private readonly HashSet<ulong> deadClients = new HashSet<ulong>();
+
+    public static bool IsDead(ulong clientId)
+    {
+        return Instance != null && Instance.deadClients.Contains(clientId);
+    }
+
+    /// <summary>自分が倒れた／復活したことを全員へ伝える</summary>
+    public static void NotifyLocalDead(bool dead)
+    {
+        if (Instance == null || Instance.networkManager == null) return;
+
+        ulong me = Instance.networkManager.LocalClientId;
+        if (dead) Instance.deadClients.Add(me); else Instance.deadClients.Remove(me);
+        Instance.Send(new NetEvent { type = dead ? EventType.PlayerDead : EventType.PlayerAlive, id = (int)me });
+    }
+
     /// <summary>プレイヤーが落とした／投げたアイテム用の、全員で重ならないID</summary>
     public static int AllocateDropId()
     {
         if (Instance == null || Instance.networkManager == null) return 0;
         Instance.dropCounter++;
-        return DropIdBase * (int)(Instance.networkManager.LocalClientId + 1) + Instance.dropCounter;
+        return DropIdBase + (int)Instance.networkManager.LocalClientId * DropIdStride + Instance.dropCounter;
     }
 
     /// <summary>
@@ -263,6 +285,12 @@ public class GameplaySync : MonoBehaviour
             case EventType.ItemDrop:
                 claimedIds.Remove(e.id);
                 SpawnRemoteDroppedItem(e);
+                break;
+            case EventType.PlayerDead:
+                deadClients.Add((ulong)e.id);
+                break;
+            case EventType.PlayerAlive:
+                deadClients.Remove((ulong)e.id);
                 break;
             case EventType.PickGrant:
                 CompletePick(e.id);

@@ -29,11 +29,15 @@ public class RemotePlayerSync : MonoBehaviour
 
     private class RemoteAvatar
     {
+        public ulong clientId;
         public GameObject root;
         public TextMeshPro label;
         public Vector3 targetFeetPos;
         public float targetYaw;
         public bool crouching;
+        public EyeView eye;        // 観戦用：本人のカメラ（滑らかに補間した現在値）
+        public EyeView targetEye;  // 最後に届いた値
+        public bool eyeInitialized;
         public float heightScale = 1f; // しゃがみ中は縮める（滑らかに補間）
         public bool initialized;
         public float lastReceivedTime;
@@ -52,6 +56,54 @@ public class RemotePlayerSync : MonoBehaviour
     private float sendTimer;
     private float stateTimer;
     private PlayerController localPc;
+
+    public static RemotePlayerSync Instance { get; private set; }
+
+    private void Awake()
+    {
+        Instance = this;
+    }
+
+    // ------------------------------------------------------------------
+    // 観戦用：生きている他プレイヤーの一覧とアバター
+    // ------------------------------------------------------------------
+
+    /// <summary>生きている他プレイヤーの席番号（位置が届いていて、倒れていない人）</summary>
+    public void GetAliveRemoteIds(List<ulong> result)
+    {
+        result.Clear();
+        foreach (KeyValuePair<ulong, RemoteAvatar> pair in avatars)
+        {
+            if (pair.Value.root == null || !pair.Value.initialized) continue;
+            if (GameplaySync.IsDead(pair.Key)) continue;
+            result.Add(pair.Key);
+        }
+        result.Sort();
+    }
+
+    /// <summary>観戦中の相手の席番号（その人のアバターは隠す）。観戦していないときは -1</summary>
+    public static long SpectatedClientId = -1;
+
+    /// <summary>観戦先の、本人のカメラと同じ位置・向き・視野角を返す</summary>
+    public bool TryGetAvatarView(ulong clientId, out Vector3 position, out Quaternion rotation, out float fov)
+    {
+        if (avatars.TryGetValue(clientId, out RemoteAvatar avatar) && avatar.eyeInitialized)
+        {
+            position = avatar.eye.pos;
+            rotation = avatar.eye.rot;
+            fov = avatar.eye.fov;
+            return true;
+        }
+        position = Vector3.zero;
+        rotation = Quaternion.identity;
+        fov = 60f;
+        return false;
+    }
+
+    public string GetAvatarName(ulong clientId)
+    {
+        return avatars.TryGetValue(clientId, out RemoteAvatar avatar) ? avatar.playerName : "Player";
+    }
 
     private void Start()
     {
@@ -72,6 +124,7 @@ public class RemotePlayerSync : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         if (networkManager == null) return;
 
         networkManager.OnClientDisconnectCallback -= OnClientDisconnected;
@@ -209,38 +262,69 @@ public class RemotePlayerSync : MonoBehaviour
         bool crouching = localMovement != null && localMovement.IsCrouching;
         string playerName = NetworkSession.Instance != null ? NetworkSession.Instance.LocalPlayerName : "Player";
 
+        // 観戦してくれる人に「この人の目に映っている映像」をそのまま見せるため、カメラの位置・向き・視野角も送る
+        Camera cam = Camera.main;
+        EyeView eye = cam != null
+            ? new EyeView { pos = cam.transform.position, rot = cam.transform.rotation, fov = cam.fieldOfView }
+            : new EyeView { pos = feetPos + Vector3.up * 1.6f, rot = Quaternion.Euler(0f, yaw, 0f), fov = 60f };
+
         if (networkManager.IsHost)
         {
             // ホストの位置は、全参加者へ id=0 として配る
-            BroadcastRelay(networkManager.LocalClientId, playerName, feetPos, yaw, crouching, ulong.MaxValue);
+            BroadcastRelay(networkManager.LocalClientId, playerName, feetPos, yaw, crouching, eye, ulong.MaxValue);
         }
         else
         {
-            using (FastBufferWriter writer = new FastBufferWriter(128, Allocator.Temp))
+            using (FastBufferWriter writer = new FastBufferWriter(160, Allocator.Temp))
             {
                 writer.WriteValueSafe(playerName);
                 writer.WriteValueSafe(feetPos);
                 writer.WriteValueSafe(yaw);
                 writer.WriteValueSafe(crouching);
+                WriteEye(writer, eye);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgPose, NetworkManager.ServerClientId, writer, NetworkDelivery.UnreliableSequenced);
             }
         }
     }
 
-    private void BroadcastRelay(ulong sourceId, string playerName, Vector3 feetPos, float yaw, bool crouching, ulong exceptClientId)
+    private struct EyeView
+    {
+        public Vector3 pos;
+        public Quaternion rot;
+        public float fov;
+    }
+
+    private static void WriteEye(FastBufferWriter writer, EyeView eye)
+    {
+        writer.WriteValueSafe(eye.pos);
+        writer.WriteValueSafe(eye.rot);
+        writer.WriteValueSafe(eye.fov);
+    }
+
+    private static EyeView ReadEye(FastBufferReader reader)
+    {
+        EyeView eye = new EyeView();
+        reader.ReadValueSafe(out eye.pos);
+        reader.ReadValueSafe(out eye.rot);
+        reader.ReadValueSafe(out eye.fov);
+        return eye;
+    }
+
+    private void BroadcastRelay(ulong sourceId, string playerName, Vector3 feetPos, float yaw, bool crouching, EyeView eye, ulong exceptClientId)
     {
         foreach (ulong clientId in networkManager.ConnectedClientsIds)
         {
             if (clientId == networkManager.LocalClientId || clientId == exceptClientId) continue;
 
-            using (FastBufferWriter writer = new FastBufferWriter(128, Allocator.Temp))
+            using (FastBufferWriter writer = new FastBufferWriter(160, Allocator.Temp))
             {
                 writer.WriteValueSafe(sourceId);
                 writer.WriteValueSafe(playerName);
                 writer.WriteValueSafe(feetPos);
                 writer.WriteValueSafe(yaw);
                 writer.WriteValueSafe(crouching);
+                WriteEye(writer, eye);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgPoseRelay, clientId, writer, NetworkDelivery.UnreliableSequenced);
             }
@@ -258,9 +342,10 @@ public class RemotePlayerSync : MonoBehaviour
         reader.ReadValueSafe(out Vector3 feetPos);
         reader.ReadValueSafe(out float yaw);
         reader.ReadValueSafe(out bool crouching);
+        EyeView eye = ReadEye(reader);
 
-        UpdateAvatar(senderId, playerName, feetPos, yaw, crouching);
-        BroadcastRelay(senderId, playerName, feetPos, yaw, crouching, senderId);
+        UpdateAvatar(senderId, playerName, feetPos, yaw, crouching, eye);
+        BroadcastRelay(senderId, playerName, feetPos, yaw, crouching, eye, senderId);
     }
 
     // 参加者側：ホストが中継した他プレイヤーの位置を反映する
@@ -271,9 +356,10 @@ public class RemotePlayerSync : MonoBehaviour
         reader.ReadValueSafe(out Vector3 feetPos);
         reader.ReadValueSafe(out float yaw);
         reader.ReadValueSafe(out bool crouching);
+        EyeView eye = ReadEye(reader);
 
         if (sourceId == networkManager.LocalClientId) return;
-        UpdateAvatar(sourceId, playerName, feetPos, yaw, crouching);
+        UpdateAvatar(sourceId, playerName, feetPos, yaw, crouching, eye);
     }
 
     private void OnClientDisconnected(ulong clientId)
@@ -289,7 +375,7 @@ public class RemotePlayerSync : MonoBehaviour
     // アバター表示
     // ------------------------------------------------------------------
 
-    private void UpdateAvatar(ulong clientId, string playerName, Vector3 feetPos, float yaw, bool crouching)
+    private void UpdateAvatar(ulong clientId, string playerName, Vector3 feetPos, float yaw, bool crouching, EyeView eye)
     {
         if (!avatars.TryGetValue(clientId, out RemoteAvatar avatar))
         {
@@ -300,6 +386,12 @@ public class RemotePlayerSync : MonoBehaviour
         avatar.targetFeetPos = feetPos;
         avatar.targetYaw = yaw;
         avatar.crouching = crouching;
+        avatar.targetEye = eye;
+        if (!avatar.eyeInitialized)
+        {
+            avatar.eyeInitialized = true;
+            avatar.eye = eye;
+        }
         avatar.lastReceivedTime = Time.unscaledTime;
         avatar.playerName = playerName;
         RefreshLabel(avatar);
@@ -345,7 +437,7 @@ public class RemotePlayerSync : MonoBehaviour
         label.fontSize = LabelFontSize;
         label.color = Color.white;
 
-        return new RemoteAvatar { root = root, label = label };
+        return new RemoteAvatar { clientId = clientId, root = root, label = label };
     }
 
     private void SmoothAvatars()
@@ -368,6 +460,16 @@ public class RemotePlayerSync : MonoBehaviour
         foreach (RemoteAvatar avatar in avatars.Values)
         {
             if (avatar.root == null) continue;
+
+            // 倒れて観戦中のプレイヤーは、見えないようにする
+            // （自分が観戦している相手のアバターも、カメラが体の中に入るので隠す）
+            bool shouldShow = !GameplaySync.IsDead(avatar.clientId) && (long)avatar.clientId != SpectatedClientId;
+            if (avatar.root.activeSelf != shouldShow) avatar.root.SetActive(shouldShow);
+
+            // 観戦用のカメラ位置・向き・視野角を滑らかに追従させる
+            avatar.eye.pos = Vector3.Lerp(avatar.eye.pos, avatar.targetEye.pos, t);
+            avatar.eye.rot = Quaternion.Slerp(avatar.eye.rot, avatar.targetEye.rot, t);
+            avatar.eye.fov = Mathf.Lerp(avatar.eye.fov, avatar.targetEye.fov, t);
 
             // しゃがみ中は縮めて表示する（名前表示は縦に潰れないよう打ち消す）
             avatar.heightScale = Mathf.Lerp(avatar.heightScale, avatar.crouching ? CrouchHeightScale : 1f, t);
