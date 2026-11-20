@@ -12,6 +12,11 @@ public class ItemDataAsset : ScriptableObject
     [Header("インタラクト設定")]
     [SerializeField, Min(0.1f)] private float requiredHoldTime = 1.0f;
 
+    [Header("特殊アイテム")]
+    [Tooltip("時限爆弾（持ち続けると爆発する）かどうか。Box 用")]
+    [SerializeField] private bool isBomb = false;
+
+    public bool IsBomb => isBomb;
     public int Amount => amount;
     public string ItemName => itemName;
     public Sprite ItemIcon => itemIcon;

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 304b4363745eec14aa623785381e56ca, type: 3}
+  m_Name: EnemySpawnConfig
+  m_EditorClassIdentifier: Assembly-CSharp::EnemySpawnConfig
+  tiers:
+  - name: Tier 1
+    prefabs:
+    - {fileID: 8857674985143196238, guid: 8704180b7bec9354fa9f0c1d3f01b1d2, type: 3}
+    countsByLevel: 01000000010000000100000001000000010000000200000002000000020000000200000002000000
+  - name: Tier 2
+    prefabs: []
+    countsByLevel: 00000000000000000100000001000000010000000200000002000000020000000300000003000000
+  - name: Tier 3
+    prefabs: []
+    countsByLevel: 01000000010000000100000001000000010000000200000002000000020000000200000002000000
+  minRoomDistanceFromBus: 2

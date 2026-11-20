@@ -8,6 +8,8 @@ public class DisplayTextManager : MonoBehaviour
     [SerializeField] private TextMeshPro quotaText;
     [SerializeField] private TextMeshPro incomeText;
     [SerializeField] private TextMeshPro remainingText;
+    [Tooltip("現在のレベル表示。未設定なら、ノルマ表示（quotaText）を複製してその上に自動で作る")]
+    [SerializeField] private TextMeshPro levelText;
 
     private MapGenerator mapGenerator;
     private PlayerController playerController;
@@ -24,6 +26,21 @@ public class DisplayTextManager : MonoBehaviour
     {
         mapGenerator = FindAnyObjectByType<MapGenerator>();
         playerController = FindAnyObjectByType<PlayerController>();
+        EnsureLevelText();
+    }
+
+    /// <summary>
+    /// levelText が未設定のとき、quotaText を複製して1行分上に置く（向き・大きさ・フォントはそのまま引き継ぐ）
+    /// </summary>
+    private void EnsureLevelText()
+    {
+        if (levelText != null || quotaText == null) return;
+
+        levelText = Instantiate(quotaText, quotaText.transform.parent);
+        levelText.name = "LevelText";
+        float lineHeight = Mathf.Max(quotaText.renderedHeight, quotaText.fontSize * 0.1f) * quotaText.transform.lossyScale.y;
+        levelText.transform.position = quotaText.transform.position + quotaText.transform.up * (lineHeight * 1.4f);
+        levelText.transform.rotation = quotaText.transform.rotation;
     }
 
     private void Update()
@@ -130,6 +147,9 @@ public class DisplayTextManager : MonoBehaviour
         int currentQuota = mapGenerator.CurrentMapQuota;
         int totalIncome = CalculateTotalIncome();
         int remaining = Mathf.Max(0, currentQuota - totalIncome);
+
+        if (levelText != null)
+            levelText.text = mapGenerator.CurrentStageLevel.ToString();
 
         if (quotaText != null)
             quotaText.text = $"${currentQuota:D6}";

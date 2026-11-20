@@ -1,15 +1,16 @@
-using System.IO;
+ï»¿using System.IO;
 using UnityEngine;
 
 [System.Serializable]
 public class GameSaveData
 {
     public bool hasSaveData = false;
-    public int currentMoney = 0;         // Š‹à
-    public int remainingDebt = 1000000;  // c‚èØ‹ài‰Šú100–œj
-    public int currentDay = 1;           // Œo‰ß“ú”
+    public int currentMoney = 0;         // æ‰€æŒé‡‘
+    public int remainingDebt = 1000000;  // æ®‹ã‚Šå€Ÿé‡‘ï¼ˆåˆæœŸ100ä¸‡ï¼‰
+    public int currentDay = 1;           // çµŒéæ—¥æ•°
+    public int totalRepaid = 0;          // total repaid debt (continues past full repayment for endless mode)
 
-    // ‘Ì‚Ìƒp[ƒcitrue = c‚Á‚Ä‚¢‚é, false = ”„‹pÏ‚İj
+    // ä½“ã®ãƒ‘ãƒ¼ãƒ„ï¼ˆtrue = æ®‹ã£ã¦ã„ã‚‹, false = å£²å´æ¸ˆã¿ï¼‰
     public bool hasLeftArm = true;
     public bool hasRightArm = true;
     public bool hasLeftEye = true;
@@ -69,7 +70,15 @@ public static class SaveSystem
         string path = GetSavePath(ActiveSlotIndex);
         string json = JsonUtility.ToJson(CurrentData, true);
         File.WriteAllText(path, json);
-        Debug.Log($"ƒZ[ƒuŠ®—¹ (Slot {ActiveSlotIndex})");
+        Debug.Log($"ã‚»ãƒ¼ãƒ–å®Œäº† (Slot {ActiveSlotIndex})");
+    }
+
+    /// <summary>
+    /// ãƒ¡ãƒ¢ãƒªä¸Šã®ã‚»ãƒ¼ãƒ–ãƒ‡ãƒ¼ã‚¿ã‚’æœªä½¿ç”¨ã®çŠ¶æ…‹ã«æˆ»ã™ï¼ˆãƒ•ã‚¡ã‚¤ãƒ«ã¯è§¦ã‚‰ãªã„ï¼‰
+    /// </summary>
+    public static void ClearCurrentData()
+    {
+        CurrentData = new GameSaveData();
     }
 
     public static void DeleteSlot(int slotIndex)
@@ -78,7 +87,7 @@ public static class SaveSystem
         if (File.Exists(path))
         {
             File.Delete(path);
-            Debug.Log($"ƒf[ƒ^íœ (Slot {slotIndex})");
+            Debug.Log($"ãƒ‡ãƒ¼ã‚¿å‰Šé™¤ (Slot {slotIndex})");
         }
     }
 }

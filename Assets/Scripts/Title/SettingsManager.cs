@@ -1,22 +1,25 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
 public class SettingsManager : MonoBehaviour
 {
-    [Header("ƒXƒ‰ƒCƒ_[UIi4€–Új")]
+    [Header("ï¿½Xï¿½ï¿½ï¿½Cï¿½_ï¿½[UIï¿½i4ï¿½ï¿½ï¿½Új")]
     public Slider bgmSlider;
     public Slider seSlider;
+
+    [Header("ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼UI")]
+    public Slider volumeSlider;
     public Slider sensitivitySlider;
     public Slider brightnessSlider;
 
-    [Header("‰E’[‚Ì”’l•\Ž¦ƒeƒLƒXƒg")]
+    [Header("ï¿½Eï¿½[ï¿½Ìï¿½ï¿½lï¿½\ï¿½ï¿½ï¿½eï¿½Lï¿½Xï¿½g")]
     public TextMeshProUGUI bgmValueText;
     public TextMeshProUGUI seValueText;
     public TextMeshProUGUI sensitivityValueText;
     public TextMeshProUGUI brightnessValueText;
 
-    // ‘¼‚ÌƒXƒNƒŠƒvƒgiBGMÄ¶‚âSEÄ¶j‚©‚çŒ»Ý‚Ì‰¹—Ê‚ðŽæ“¾‚·‚é‚½‚ß‚ÌƒvƒƒpƒeƒB
+    // ï¿½ï¿½ï¿½ÌƒXï¿½Nï¿½ï¿½ï¿½vï¿½gï¿½iBGMï¿½Äï¿½ï¿½ï¿½SEï¿½Äï¿½ï¿½jï¿½ï¿½ï¿½çŒ»ï¿½Ý‚Ì‰ï¿½ï¿½Ê‚ï¿½ï¿½æ“¾ï¿½ï¿½ï¿½é‚½ï¿½ß‚Ìƒvï¿½ï¿½ï¿½pï¿½eï¿½B
     public static float BgmVolume => PlayerPrefs.GetFloat("BGMVolume", 1f);
     public static float SeVolume => PlayerPrefs.GetFloat("SEVolume", 1f);
     public static float MouseSensitivity => PlayerPrefs.GetFloat("MouseSensitivity", 1f);

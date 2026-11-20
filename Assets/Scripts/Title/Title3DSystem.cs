@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -7,32 +7,34 @@ using TMPro;
 
 public class Title3DSystem : MonoBehaviour
 {
-    [Header("ƒV[ƒ“‘JˆÚİ’è")]
+    [Header("ã‚·ãƒ¼ãƒ³é·ç§»è¨­å®š")]
     public string singlePlaySceneName = "SampleScene";
     public string multiLobbySceneName = "LobbyScene";
 
-    [Header("UIƒpƒlƒ‹")]
+    [Header("UIãƒ‘ãƒãƒ«")]
     public GameObject mainMenuPanel;
     public GameObject saveSlotPanel;
     public GameObject settingsPanel;
     public Image fadeOverlay;
 
-    [Header("ƒZƒbƒeƒBƒ“ƒOŠJ•Âƒ{ƒ^ƒ“i‹ó—“‚Å‚à©“®ŒŸõj")]
+
+    [Header("ï¿½Zï¿½bï¿½eï¿½Bï¿½ï¿½ï¿½Oï¿½Jï¿½Âƒ{ï¿½^ï¿½ï¿½ï¿½iï¿½ó—“‚Å‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½j")]
     public Button settingOpenButton;
     public Button settingBackButton;
 
-    [Header("ƒZ[ƒuƒXƒƒbƒgUIi3˜g•ªj")]
+    [Header("ï¿½Zï¿½[ï¿½uï¿½Xï¿½ï¿½ï¿½bï¿½gUIï¿½i3ï¿½gï¿½ï¿½ï¿½j")]
+    [Header("ã‚»ãƒ¼ãƒ–ã‚¹ãƒ­ãƒƒãƒˆUIï¼ˆ3æ åˆ†ï¼‰")]
     public TextMeshProUGUI modeHeaderText;
     public TextMeshProUGUI[] slotInfoTexts;
     public GameObject[] deleteSlotButtons;
 
-    [Header("3DƒJƒƒ‰‰‰o")]
+    [Header("3Dã‚«ãƒ¡ãƒ©æ¼”å‡º")]
     public Transform cameraTransform;
     public float swayAmount = 0.08f;
     public float swaySpeed = 1.0f;
     public float zoomOnPlaySpeed = 2.0f;
 
-    [Header("ƒTƒEƒ“ƒhi”CˆÓj")]
+    [Header("ã‚µã‚¦ãƒ³ãƒ‰ï¼ˆä»»æ„ï¼‰")]
     public AudioSource uiAudioSource;
     public AudioClip hoverSound;
     public AudioClip clickSound;
@@ -51,14 +53,14 @@ public class Title3DSystem : MonoBehaviour
         if (cameraTransform != null)
             initialCamPos = cameraTransform.localPosition;
 
-        // 1. FadeOverlay‚ª‰æ–Ê‚ÌƒNƒŠƒbƒN‚ğ‹z‚í‚È‚¢‚æ‚¤‚É‹­§‰ğœ
+        // 1. FadeOverlayï¿½ï¿½ï¿½ï¿½Ê‚ÌƒNï¿½ï¿½ï¿½bï¿½Nï¿½ï¿½ï¿½zï¿½ï¿½È‚ï¿½ï¿½æ‚¤ï¿½É‹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         if (fadeOverlay != null)
         {
             fadeOverlay.raycastTarget = false;
             StartCoroutine(FadeScreen(1f, 0f, 1.0f));
         }
 
-        // 2. ƒpƒlƒ‹‚Ì©“®ŒŸõiƒCƒ“ƒXƒyƒNƒ^[‚ª‹ó—“‚Å‚à–¼‘O‚©‚çŒ©‚Â‚¯‚éj
+        // 2. ï¿½pï¿½lï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½Cï¿½ï¿½ï¿½Xï¿½yï¿½Nï¿½^ï¿½[ï¿½ï¿½ï¿½ó—“‚Å‚ï¿½ï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½çŒ©ï¿½Â‚ï¿½ï¿½ï¿½j
         if (mainMenuPanel == null) mainMenuPanel = GameObject.Find("MainMenuPanel");
         if (settingsPanel == null) settingsPanel = GameObject.Find("SettingsPanel");
 
@@ -72,7 +74,7 @@ public class Title3DSystem : MonoBehaviour
 
         if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
 
-        // 3. ƒ{ƒ^ƒ“‚ğ©“®‚ÅŒ©‚Â‚¯‚ÄƒNƒŠƒbƒNƒCƒxƒ“ƒg‚ğ‹­§Ú‘±
+        // 3. ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÅŒï¿½ï¿½Â‚ï¿½ï¿½ÄƒNï¿½ï¿½ï¿½bï¿½Nï¿½Cï¿½xï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú‘ï¿½
         AutoBindSettingsButtons();
 
         if (settingsPanel != null) settingsPanel.SetActive(false);
@@ -80,7 +82,7 @@ public class Title3DSystem : MonoBehaviour
 
     private void AutoBindSettingsButtons()
     {
-        // SETTINGƒ{ƒ^ƒ“‚ğ©“®ŒŸõ‚µ‚ÄÚ‘±
+        // SETTINGï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÄÚ‘ï¿½
         if (settingOpenButton == null && mainMenuPanel != null)
         {
             foreach (Button btn in mainMenuPanel.GetComponentsInChildren<Button>(true))
@@ -98,7 +100,7 @@ public class Title3DSystem : MonoBehaviour
             settingOpenButton.onClick.AddListener(OnClickOpenSettings);
         }
 
-        // BACKƒ{ƒ^ƒ“‚ğ©“®ŒŸõ‚µ‚ÄÚ‘±
+        // BACKï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÄÚ‘ï¿½
         if (settingBackButton == null && settingsPanel != null)
         {
             foreach (Button btn in settingsPanel.GetComponentsInChildren<Button>(true))
@@ -119,7 +121,7 @@ public class Title3DSystem : MonoBehaviour
 
     void Update()
     {
-        // İ’è‰æ–Ê‚ªŠJ‚¢‚Ä‚¢‚é‚Æ‚«‚ÉEscƒL[‚Å•Â‚¶‚é
+        // ï¿½İ’ï¿½ï¿½Ê‚ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½ï¿½Escï¿½Lï¿½[ï¿½Å•Â‚ï¿½ï¿½ï¿½
         if (settingsPanel != null && settingsPanel.activeSelf)
         {
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -153,6 +155,17 @@ public class Title3DSystem : MonoBehaviour
     {
         PlayClickSound();
         selectedMultiplayer = true;
+
+        // ãƒãƒ«ãƒï¼šã¾ãšã€Œãƒ«ãƒ¼ãƒ ã‚’ä½œã‚‹ï¼å‚åŠ ã™ã‚‹ã€ã‚’é¸ã¶ã€‚ã‚»ãƒ¼ãƒ–é¸æŠã¯ãƒ«ãƒ¼ãƒ ã‚’ä½œã‚‹å ´åˆã®ã¿ï¼ˆMultiLobbyUI å†…ã§è¡Œã†ï¼‰
+        if (NetworkSession.Instance != null)
+        {
+            if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+            MultiLobbyUI.Open(() =>
+            {
+                if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+            });
+            return;
+        }
         OpenSaveSlotPanel();
     }
 
@@ -180,7 +193,7 @@ public class Title3DSystem : MonoBehaviour
             {
                 if (data != null && data.hasSaveData)
                 {
-                    slotInfoTexts[i].text = $"SLOT {slotNum}  -  DAY {data.currentDay}  |  DEBT: ${data.remainingDebt:N0}";
+                    slotInfoTexts[i].text = $"SLOT {slotNum}  -  DAY {data.currentDay}  |  MONEY: ${data.currentMoney:N0}";
                 }
                 else
                 {
@@ -221,25 +234,25 @@ public class Title3DSystem : MonoBehaviour
         mainMenuPanel.SetActive(true);
     }
 
-    // İ’èƒ{ƒ^ƒ“‚ğ‰Ÿ‚µ‚½‚Æ‚«i¶ƒƒjƒ…[‚ğ”–ˆÃ‚­ƒƒbƒN‚µ‚Â‚ÂŠJ‚­j
+    // ï¿½İ’ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½iï¿½ï¿½ï¿½ï¿½ï¿½jï¿½ï¿½ï¿½[ï¿½ğ”–ˆÃ‚ï¿½ï¿½ï¿½ï¿½bï¿½Nï¿½ï¿½ï¿½Â‚ÂŠJï¿½ï¿½ï¿½j
     public void OnClickOpenSettings()
     {
         PlayClickSound();
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(true);
-            settingsPanel.transform.SetAsLastSibling(); // Å‘O–Ê‚É•\¦
+            settingsPanel.transform.SetAsLastSibling(); // ï¿½Å‘Oï¿½Ê‚É•\ï¿½ï¿½
         }
 
         if (mainMenuCanvasGroup != null)
         {
             mainMenuCanvasGroup.interactable = false;
             mainMenuCanvasGroup.blocksRaycasts = false;
-            mainMenuCanvasGroup.alpha = 0.45f; // ¶‘¤‚ğ­‚µˆÃ‚­‚µ‚Ä‰E‚Ìİ’èƒpƒlƒ‹‚ğÛ—§‚½‚¹‚é
+            mainMenuCanvasGroup.alpha = 0.45f; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã‚ï¿½ï¿½ï¿½ï¿½Ä‰Eï¿½Ìİ’ï¿½pï¿½lï¿½ï¿½ï¿½ï¿½ï¿½Û—ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         }
     }
 
-    // İ’è‰æ–Ê‚©‚çBACK‚ğ‰Ÿ‚µ‚½‚Æ‚«
+    // ï¿½İ’ï¿½ï¿½Ê‚ï¿½ï¿½ï¿½BACKï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ï¿½
     public void OnClickBackFromSettings()
     {
         PlayClickSound();

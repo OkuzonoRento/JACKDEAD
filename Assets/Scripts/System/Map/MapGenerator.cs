@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
+using Unity.AI.Navigation;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(MapGizmoDrawer))]
 public class MapGenerator : MonoBehaviour
@@ -43,7 +45,7 @@ public class MapGenerator : MonoBehaviour
     [Tooltip("レベル1のノルマ（基準値）")]
     [SerializeField, Min(1)] private int baseQuotaLevel1 = 500;
     [Tooltip("最大レベルのノルマ（基準値）。レベル1からこの値まで指数的に増える")]
-    [SerializeField, Min(1)] private int baseQuotaFinalLevel = 280000;
+    [SerializeField, Min(1)] private int baseQuotaFinalLevel = 284500;
     [Tooltip("基準ノルマに掛けるランダム幅（0.08 = ±8%）")]
     [SerializeField, Range(0f, 0.5f)] private float quotaRandomRange = 0.08f;
     [Tooltip("ノルマに対してマップへ配置するスクラップ総価値の倍率")]
@@ -61,6 +63,56 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private List<SlotSpawnCandidate> slotCandidates = new List<SlotSpawnCandidate>();
     [SerializeField, Min(0)] private int minSlotCount = 2;
     [SerializeField, Min(0)] private int maxSlotCount = 4;
+
+    [System.Serializable]
+    public struct SlotRarityTier
+    {
+        [Tooltip("スロット台の倍率")] public float multiplier;
+        [Tooltip("このレベル以降の台だけ、この倍率が出る")] public int minLevel;
+        [Tooltip("出やすさ（大きいほど出やすい）。高倍率ほど小さくする")] public float weight;
+
+        public SlotRarityTier(float multiplier, int minLevel, float weight)
+        {
+            this.multiplier = multiplier;
+            this.minLevel = minLevel;
+            this.weight = weight;
+        }
+    }
+
+    [Tooltip("スロット台ごとの倍率の抽選表。高倍率は出にくく、レベルが上がるまで出ない")]
+    [SerializeField] private List<SlotRarityTier> slotRarityTiers = new List<SlotRarityTier>
+    {
+        new SlotRarityTier(0.8f, 1, 30f),
+        new SlotRarityTier(1.0f, 1, 30f),
+        new SlotRarityTier(1.5f, 1, 20f),
+        new SlotRarityTier(2.0f, 7, 12f),
+        new SlotRarityTier(3.0f, 10, 6f),
+        new SlotRarityTier(5.0f, 14, 3f),
+        new SlotRarityTier(10.0f, 18, 1f),
+    };
+
+    /// <summary>現在のレベルで出せる倍率から、重み付きでスロット台の倍率を1つ引く</summary>
+    private float RollSlotRarity()
+    {
+        float total = 0f;
+        foreach (SlotRarityTier tier in slotRarityTiers)
+        {
+            if (currentStageLevel >= tier.minLevel) total += Mathf.Max(0f, tier.weight);
+        }
+        if (total <= 0f) return 1f;
+
+        float roll = Random.value * total;
+        float cumulative = 0f;
+        float last = 1f;
+        foreach (SlotRarityTier tier in slotRarityTiers)
+        {
+            if (currentStageLevel < tier.minLevel) continue;
+            cumulative += Mathf.Max(0f, tier.weight);
+            last = tier.multiplier;
+            if (roll < cumulative) return tier.multiplier;
+        }
+        return last;
+    }
     [Tooltip("壁や障害物からスロットを離す最小距離（メートル）")]
     [SerializeField, Range(0.8f, 4.0f)] private float slotWallClearance = 1.6f;
     [Tooltip("スロットの向きの微調整オフセット角度（基本は 0 のままで自動で壁を背にします）")]
@@ -267,8 +319,29 @@ public class MapGenerator : MonoBehaviour
         gizmoDrawer = GetComponent<MapGizmoDrawer>();
     }
 
+    /// <summary>
+    /// セーブデータから再開するとき、Start より前に開始レベルを設定する
+    /// </summary>
+    public void SetStartLevel(int level)
+    {
+        currentStageLevel = Mathf.Max(1, level);
+    }
+
+    /// <summary>
+    /// マルチプレイ中は、全員が同じマップ・ノルマになるよう乱数を揃える
+    /// </summary>
+    private void SyncRandomWithSession()
+    {
+        NetworkSession net = NetworkSession.Instance;
+        if (net != null && net.IsOnline)
+        {
+            Random.InitState(net.SharedSeed + currentStageLevel * 7919);
+        }
+    }
+
     private void Start()
     {
+        SyncRandomWithSession();
         RollQuotaForCurrentLevel();
         Debug.Log($"[MAP] 借金総額: ${TotalDebt:N0} / STAGE {currentStageLevel} ノルマ: ${currentMapQuota:N0}");
         GenerateMap();
@@ -306,6 +379,7 @@ public class MapGenerator : MonoBehaviour
     public void AdvanceToNextLevel()
     {
         currentStageLevel++;
+        SyncRandomWithSession();
         RollQuotaForCurrentLevel();
 
         Debug.Log($"[MAP] STAGE {currentStageLevel} 開始！ 部屋数: {GetRoomCountForLevel(currentStageLevel)} / 新ノルマ: ${currentMapQuota:N0}");
@@ -316,6 +390,8 @@ public class MapGenerator : MonoBehaviour
     {
         foreach (Transform child in transform)
         {
+            // Destroy は次のフレームまで残るので、先に無効化して、物理判定・NavMeshの対象から外す
+            child.gameObject.SetActive(false);
             Destroy(child.gameObject);
         }
         generatedRooms.Clear();
@@ -419,6 +495,7 @@ public class MapGenerator : MonoBehaviour
             SpawnSlotMachines();
             Physics.SyncTransforms();
             SpawnRandomScraps();
+            SpawnEnemies();
 
             UpdateGizmoDrawer();
             Debug.Log($"[MAP] マップ生成成功！ (部屋数: {spawnedRoomList.Count}, スロット数: {spawnedSlotList.Count})");
@@ -550,6 +627,16 @@ public class MapGenerator : MonoBehaviour
                 Physics.SyncTransforms();
 
                 spawnedSlotList.Add(slotInstance);
+
+                // マルチプレイ同期用：生成順の連番IDを振る（全員同じシードなので同じ台が同じIDになる）
+                SlotMachineController slotController = slotInstance.GetComponentInChildren<SlotMachineController>();
+                if (slotController != null)
+                {
+                    slotController.NetId = currentStageLevel * 1000 + spawnedSlotList.Count;
+                    // 台ごとの倍率（共有シードで抽選するので、マルチでも全員同じ倍率になる）
+                    slotController.SetRarityMultiplier(RollSlotRarity());
+                }
+
                 spawnedCount++;
                 slotsInThisRoom++;
             }
@@ -1064,6 +1151,7 @@ public class MapGenerator : MonoBehaviour
         }
 
         int safetyCounter = 0;
+        int scrapNetId = 0;
         float maxOffset = tileSize * ScrapSpawnAreaRatio;
 
         while (currentTotalValue < targetTotalValue && safetyCounter < MaxScrapSpawnIterations)
@@ -1116,12 +1204,88 @@ public class MapGenerator : MonoBehaviour
                 worldItem = scrapObj.AddComponent<Item>();
             }
             worldItem.SetItemData(randomScrapData);
+            worldItem.NetId = currentStageLevel * 100000 + (++scrapNetId); // マルチプレイ同期用ID（ステージごとに重ならないよう、ステージ番号を含める）
 
             int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
             currentTotalValue += itemVal;
         }
 
         Debug.Log($"[MAP] ノルマ連動スクラップ配置完了！ 目標価値: {targetTotalValue}, 生成総価値: {currentTotalValue}");
+    }
+
+    // ------------------------------------------------------------------
+    // 敵：マップ生成のたびに NavMesh を焼き直し、部屋の中に敵を出す
+    // （共有シードで抽選するので、マルチプレイでも全員の画面に同じ敵が同じ場所へ出る。動かすのはホストだけ）
+    // ------------------------------------------------------------------
+
+    private NavMeshSurface navSurface;
+
+    private bool BuildNavMesh()
+    {
+        if (navSurface == null)
+        {
+            navSurface = GetComponent<NavMeshSurface>();
+            if (navSurface == null) navSurface = gameObject.AddComponent<NavMeshSurface>();
+            navSurface.collectObjects = CollectObjects.Children;
+            navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+
+            // 落ちているアイテムや他プレイヤーの当たり判定は、歩ける床として数えない
+            int itemsLayer = LayerMask.NameToLayer("Items");
+            int mask = ~(1 << 2);
+            if (itemsLayer >= 0) mask &= ~(1 << itemsLayer);
+            navSurface.layerMask = mask;
+        }
+
+        Physics.SyncTransforms();
+        navSurface.BuildNavMesh();
+        return navSurface.navMeshData != null;
+    }
+
+    private void SpawnEnemies()
+    {
+        EnemySpawnConfig config = EnemySpawnConfig.Load();
+        if (config == null) return;
+
+        // REPO と同じく、ティアごとに決まった数を出す
+        List<GameObject> spawnList = config.RollSpawnList(currentStageLevel);
+        int count = spawnList.Count;
+        if (count <= 0) return;
+
+        if (!BuildNavMesh())
+        {
+            Debug.LogWarning("[ENEMY] NavMesh を作れなかったため、敵を出しません。");
+            return;
+        }
+
+        // バスから離れた部屋だけを候補にする
+        List<GeneratedRoom> candidates = spawnedRoomList.FindAll(r =>
+        {
+            if (!spawnedBusGridPos.HasValue) return r.gridPos != Vector2Int.zero;
+            int dist = Mathf.Abs(r.gridPos.x - spawnedBusGridPos.Value.x) + Mathf.Abs(r.gridPos.y - spawnedBusGridPos.Value.y);
+            return dist >= config.minRoomDistanceFromBus;
+        });
+        if (candidates.Count == 0) candidates = spawnedRoomList.FindAll(r => r.gridPos != Vector2Int.zero);
+        if (candidates.Count == 0) return;
+
+        int spawned = 0;
+        for (int attempt = 0; attempt < count * 10 && spawned < count; attempt++)
+        {
+            GeneratedRoom room = candidates[Random.Range(0, candidates.Count)];
+            float range = tileSize * 0.3f;
+            Vector3 probe = new Vector3(
+                room.worldPos.x + Random.Range(-range, range),
+                room.walkableFloorY + 0.5f,
+                room.worldPos.z + Random.Range(-range, range));
+
+            if (!NavMesh.SamplePosition(probe, out NavMeshHit hit, 3f, NavMesh.AllAreas)) continue;
+
+            GameObject enemyObj = Instantiate(spawnList[spawned], hit.position, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), transform);
+            EnemyBrain brain = enemyObj.GetComponent<EnemyBrain>();
+            if (brain == null) brain = enemyObj.AddComponent<EnemyBrain>();
+            brain.Init(currentStageLevel * 100 + (++spawned));
+        }
+
+        Debug.Log($"[ENEMY] 敵を {spawned}/{count} 体配置しました。");
     }
 
     private void SpawnPlayerAtPosition(Vector3 targetPosition)

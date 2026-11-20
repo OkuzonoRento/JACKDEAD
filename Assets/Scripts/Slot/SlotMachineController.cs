@@ -79,7 +79,35 @@ public class SlotMachineController : MonoBehaviour
     private Vector3 bodyInitialLocalScale;
     private Quaternion leverInitialLocalRot;
 
-    public bool IsPlaying => isPlaying;
+    /// <summary>他プレイヤーがこの台を回している間 true（マルチプレイ同期）</summary>
+    private bool remoteBusy = false;
+    private Coroutine remoteRollCoroutine;
+
+    /// <summary>マルチプレイ同期用のID（0 = 同期しない）。MapGenerator が生成順の連番を振る</summary>
+    public int NetId { get; set; }
+
+    public bool IsPlaying => isPlaying || remoteBusy;
+
+    public void SetRemoteBusy(bool busy)
+    {
+        remoteBusy = busy;
+    }
+
+    /// <summary>他プレイヤーが回した1回分の演出だけを再生する（賭け金・配当は本人側のみ）</summary>
+    public void PlayRemoteRoll(int[] results)
+    {
+        if (reels == null || currentResults == null || results == null) return;
+        if (isPlaying || symbols.Count == 0) return;
+
+        for (int i = 0; i < reels.Length && i < results.Length; i++)
+        {
+            currentResults[i] = Mathf.Clamp(results[i], 0, symbols.Count - 1);
+        }
+
+        if (remoteRollCoroutine != null) StopCoroutine(remoteRollCoroutine);
+        remoteBusy = true;
+        remoteRollCoroutine = StartCoroutine(RollVisual(GetTargetStopOffset()));
+    }
 
     private void Awake()
     {
@@ -95,11 +123,9 @@ public class SlotMachineController : MonoBehaviour
                 : FindAnyObjectByType<PlayerMovement>();
         }
 
-        if (machineBodyTransform != null)
-        {
-            bodyInitialLocalPos = machineBodyTransform.localPosition;
-            bodyInitialLocalScale = machineBodyTransform.localScale;
-        }
+        // 本体の基準位置・スケールはここでは記録しない。
+        // 本体はプレハブのルートで、MapGenerator が生成直後（Awake の後）に位置・向きを床へ合わせ直すため、
+        // Awake で記録すると調整前の位置に戻ってしまい、最初の1回の揺れの後だけ台がずれる。→ Start で記録する
 
         if (leverTransform != null)
         {
@@ -111,6 +137,13 @@ public class SlotMachineController : MonoBehaviour
 
     private void Start()
     {
+        // MapGenerator の位置合わせが終わったあとの姿勢を、揺れ・拡大演出の基準にする
+        if (machineBodyTransform != null)
+        {
+            bodyInitialLocalPos = machineBodyTransform.localPosition;
+            bodyInitialLocalScale = machineBodyTransform.localScale;
+        }
+
         if (reels == null || reels.Length == 0 || symbols.Count == 0) return;
 
         runtimeTextures = new Texture2D[reels.Length];
@@ -129,7 +162,8 @@ public class SlotMachineController : MonoBehaviour
     {
         RecalculateWinRates();
 
-        if (!Application.isPlaying || reels == null || isPlaying) return;
+        // プレハブアセット自体（シーン外）ではマテリアルに触れない（Renderer.material はプレハブでエラーになる）
+        if (!Application.isPlaying || !gameObject.scene.IsValid() || reels == null || isPlaying) return;
 
         float stopOffset = GetTargetStopOffset();
         for (int i = 0; i < reels.Length; i++)
@@ -215,6 +249,53 @@ public class SlotMachineController : MonoBehaviour
 
         float playerY = playerMovement != null ? playerMovement.transform.position.y : transform.position.y;
         standPos = new Vector3(reelCenter.x, playerY, reelCenter.z) + frontNormal * standDistance;
+    }
+
+    private TMPro.TextMeshPro rarityLabel;
+
+    public float RarityMultiplier => slotRarityMultiplier;
+
+    /// <summary>この台の倍率を設定し、台の上に「×倍率」を表示する（高倍率ほど目立つ色）</summary>
+    public void SetRarityMultiplier(float multiplier)
+    {
+        slotRarityMultiplier = Mathf.Max(0.1f, multiplier);
+
+        if (rarityLabel == null)
+        {
+            GameObject labelObj = new GameObject("RarityLabel");
+            labelObj.transform.SetParent(transform, false);
+            Renderer[] renderers = GetComponentsInChildren<Renderer>();
+            Bounds bounds = new Bounds(transform.position, Vector3.zero);
+            bool first = true;
+            foreach (Renderer r in renderers)
+            {
+                if (r is TMPro.TMP_SubMeshUI || r.gameObject == labelObj) continue;
+                if (first) { bounds = r.bounds; first = false; } else bounds.Encapsulate(r.bounds);
+            }
+            labelObj.transform.position = new Vector3(bounds.center.x, bounds.max.y + 0.3f, bounds.center.z);
+
+            rarityLabel = labelObj.AddComponent<TMPro.TextMeshPro>();
+            rarityLabel.alignment = TMPro.TextAlignmentOptions.Center;
+            rarityLabel.fontSize = 4f;
+            rarityLabel.fontStyle = TMPro.FontStyles.Bold;
+        }
+
+        rarityLabel.text = $"×{slotRarityMultiplier:0.#}";
+        rarityLabel.color = slotRarityMultiplier >= 10f ? new Color(1f, 0.3f, 0.9f)
+            : slotRarityMultiplier >= 5f ? new Color(1f, 0.55f, 0.1f)
+            : slotRarityMultiplier >= 2f ? new Color(1f, 0.9f, 0.2f)
+            : slotRarityMultiplier >= 1f ? Color.white
+            : new Color(0.65f, 0.65f, 0.65f);
+    }
+
+    private void LateUpdate()
+    {
+        // 倍率表示は常にカメラの方を向ける
+        if (rarityLabel != null && Camera.main != null)
+        {
+            rarityLabel.transform.rotation = Quaternion.LookRotation(
+                rarityLabel.transform.position - Camera.main.transform.position);
+        }
     }
 
     private void RecalculateWinRates()
@@ -338,13 +419,61 @@ public class SlotMachineController : MonoBehaviour
 
     public void OnPressBetButton(int betAmount)
     {
-        if (isPlaying || symbols.Count == 0 || !HasEnoughMoney(betAmount)) return;
+        if (IsPlaying || symbols.Count == 0 || !HasEnoughMoney(betAmount)) return;
         StartCoroutine(PlaySlotSequence(betAmount));
+    }
+
+    /// <summary>
+    /// currentResults の出目でリール帯を作り、レバー・回転・ガタガタ・左から順の停止までを演出する
+    /// </summary>
+    private IEnumerator RollVisual(float targetOffset)
+    {
+        if (leverTransform != null)
+        {
+            StartCoroutine(AnimateLeverPull());
+        }
+
+        for (int i = 0; i < reels.Length; i++)
+        {
+            GenerateReelStrip(i, currentResults[i]);
+        }
+
+        // リール回転開始 ＆ ガチャ風の本体ガタガタ振動スタート
+        foreach (var reel in reels)
+        {
+            reel.StartRolling(3.5f);
+        }
+
+        Coroutine shakeCoroutine = null;
+        if (machineBodyTransform != null)
+        {
+            shakeCoroutine = StartCoroutine(ShakeMachineWhileRolling());
+        }
+
+        yield return new WaitForSeconds(1.0f);
+
+        // 左から順に停止
+        for (int i = 0; i < reels.Length; i++)
+        {
+            yield return StartCoroutine(reels[i].StopAt(targetOffset, 0.6f));
+            if (machineBodyTransform != null)
+            {
+                StartCoroutine(PunchMachineScale(0.03f, 0.12f));
+            }
+            if (i < reels.Length - 1) yield return new WaitForSeconds(0.2f);
+        }
+
+        if (shakeCoroutine != null)
+        {
+            StopCoroutine(shakeCoroutine);
+            machineBodyTransform.localPosition = bodyInitialLocalPos;
+        }
     }
 
     private IEnumerator PlaySlotSequence(int betAmount)
     {
         isPlaying = true;
+        GameplaySync.NotifySlotBegin(this);
 
         if (playerController != null)
         {
@@ -366,50 +495,13 @@ public class SlotMachineController : MonoBehaviour
         {
             needsRoll = false;
 
-            if (leverTransform != null)
-            {
-                StartCoroutine(AnimateLeverPull());
-            }
-
-            // 1. 内部抽選を実行し、各リールの停止目とリール帯テクスチャを生成
+            // 1. 内部抽選を実行し、各リールの停止目を決める（他プレイヤーにも同じ出目で演出を見せる）
             int winningIndex = RollOutcomeIndex();
             AssignReelResults(winningIndex);
+            GameplaySync.NotifySlotRoll(this, currentResults);
 
-            for (int i = 0; i < reels.Length; i++)
-            {
-                GenerateReelStrip(i, currentResults[i]);
-            }
-
-            // 2. リール回転開始 ＆ ガチャ風の本体ガタガタ振動スタート
-            foreach (var reel in reels)
-            {
-                reel.StartRolling(3.5f);
-            }
-
-            Coroutine shakeCoroutine = null;
-            if (machineBodyTransform != null)
-            {
-                shakeCoroutine = StartCoroutine(ShakeMachineWhileRolling());
-            }
-
-            yield return new WaitForSeconds(1.0f);
-
-            // 3. 左から順に停止
-            for (int i = 0; i < reels.Length; i++)
-            {
-                yield return StartCoroutine(reels[i].StopAt(targetOffset, 0.6f));
-                if (machineBodyTransform != null)
-                {
-                    StartCoroutine(PunchMachineScale(0.03f, 0.12f));
-                }
-                if (i < reels.Length - 1) yield return new WaitForSeconds(0.2f);
-            }
-
-            if (shakeCoroutine != null)
-            {
-                StopCoroutine(shakeCoroutine);
-                machineBodyTransform.localPosition = bodyInitialLocalPos;
-            }
+            // 2. リール帯の生成 → 回転 → 左から順に停止
+            yield return StartCoroutine(RollVisual(targetOffset));
 
             // 4. 結果判定と配当・効果の実行
             if (winningIndex >= 0)
@@ -453,6 +545,7 @@ public class SlotMachineController : MonoBehaviour
         }
 
         isPlaying = false;
+        GameplaySync.NotifySlotEnd(this);
     }
 
     private IEnumerator ShakeMachineWhileRolling()

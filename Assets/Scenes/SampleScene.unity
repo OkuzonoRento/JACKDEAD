@@ -3945,9 +3945,9 @@ MonoBehaviour:
   minRoomCount: 5
   maxRoomCount: 40
   baseQuotaLevel1: 500
-  baseQuotaFinalLevel: 280000
+  baseQuotaFinalLevel: 284500
   quotaRandomRange: 0.08
-  quotaMultiplier: 2.5
+  quotaMultiplier: 10
   postMaxLevelGrowthRate: 1.1
   priceMultiplierFinalLevel: 150
   slotStartLevel: 5
@@ -3957,6 +3957,28 @@ MonoBehaviour:
     spawnWeight: 1
   minSlotCount: 2
   maxSlotCount: 4
+  slotRarityTiers:
+  - multiplier: 0.8
+    minLevel: 1
+    weight: 30
+  - multiplier: 1
+    minLevel: 1
+    weight: 30
+  - multiplier: 1.5
+    minLevel: 1
+    weight: 20
+  - multiplier: 2
+    minLevel: 7
+    weight: 12
+  - multiplier: 3
+    minLevel: 10
+    weight: 6
+  - multiplier: 5
+    minLevel: 14
+    weight: 3
+  - multiplier: 10
+    minLevel: 18
+    weight: 1
   slotWallClearance: 2.2
   slotRotationYawOffset: 0
   scrapDataList:
@@ -4428,6 +4450,8 @@ MonoBehaviour:
   sanityDrainPerSecond: 0.15
   sanityRecoveryOnClear: 20
   fallDeathHeight: -30
+  reviveHealthLossRate: 0.7
+  reviveSanityLossRate: 0.6
   Inventory:
   - {fileID: 0}
   - {fileID: 0}
@@ -4500,9 +4524,9 @@ MonoBehaviour:
   gravity: -19.62
   maxStamina: 100
   staminaDrainRate: 20
-  normalRecoveryRate: 4
-  idleRecoveryRate: 9
-  crouchRecoveryRate: 20
+  normalRecoveryRate: 10
+  idleRecoveryRate: 20
+  crouchRecoveryRate: 35
   staminaThresholdToResume: 30
   cameraTransform: {fileID: 330585546}
   mouseSensitivity: 0.1

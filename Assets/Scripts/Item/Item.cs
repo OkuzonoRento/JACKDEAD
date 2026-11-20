@@ -6,6 +6,9 @@ public class Item : MonoBehaviour, IInteractable
 
     public ItemDataAsset ItemData => itemData;
 
+    /// <summary>マルチプレイ同期用のID（0 = 同期しない）。マップ生成時のスクラップは生成順の連番、落とした物は GameplaySync.AllocateDropId()</summary>
+    public int NetId { get; set; }
+
     private MapGenerator mapGenerator;
 
     /// <summary>
@@ -30,6 +33,7 @@ public class Item : MonoBehaviour, IInteractable
     public string GetInteractPrompt()
     {
         if (itemData == null) return "Item";
+        if (itemData.IsBomb) return $"{itemData.ItemName}（時限爆弾）";
         return $"{itemData.ItemName}  $  {CurrentValue:N0}";
     }
 
@@ -53,8 +57,15 @@ public class Item : MonoBehaviour, IInteractable
         PlayerController pc = FindAnyObjectByType<PlayerController>();
         if (pc != null && itemData != null)
         {
-            if (pc.TryAddItem(itemData))
+            // マルチプレイ：すでに他の人が拾っていたら拾えない。参加者はホストの許可が出てから受け取る（同時に拾っても複製されない）
+            if (GameplaySync.IsClaimed(this)) return;
+            if (GameplaySync.RequestPickIfClient(this)) return;
+
+            // 時限爆弾なら、導火線の残りを持ち物へ引き継ぐ
+            BombBox bomb = GetComponent<BombBox>();
+            if (pc.TryAddItem(itemData, bomb != null ? bomb.Remaining : -1f))
             {
+                GameplaySync.NotifyItemPicked(this);
                 Destroy(gameObject);
             }
         }
