@@ -18,11 +18,11 @@ public class Title3DSystem : MonoBehaviour
     public Image fadeOverlay;
 
 
-    [Header("�Z�b�e�B���O�J�{�^���i�󗓂ł����������j")]
+    [Header("設定画面のボタン（空欄でも自動で見つけます）")]
     public Button settingOpenButton;
     public Button settingBackButton;
 
-    [Header("�Z�[�u�X���b�gUI�i3�g���j")]
+    [Header("セーブスロットUI（3枠分）")]
     [Header("セーブスロットUI（3枠分）")]
     public TextMeshProUGUI modeHeaderText;
     public TextMeshProUGUI[] slotInfoTexts;
@@ -53,14 +53,14 @@ public class Title3DSystem : MonoBehaviour
         if (cameraTransform != null)
             initialCamPos = cameraTransform.localPosition;
 
-        // 1. FadeOverlay����ʂ̃N���b�N���z��Ȃ��悤�ɋ�������
+        // 1. FadeOverlay が画面のクリックを塞がないようにする
         if (fadeOverlay != null)
         {
             fadeOverlay.raycastTarget = false;
             StartCoroutine(FadeScreen(1f, 0f, 1.0f));
         }
 
-        // 2. �p�l���̎��������i�C���X�y�N�^�[���󗓂ł����O���猩����j
+        // 2. パネルを自動で探す（インスペクターが空欄でも名前から見つける）
         if (mainMenuPanel == null) mainMenuPanel = GameObject.Find("MainMenuPanel");
         if (settingsPanel == null) settingsPanel = GameObject.Find("SettingsPanel");
 
@@ -74,7 +74,7 @@ public class Title3DSystem : MonoBehaviour
 
         if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
 
-        // 3. �{�^���������Ō����ăN���b�N�C�x���g�������ڑ�
+        // 3. ボタンを自動で見つけて、クリックイベントを接続する
         AutoBindSettingsButtons();
 
         if (settingsPanel != null) settingsPanel.SetActive(false);
@@ -82,7 +82,7 @@ public class Title3DSystem : MonoBehaviour
 
     private void AutoBindSettingsButtons()
     {
-        // SETTING�{�^���������������Đڑ�
+        // SETTING ボタンを自動で探して接続
         if (settingOpenButton == null && mainMenuPanel != null)
         {
             foreach (Button btn in mainMenuPanel.GetComponentsInChildren<Button>(true))
@@ -100,7 +100,7 @@ public class Title3DSystem : MonoBehaviour
             settingOpenButton.onClick.AddListener(OnClickOpenSettings);
         }
 
-        // BACK�{�^���������������Đڑ�
+        // BACK ボタンを自動で探して接続
         if (settingBackButton == null && settingsPanel != null)
         {
             foreach (Button btn in settingsPanel.GetComponentsInChildren<Button>(true))
@@ -121,7 +121,7 @@ public class Title3DSystem : MonoBehaviour
 
     void Update()
     {
-        // �ݒ��ʂ��J���Ă���Ƃ���Esc�L�[�ŕ���
+        // 設定画面を開いているときは Esc キーで閉じる
         if (settingsPanel != null && settingsPanel.activeSelf)
         {
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -234,25 +234,25 @@ public class Title3DSystem : MonoBehaviour
         mainMenuPanel.SetActive(true);
     }
 
-    // �ݒ�{�^�����������Ƃ��i�����j���[�𔖈Â����b�N���J���j
+    // 設定ボタンを押したとき（メインメニューを薄暗くして設定を開く）
     public void OnClickOpenSettings()
     {
         PlayClickSound();
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(true);
-            settingsPanel.transform.SetAsLastSibling(); // �őO�ʂɕ\��
+            settingsPanel.transform.SetAsLastSibling(); // 最前面に表示
         }
 
         if (mainMenuCanvasGroup != null)
         {
             mainMenuCanvasGroup.interactable = false;
             mainMenuCanvasGroup.blocksRaycasts = false;
-            mainMenuCanvasGroup.alpha = 0.45f; // �����������Â����ĉE�̐ݒ�p�l�����ۗ�������
+            mainMenuCanvasGroup.alpha = 0.45f; // メインメニューを少し暗くして、右の設定パネルを目立たせる
         }
     }
 
-    // �ݒ��ʂ���BACK���������Ƃ�
+    // 設定画面で BACK を押したとき
     public void OnClickBackFromSettings()
     {
         PlayClickSound();

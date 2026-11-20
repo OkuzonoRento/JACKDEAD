@@ -20,9 +20,9 @@ public static class EnemySetup
     private const string BoxPrefabPath = "Assets/Prefabs/Box.prefab";
     private const string EnemyPrefabPath = "Assets/Prefabs/Enemy/Enemy_01.prefab";
     private const string ResourcesDir = "Assets/Resources";
-    private const string BoxItemPath = "Assets/Resources/BoxItemData.asset";
+    private const string BoxItemPath = "Assets/Data/BoxItemData.asset";
     private const string ConfigPath = "Assets/Resources/EnemySpawnConfig.asset";
-    private const string IconPath = "Assets/Images/BoxIcon.png";
+    private const string IconPath = "Assets/Images/Sprites/BoxIcon.png";
     private const string AnimDir = "Assets/Animations/Enemy_01/Animation/";
 
     static EnemySetup()

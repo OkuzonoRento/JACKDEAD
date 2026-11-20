@@ -73,7 +73,7 @@ public class PauseMenu : MonoBehaviour
         if (open)
         {
             volume = PlayerPrefs.GetFloat(SettingsManager.KEY_VOLUME, 1.0f);
-            sensitivity = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, 2.0f);
+            sensitivity = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             if (!IsMultiplayerActive()) Time.timeScale = 0f;
@@ -145,7 +145,7 @@ public class PauseMenu : MonoBehaviour
                 }
                 GUILayout.Space(14);
                 GUILayout.Label($"マウス感度  {sensitivity:0.0}");
-                float newSens = GUILayout.HorizontalSlider(sensitivity, 0.5f, 5f);
+                float newSens = GUILayout.HorizontalSlider(sensitivity, 0.1f, 3f);
                 if (!Mathf.Approximately(newSens, sensitivity))
                 {
                     sensitivity = newSens;

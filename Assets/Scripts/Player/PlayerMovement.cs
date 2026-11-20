@@ -206,8 +206,8 @@ public class PlayerMovement : MonoBehaviour
         if (lookAction != null && cameraTransform != null)
         {
             lookInput = lookAction.ReadValue<Vector2>();
-            // 設定画面の感度（既定 2.0）を倍率として反映する
-            float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, 2.0f) / 2.0f;
+            // 設定画面の感度（既定 1.0）を倍率として反映する
+            float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity) / SettingsManager.DefaultSensitivity;
             float mouseX = lookInput.x * mouseSensitivity * sensScale;
             float mouseY = lookInput.y * mouseSensitivity * sensScale;
 

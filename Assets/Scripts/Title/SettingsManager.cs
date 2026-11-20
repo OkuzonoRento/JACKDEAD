@@ -4,26 +4,31 @@ using TMPro;
 
 public class SettingsManager : MonoBehaviour
 {
-    [Header("�X���C�_�[UI�i4���ځj")]
+    [Header("スライダーUI（4項目）")]
     public Slider bgmSlider;
     public Slider seSlider;
-
-    [Header("スライダーUI")]
-    public Slider volumeSlider;
     public Slider sensitivitySlider;
     public Slider brightnessSlider;
 
-    [Header("�E�[�̐��l�\���e�L�X�g")]
+    [Header("右端の数値表示テキスト")]
     public TextMeshProUGUI bgmValueText;
     public TextMeshProUGUI seValueText;
     public TextMeshProUGUI sensitivityValueText;
     public TextMeshProUGUI brightnessValueText;
 
-    // ���̃X�N���v�g�iBGM�Đ���SE�Đ��j���猻�݂̉��ʂ��擾���邽�߂̃v���p�e�B
+    // PlayerPrefs のキー（ゲーム中の Esc メニュー PauseMenu や視点操作 PlayerMovement からも使う）
+    public const string KEY_VOLUME = "MasterVolume";      // ゲーム中の全体音量（Esc メニュー用）
+    public const string KEY_SENSITIVITY = "MouseSensitivity";
+    public const string KEY_BRIGHTNESS = "Brightness";
+
+    /// <summary>マウス感度の標準値。この値のとき、視点操作の速さは PlayerMovement の設定どおりになる</summary>
+    public const float DefaultSensitivity = 1f;
+
+    // 他のスクリプト（BGM再生・SE再生）から現在の音量を取得するためのプロパティ
     public static float BgmVolume => PlayerPrefs.GetFloat("BGMVolume", 1f);
     public static float SeVolume => PlayerPrefs.GetFloat("SEVolume", 1f);
-    public static float MouseSensitivity => PlayerPrefs.GetFloat("MouseSensitivity", 1f);
-    public static float Brightness => PlayerPrefs.GetFloat("Brightness", 0.5f);
+    public static float MouseSensitivity => PlayerPrefs.GetFloat(KEY_SENSITIVITY, DefaultSensitivity);
+    public static float Brightness => PlayerPrefs.GetFloat(KEY_BRIGHTNESS, 0.5f);
 
     void Start()
     {
@@ -77,14 +82,14 @@ public class SettingsManager : MonoBehaviour
 
     public void SetSensitivity(float value)
     {
-        PlayerPrefs.SetFloat("MouseSensitivity", value);
+        PlayerPrefs.SetFloat(KEY_SENSITIVITY, value);
         if (sensitivityValueText != null)
             sensitivityValueText.text = $"{value:F1}";
     }
 
     public void SetBrightness(float value)
     {
-        PlayerPrefs.SetFloat("Brightness", value);
+        PlayerPrefs.SetFloat(KEY_BRIGHTNESS, value);
         if (brightnessValueText != null)
             brightnessValueText.text = $"{Mathf.RoundToInt(value * 100)}%";
     }
