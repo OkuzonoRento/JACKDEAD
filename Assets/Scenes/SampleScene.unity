@@ -3957,6 +3957,28 @@ MonoBehaviour:
     spawnWeight: 1
   minSlotCount: 2
   maxSlotCount: 4
+  slotRarityTiers:
+  - multiplier: 0.8
+    minLevel: 1
+    weight: 30
+  - multiplier: 1
+    minLevel: 1
+    weight: 30
+  - multiplier: 1.5
+    minLevel: 1
+    weight: 20
+  - multiplier: 2
+    minLevel: 7
+    weight: 12
+  - multiplier: 3
+    minLevel: 10
+    weight: 6
+  - multiplier: 5
+    minLevel: 14
+    weight: 3
+  - multiplier: 10
+    minLevel: 18
+    weight: 1
   slotWallClearance: 2.2
   slotRotationYawOffset: 0
   scrapDataList:
@@ -4428,6 +4450,8 @@ MonoBehaviour:
   sanityDrainPerSecond: 0.15
   sanityRecoveryOnClear: 20
   fallDeathHeight: -30
+  reviveHealthLossRate: 0.7
+  reviveSanityLossRate: 0.6
   Inventory:
   - {fileID: 0}
   - {fileID: 0}

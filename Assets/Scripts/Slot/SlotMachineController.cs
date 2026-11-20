@@ -251,6 +251,53 @@ public class SlotMachineController : MonoBehaviour
         standPos = new Vector3(reelCenter.x, playerY, reelCenter.z) + frontNormal * standDistance;
     }
 
+    private TMPro.TextMeshPro rarityLabel;
+
+    public float RarityMultiplier => slotRarityMultiplier;
+
+    /// <summary>この台の倍率を設定し、台の上に「×倍率」を表示する（高倍率ほど目立つ色）</summary>
+    public void SetRarityMultiplier(float multiplier)
+    {
+        slotRarityMultiplier = Mathf.Max(0.1f, multiplier);
+
+        if (rarityLabel == null)
+        {
+            GameObject labelObj = new GameObject("RarityLabel");
+            labelObj.transform.SetParent(transform, false);
+            Renderer[] renderers = GetComponentsInChildren<Renderer>();
+            Bounds bounds = new Bounds(transform.position, Vector3.zero);
+            bool first = true;
+            foreach (Renderer r in renderers)
+            {
+                if (r is TMPro.TMP_SubMeshUI || r.gameObject == labelObj) continue;
+                if (first) { bounds = r.bounds; first = false; } else bounds.Encapsulate(r.bounds);
+            }
+            labelObj.transform.position = new Vector3(bounds.center.x, bounds.max.y + 0.3f, bounds.center.z);
+
+            rarityLabel = labelObj.AddComponent<TMPro.TextMeshPro>();
+            rarityLabel.alignment = TMPro.TextAlignmentOptions.Center;
+            rarityLabel.fontSize = 4f;
+            rarityLabel.fontStyle = TMPro.FontStyles.Bold;
+        }
+
+        rarityLabel.text = $"×{slotRarityMultiplier:0.#}";
+        rarityLabel.color = slotRarityMultiplier >= 10f ? new Color(1f, 0.3f, 0.9f)
+            : slotRarityMultiplier >= 5f ? new Color(1f, 0.55f, 0.1f)
+            : slotRarityMultiplier >= 2f ? new Color(1f, 0.9f, 0.2f)
+            : slotRarityMultiplier >= 1f ? Color.white
+            : new Color(0.65f, 0.65f, 0.65f);
+    }
+
+    private void LateUpdate()
+    {
+        // 倍率表示は常にカメラの方を向ける
+        if (rarityLabel != null && Camera.main != null)
+        {
+            rarityLabel.transform.rotation = Quaternion.LookRotation(
+                rarityLabel.transform.position - Camera.main.transform.position);
+        }
+    }
+
     private void RecalculateWinRates()
     {
         if (symbols == null || symbols.Count == 0) return;

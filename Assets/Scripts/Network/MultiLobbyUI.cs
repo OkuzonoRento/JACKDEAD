@@ -92,7 +92,7 @@ public class MultiLobbyUI : MonoBehaviour
                     {
                         GameSaveData data = SaveSystem.PeekSaveData(i);
                         string label = data != null && data.hasSaveData
-                            ? $"SLOT {i}  -  DAY {data.currentDay}  |  DEBT: ${data.remainingDebt:N0}"
+                            ? $"SLOT {i}  -  DAY {data.currentDay}  |  MONEY: ${data.currentMoney:N0}"
                             : $"SLOT {i}  -  [ NEW GAME ]";
                         if (GUILayout.Button(label, GUILayout.Height(36))) CreateRoom(i);
                     }

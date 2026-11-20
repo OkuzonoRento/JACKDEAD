@@ -29,7 +29,9 @@ public class GameplaySync : MonoBehaviour
         MoneyDelta = 9,  // id = 共有所持金の増減額
         ItemSettle = 10, // id = NetId / v1 = 静止した位置 / v2 = 静止した回転（オイラー角）
         PlayerDead = 11,  // id = 倒れたプレイヤーの席番号（clientId）
-        PlayerAlive = 12  // id = 復活したプレイヤーの席番号
+        PlayerAlive = 12, // id = 復活したプレイヤーの席番号
+        EnemyPose = 13,   // id = 敵のNetId / v1 = 位置 / v2 = (向きY, 状態, 0)。ホスト → 参加者
+        Explosion = 14    // v1 = 爆発位置 / v2 = (半径, 最大ダメージ, 0)。所持中の爆弾が爆発したとき
     }
 
     private struct NetEvent
@@ -45,7 +47,7 @@ public class GameplaySync : MonoBehaviour
 
     private NetworkManager networkManager;
     private int dropCounter;
-    private Dictionary<string, ItemDataAsset> itemDataByName;
+    private static Dictionary<string, ItemDataAsset> itemDataByName;
 
     // ホストが管理する「すでに誰かが拾ったアイテムID」。同時に拾っても先着1人だけが取れるようにする
     private readonly HashSet<int> claimedIds = new HashSet<int>();
@@ -144,13 +146,15 @@ public class GameplaySync : MonoBehaviour
         Instance.Send(new NetEvent { type = EventType.ItemPick, id = item.NetId });
     }
 
-    public static void NotifyItemDropped(Item item, ItemDataAsset data, Vector3 position, Vector3 velocity)
+    /// <param name="bombFuse">時限爆弾なら導火線の残り（秒）。負なら指定なし</param>
+    public static void NotifyItemDropped(Item item, ItemDataAsset data, Vector3 position, Vector3 velocity, float bombFuse = -1f)
     {
         if (Instance == null || item == null || item.NetId == 0 || data == null) return;
         Instance.claimedIds.Remove(item.NetId);
+        string text = bombFuse >= 0f ? $"{data.name}|{bombFuse:F2}" : data.name;
         Instance.Send(new NetEvent
         {
-            type = EventType.ItemDrop, id = item.NetId, text = data.name, v1 = position, v2 = velocity
+            type = EventType.ItemDrop, id = item.NetId, text = text, v1 = position, v2 = velocity
         });
 
         // 着地点が全員でずれないよう、投げた本人のPCで静止した位置を後から全員へ配る
@@ -161,6 +165,23 @@ public class GameplaySync : MonoBehaviour
     {
         if (Instance == null || item == null || item.NetId == 0) return;
         Instance.Send(new NetEvent { type = EventType.ItemSettle, id = item.NetId, v1 = position, v2 = eulerAngles });
+    }
+
+    /// <summary>ホスト：敵の位置・向き・状態を全員へ配る（参加者側の敵は見た目だけ）</summary>
+    public static void NotifyEnemyPose(int enemyId, Vector3 position, float yaw, int state)
+    {
+        if (Instance == null) return;
+        Instance.Send(new NetEvent
+        {
+            type = EventType.EnemyPose, id = enemyId, v1 = position, v2 = new Vector3(yaw, state, 0f)
+        });
+    }
+
+    /// <summary>持っていた爆弾が爆発したとき、周りの人にも爆発を伝える</summary>
+    public static void NotifyExplosion(Vector3 position, float radius, float damage)
+    {
+        if (Instance == null) return;
+        Instance.Send(new NetEvent { type = EventType.Explosion, v1 = position, v2 = new Vector3(radius, damage, 0f) });
     }
 
     /// <summary>所持金は全員共通。増減分を全員へ配る</summary>
@@ -292,6 +313,12 @@ public class GameplaySync : MonoBehaviour
             case EventType.PlayerAlive:
                 deadClients.Remove((ulong)e.id);
                 break;
+            case EventType.EnemyPose:
+                EnemyBrain.ApplyRemotePose(e.id, e.v1, e.v2.x, (int)e.v2.y);
+                break;
+            case EventType.Explosion:
+                BombBox.ExplodeAt(e.v1, e.v2.x, e.v2.y);
+                break;
             case EventType.PickGrant:
                 CompletePick(e.id);
                 break;
@@ -347,7 +374,9 @@ public class GameplaySync : MonoBehaviour
         if (item == null) return;
 
         PlayerController pc = FindAnyObjectByType<PlayerController>();
-        if (pc != null && item.ItemData != null && pc.TryAddItem(item.ItemData))
+        BombBox bomb = item.GetComponent<BombBox>();
+        float fuse = bomb != null ? bomb.Remaining : -1f;
+        if (pc != null && item.ItemData != null && pc.TryAddItem(item.ItemData, fuse))
         {
             Destroy(item.gameObject);
             return;
@@ -356,7 +385,7 @@ public class GameplaySync : MonoBehaviour
         // 許可を待つ間にインベントリが埋まった：その場に落とし直して、全員にもう一度見えるようにする
         if (item.ItemData != null)
         {
-            NotifyItemDropped(item, item.ItemData, item.transform.position, Vector3.zero);
+            NotifyItemDropped(item, item.ItemData, item.transform.position, Vector3.zero, fuse);
         }
     }
 
@@ -387,8 +416,10 @@ public class GameplaySync : MonoBehaviour
         return results;
     }
 
-    private ItemDataAsset ResolveItemData(string assetName)
+    /// <summary>アセット名から ItemDataAsset を引く（空文字は null）</summary>
+    public static ItemDataAsset ResolveItemData(string assetName)
     {
+        if (string.IsNullOrEmpty(assetName)) return null;
         if (itemDataByName == null)
         {
             itemDataByName = new Dictionary<string, ItemDataAsset>();
@@ -396,9 +427,14 @@ public class GameplaySync : MonoBehaviour
             {
                 itemDataByName[data.name] = data;
             }
+            // Resources フォルダのアイテム（Box など、シーンから参照されていないもの）も対象にする
+            foreach (ItemDataAsset data in Resources.LoadAll<ItemDataAsset>(""))
+            {
+                itemDataByName[data.name] = data;
+            }
         }
         itemDataByName.TryGetValue(assetName, out ItemDataAsset found);
-        return found;
+        return found != null ? found : null;
     }
 
     /// <summary>他プレイヤーが落とした／投げたアイテムを、こちらにも出す（PlayerController.DropSelectedInventoryItem と同じ作り）</summary>
@@ -406,7 +442,18 @@ public class GameplaySync : MonoBehaviour
     {
         if (FindItem(e.id) != null) return;
 
-        ItemDataAsset data = ResolveItemData(e.text);
+        // 時限爆弾は "アセット名|導火線の残り" で届く
+        string assetName = e.text;
+        float fuse = -1f;
+        int bar = assetName.IndexOf('|');
+        if (bar >= 0)
+        {
+            float.TryParse(assetName.Substring(bar + 1), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out fuse);
+            assetName = assetName.Substring(0, bar);
+        }
+
+        ItemDataAsset data = ResolveItemData(assetName);
         if (data == null || data.ItemPrefab == null)
         {
             Debug.LogWarning($"[ONLINE] 落とされたアイテム '{e.text}' が見つからないため表示できません。");
@@ -424,5 +471,8 @@ public class GameplaySync : MonoBehaviour
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb == null) rb = obj.AddComponent<Rigidbody>();
         rb.linearVelocity = e.v2;
+
+        BombBox bomb = obj.GetComponent<BombBox>();
+        if (bomb != null && fuse >= 0f) bomb.SetRemaining(fuse);
     }
 }
