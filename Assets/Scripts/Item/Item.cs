@@ -33,6 +33,7 @@ public class Item : MonoBehaviour, IInteractable
     public string GetInteractPrompt()
     {
         if (itemData == null) return "Item";
+        if (itemData.IsBomb) return $"{itemData.ItemName}（時限爆弾）";
         return $"{itemData.ItemName}  $  {CurrentValue:N0}";
     }
 
@@ -60,7 +61,9 @@ public class Item : MonoBehaviour, IInteractable
             if (GameplaySync.IsClaimed(this)) return;
             if (GameplaySync.RequestPickIfClient(this)) return;
 
-            if (pc.TryAddItem(itemData))
+            // 時限爆弾なら、導火線の残りを持ち物へ引き継ぐ
+            BombBox bomb = GetComponent<BombBox>();
+            if (pc.TryAddItem(itemData, bomb != null ? bomb.Remaining : -1f))
             {
                 GameplaySync.NotifyItemPicked(this);
                 Destroy(gameObject);

@@ -52,6 +52,64 @@ public class PlayerController : MonoBehaviour
     /// <summary>倒れて仲間を観戦中（マルチプレイのみ。次のステージで復活する）</summary>
     public bool IsSpectating => isSpectating;
 
+    /// <summary>倒れている（観戦中・ゲームオーバー中）。敵や爆発の対象にならない</summary>
+    public bool IsDown => isGameOver || isSpectating;
+
+    // インベントリに入れている時限爆弾（Box）の残り時間。スロットごとに管理する
+    private readonly float[] heldFuse = new float[3];
+    private readonly bool[] heldFuseActive = new bool[3];
+
+    /// <summary>ダメージを受ける（敵のBox・爆発など）。体力が0になれば CheckGameOver が処理する</summary>
+    public void TakeDamage(float amount, string reason = "")
+    {
+        if (amount <= 0f || IsDown || !statusInitialized) return;
+        _health = Mathf.Max(0f, _health - amount);
+        Debug.Log($"[ダメージ] {reason} {amount:0.#} → 体力 {_health:0}/{_maxHealth:0}");
+    }
+
+    private static BombBox GetBombSettings(ItemDataAsset data)
+    {
+        return data != null && data.ItemPrefab != null ? data.ItemPrefab.GetComponent<BombBox>() : null;
+    }
+
+    /// <summary>持っている Box の導火線を進め、尽きたらその場で爆発させる</summary>
+    private void TickHeldBombs()
+    {
+        if (isSpectating || isGameOver || Inventory == null) return;
+
+        for (int i = 0; i < Inventory.Length && i < heldFuse.Length; i++)
+        {
+            ItemDataAsset data = Inventory[i];
+            if (data == null || !data.IsBomb)
+            {
+                heldFuseActive[i] = false;
+                continue;
+            }
+
+            BombBox settings = GetBombSettings(data);
+            float fuseTime = settings != null ? settings.FuseTime : 8f;
+            if (!heldFuseActive[i])
+            {
+                heldFuseActive[i] = true;
+                heldFuse[i] = fuseTime;
+            }
+
+            heldFuse[i] -= Time.deltaTime;
+            if (heldFuse[i] > 0f) continue;
+
+            // 所持中に爆発：その場の全員が範囲内ならダメージを受ける
+            float radius = settings != null ? settings.ExplosionRadius : 5f;
+            float damage = settings != null ? settings.ExplosionDamage : 40f;
+            Inventory[i] = null;
+            heldFuseActive[i] = false;
+            SaveInventoryToData();
+
+            Vector3 center = transform.position + Vector3.up;
+            GameplaySync.NotifyExplosion(center, radius, damage);
+            BombBox.ExplodeAt(center, radius, damage);
+        }
+    }
+
     [Header("インベントリ (所持アイテム)")]
     public ItemDataAsset[] Inventory = new ItemDataAsset[3];
 
@@ -151,6 +209,7 @@ public class PlayerController : MonoBehaviour
             ConsumeSanity(Time.deltaTime * sanityDrainPerSecond);
         }
         HandleSlotSelectionInput();
+        TickHeldBombs();
         CheckGameOver();
     }
 
@@ -316,6 +375,7 @@ public class PlayerController : MonoBehaviour
         for (int i = 0; i < Inventory.Length; i++)
         {
             Inventory[i] = null;
+            if (i < heldFuseActive.Length) heldFuseActive[i] = false;
         }
         playerMoney = 0;
         selectedSlotIndex = 0;
@@ -417,12 +477,25 @@ public class PlayerController : MonoBehaviour
 
             rb.linearVelocity = Vector3.zero;
             rb.AddForce(velocity, ForceMode.VelocityChange);
-            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity);
+
+            // 時限爆弾なら、持っている間に進んだ導火線の残りを引き継ぐ（投げた本人には少しの間当たらない）
+            float fuseToCarry = -1f;
+            BombBox bomb = droppedObj.GetComponent<BombBox>();
+            if (bomb != null)
+            {
+                if (heldFuseActive[slotIndex])
+                {
+                    fuseToCarry = heldFuse[slotIndex];
+                    bomb.SetRemaining(fuseToCarry);
+                }
+            }
+            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity, fuseToCarry);
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }
 
         Inventory[slotIndex] = null;
+        heldFuseActive[slotIndex] = false;
         SaveInventoryToData();
     }
 
@@ -464,14 +537,14 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    public bool TryAddItem(ItemDataAsset itemData)
+    /// <param name="bombFuse">時限爆弾を拾うとき、その時点の導火線の残り（負なら満タンから）</param>
+    public bool TryAddItem(ItemDataAsset itemData, float bombFuse = -1f)
     {
         if (itemData == null || Inventory == null) return false;
 
         if (selectedSlotIndex >= 0 && selectedSlotIndex < Inventory.Length && Inventory[selectedSlotIndex] == null)
         {
-            Inventory[selectedSlotIndex] = itemData;
-            SaveInventoryToData();
+            StoreItem(selectedSlotIndex, itemData, bombFuse);
             return true;
         }
 
@@ -479,13 +552,20 @@ public class PlayerController : MonoBehaviour
         {
             if (Inventory[i] == null)
             {
-                Inventory[i] = itemData;
-                SaveInventoryToData();
+                StoreItem(i, itemData, bombFuse);
                 return true;
             }
         }
 
         return false;
+    }
+
+    private void StoreItem(int slot, ItemDataAsset itemData, float bombFuse)
+    {
+        Inventory[slot] = itemData;
+        heldFuseActive[slot] = itemData.IsBomb && bombFuse > 0f;
+        if (heldFuseActive[slot]) heldFuse[slot] = bombFuse;
+        SaveInventoryToData();
     }
 
     public float GetTotalInventoryWeight()
@@ -526,6 +606,7 @@ public class PlayerController : MonoBehaviour
         for (int i = 0; i < Inventory.Length; i++)
         {
             Inventory[i] = null;
+            if (i < heldFuseActive.Length) heldFuseActive[i] = false;
         }
         SaveInventoryToData();
     }

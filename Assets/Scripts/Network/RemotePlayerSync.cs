@@ -15,7 +15,7 @@ public class RemotePlayerSync : MonoBehaviour
     private const string MsgPoseRelay = "jd.poseRelay"; // ホスト → 参加者（誰の位置かを付けて中継）
     private const string MsgState = "jd.state";           // 参加者 → ホスト（体力・正気度・手持ち）
     private const string MsgStateRelay = "jd.stateRelay"; // ホスト → 参加者
-    private const float StateSendInterval = 0.5f;
+    private const float StateSendInterval = 0.2f;
 
     private const float SendInterval = 1f / 15f;
     private const float SmoothingSpeed = 15f;
@@ -44,8 +44,31 @@ public class RemotePlayerSync : MonoBehaviour
 
         // プレイヤーの状態（体力・正気度・手持ちアイテム）
         public string playerName = "Player";
-        public string heldItem = "";
+        public PlayerStatus status = PlayerStatus.Empty();
+
+        // 手に持っているアイテムの見た目
+        public Transform handAnchor;
+        public GameObject heldVisual;
+        public string heldVisualName = "";
     }
+
+    /// <summary>他プレイヤーの状態（観戦中のHUD表示と、手持ちアイテムの見た目に使う）</summary>
+    public struct PlayerStatus
+    {
+        public string[] inventory;   // ItemDataAsset のアセット名（空欄は何も持っていない）
+        public int selectedSlot;
+        public float health, sanity, dopamine, stamina;
+
+        public static PlayerStatus Empty()
+        {
+            return new PlayerStatus { inventory = new string[InventorySize], selectedSlot = 0 };
+        }
+
+        public string Held =>
+            inventory != null && selectedSlot >= 0 && selectedSlot < inventory.Length ? inventory[selectedSlot] : "";
+    }
+
+    private const int InventorySize = 3;
 
     private readonly Dictionary<ulong, RemoteAvatar> avatars = new Dictionary<ulong, RemoteAvatar>();
 
@@ -97,6 +120,18 @@ public class RemotePlayerSync : MonoBehaviour
         position = Vector3.zero;
         rotation = Quaternion.identity;
         fov = 60f;
+        return false;
+    }
+
+    /// <summary>観戦先の体力・正気度・スタミナ・インベントリ</summary>
+    public bool TryGetStatus(ulong clientId, out PlayerStatus status)
+    {
+        if (avatars.TryGetValue(clientId, out RemoteAvatar avatar))
+        {
+            status = avatar.status;
+            return true;
+        }
+        status = PlayerStatus.Empty();
         return false;
     }
 
@@ -159,38 +194,72 @@ public class RemotePlayerSync : MonoBehaviour
         if (stateTimer < StateSendInterval) return;
         stateTimer = 0f;
 
-        string held = "";
-        if (localPc.Inventory != null && localPc.SelectedSlotIndex >= 0 && localPc.SelectedSlotIndex < localPc.Inventory.Length)
+        PlayerStatus status = PlayerStatus.Empty();
+        if (localPc.Inventory != null)
         {
-            ItemDataAsset item = localPc.Inventory[localPc.SelectedSlotIndex];
-            if (item != null) held = item.ItemName;
+            for (int i = 0; i < InventorySize && i < localPc.Inventory.Length; i++)
+            {
+                if (localPc.Inventory[i] != null) status.inventory[i] = localPc.Inventory[i].name;
+            }
         }
+        status.selectedSlot = localPc.SelectedSlotIndex;
+        status.health = localPc.Health;
+        status.sanity = localPc.Sanity;
+        status.dopamine = localPc.Dopamine;
+        if (localMovement == null) localMovement = localPc.GetComponent<PlayerMovement>();
+        status.stamina = localMovement != null ? localMovement.CurrentStamina : 0f;
 
         if (networkManager.IsHost)
         {
-            BroadcastState(networkManager.LocalClientId, held, ulong.MaxValue);
+            BroadcastState(networkManager.LocalClientId, status, ulong.MaxValue);
         }
         else
         {
-            using (FastBufferWriter writer = new FastBufferWriter(96, Allocator.Temp))
+            using (FastBufferWriter writer = new FastBufferWriter(256, Allocator.Temp))
             {
-                writer.WriteValueSafe(held);
+                WriteStatus(writer, status);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgState, NetworkManager.ServerClientId, writer, NetworkDelivery.Reliable);
             }
         }
     }
 
-    private void BroadcastState(ulong sourceId, string held, ulong exceptClientId)
+    private static void WriteStatus(FastBufferWriter writer, PlayerStatus status)
+    {
+        for (int i = 0; i < InventorySize; i++) writer.WriteValueSafe(status.inventory[i] ?? "");
+        writer.WriteValueSafe(status.selectedSlot);
+        writer.WriteValueSafe(status.health);
+        writer.WriteValueSafe(status.sanity);
+        writer.WriteValueSafe(status.dopamine);
+        writer.WriteValueSafe(status.stamina);
+    }
+
+    private static PlayerStatus ReadStatus(FastBufferReader reader)
+    {
+        PlayerStatus status = PlayerStatus.Empty();
+        for (int i = 0; i < InventorySize; i++)
+        {
+            reader.ReadValueSafe(out string name);
+            status.inventory[i] = name;
+        }
+        reader.ReadValueSafe(out status.selectedSlot);
+        reader.ReadValueSafe(out status.health);
+        reader.ReadValueSafe(out status.sanity);
+        reader.ReadValueSafe(out status.dopamine);
+        reader.ReadValueSafe(out status.stamina);
+        return status;
+    }
+
+    private void BroadcastState(ulong sourceId, PlayerStatus status, ulong exceptClientId)
     {
         foreach (ulong clientId in networkManager.ConnectedClientsIds)
         {
             if (clientId == networkManager.LocalClientId || clientId == exceptClientId) continue;
 
-            using (FastBufferWriter writer = new FastBufferWriter(96, Allocator.Temp))
+            using (FastBufferWriter writer = new FastBufferWriter(256, Allocator.Temp))
             {
                 writer.WriteValueSafe(sourceId);
-                writer.WriteValueSafe(held);
+                WriteStatus(writer, status);
                 networkManager.CustomMessagingManager.SendNamedMessage(
                     MsgStateRelay, clientId, writer, NetworkDelivery.Reliable);
             }
@@ -200,41 +269,66 @@ public class RemotePlayerSync : MonoBehaviour
     // ホスト側：参加者の状態を反映し、他の参加者へ中継する
     private void OnStateFromClient(ulong senderId, FastBufferReader reader)
     {
-        reader.ReadValueSafe(out string held);
+        PlayerStatus status = ReadStatus(reader);
 
-        ApplyState(senderId, held);
-        BroadcastState(senderId, held, senderId);
+        ApplyState(senderId, status);
+        BroadcastState(senderId, status, senderId);
     }
 
     // 参加者側：ホストが中継した他プレイヤーの状態を反映する
     private void OnStateRelayed(ulong senderId, FastBufferReader reader)
     {
         reader.ReadValueSafe(out ulong sourceId);
-        reader.ReadValueSafe(out string held);
+        PlayerStatus status = ReadStatus(reader);
 
         if (sourceId == networkManager.LocalClientId) return;
-        ApplyState(sourceId, held);
+        ApplyState(sourceId, status);
     }
 
-    private void ApplyState(ulong clientId, string held)
+    private void ApplyState(ulong clientId, PlayerStatus status)
     {
-        // アバターは位置メッセージで作られる。まだ無ければ、次の状態送信（0.5秒後）で反映する
+        // アバターは位置メッセージで作られる。まだ無ければ、次の状態送信で反映する
         if (!avatars.TryGetValue(clientId, out RemoteAvatar avatar)) return;
 
-        avatar.heldItem = held;
-        RefreshLabel(avatar);
+        avatar.status = status;
+        RefreshHeldVisual(avatar);
     }
 
-    /// <summary>名前の下に、体力・正気度・手持ちアイテムを小さく表示する。倒れている人は赤く表示</summary>
+    /// <summary>頭上には名前だけを表示する（手持ちアイテムは見た目で表す）</summary>
     private static void RefreshLabel(RemoteAvatar avatar)
     {
         if (avatar.label == null) return;
 
-        string text = avatar.playerName;
-        if (!string.IsNullOrEmpty(avatar.heldItem)) text += $"\n<size=60%>[{avatar.heldItem}]</size>";
-
         avatar.label.color = Color.white;
-        if (avatar.label.text != text) avatar.label.text = text;
+        if (avatar.label.text != avatar.playerName) avatar.label.text = avatar.playerName;
+    }
+
+    /// <summary>選択中のアイテムのプレハブを、アバターの手元に飾る（見た目だけ。当たり判定や挙動は取り除く）</summary>
+    private static void RefreshHeldVisual(RemoteAvatar avatar)
+    {
+        string held = avatar.status.Held ?? "";
+        if (held == avatar.heldVisualName && (held == "" || avatar.heldVisual != null)) return;
+
+        if (avatar.heldVisual != null) Destroy(avatar.heldVisual);
+        avatar.heldVisual = null;
+        avatar.heldVisualName = held;
+        if (held == "" || avatar.handAnchor == null) return;
+
+        ItemDataAsset data = GameplaySync.ResolveItemData(held);
+        if (data == null || data.ItemPrefab == null) return;
+
+        GameObject visual = Instantiate(data.ItemPrefab, avatar.handAnchor);
+        visual.name = "HeldItemVisual";
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+
+        // 持ち物としての挙動（拾える・物理・スクリプト）はすべて無効にして、見た目だけ残す
+        foreach (MonoBehaviour behaviour in visual.GetComponentsInChildren<MonoBehaviour>(true)) Destroy(behaviour);
+        foreach (Collider col in visual.GetComponentsInChildren<Collider>(true)) Destroy(col);
+        foreach (Rigidbody rb in visual.GetComponentsInChildren<Rigidbody>(true)) Destroy(rb);
+        foreach (Transform t in visual.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = 0;
+
+        avatar.heldVisual = visual;
     }
 
     // ------------------------------------------------------------------
@@ -410,9 +504,9 @@ public class RemotePlayerSync : MonoBehaviour
         GameObject root = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         root.name = $"RemotePlayer_{clientId}";
 
-        // 他プレイヤーの見た目だけ。当たり判定があると操作の邪魔になるため取り除く
-        Collider col = root.GetComponent<Collider>();
-        if (col != null) Destroy(col);
+        // プレイヤー同士がぶつかるよう、カプセルの当たり判定は残す。
+        // Ignore Raycast レイヤーにして、視線（インタラクト用のレイキャスト）や床判定の邪魔にならないようにする
+        root.layer = 2;
 
         Renderer rend = root.GetComponent<Renderer>();
         if (rend != null)
@@ -429,6 +523,11 @@ public class RemotePlayerSync : MonoBehaviour
         nose.transform.localPosition = new Vector3(0f, 0.55f, 0.45f);
         nose.transform.localScale = new Vector3(0.25f, 0.15f, 0.25f);
 
+        // 手に持つアイテムを飾る位置（体の右前）
+        GameObject hand = new GameObject("HandAnchor");
+        hand.transform.SetParent(root.transform, false);
+        hand.transform.localPosition = new Vector3(0.45f, 0.15f, 0.5f);
+
         GameObject labelObj = new GameObject("NameLabel");
         labelObj.transform.SetParent(root.transform, false);
         labelObj.transform.localPosition = new Vector3(0f, LabelHeightOffset, 0f);
@@ -437,7 +536,7 @@ public class RemotePlayerSync : MonoBehaviour
         label.fontSize = LabelFontSize;
         label.color = Color.white;
 
-        return new RemoteAvatar { clientId = clientId, root = root, label = label };
+        return new RemoteAvatar { clientId = clientId, root = root, label = label, handAnchor = hand.transform };
     }
 
     private void SmoothAvatars()
@@ -477,6 +576,11 @@ public class RemotePlayerSync : MonoBehaviour
             if (avatar.label != null)
             {
                 avatar.label.transform.localScale = new Vector3(1f, 1f / avatar.heightScale, 1f);
+            }
+            // 手に持ったアイテムも、しゃがんで縮まないよう打ち消す
+            if (avatar.handAnchor != null)
+            {
+                avatar.handAnchor.localScale = new Vector3(1f, 1f / avatar.heightScale, 1f);
             }
 
             Vector3 targetPos = avatar.targetFeetPos + Vector3.up * (AvatarHeight * 0.5f * avatar.heightScale);

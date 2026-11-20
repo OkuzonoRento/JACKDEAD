@@ -69,18 +69,21 @@ public class PlayerUIController : MonoBehaviour
     {
         if (playerController != null)
         {
+            // 観戦中は、観戦先のプレイヤーの状態を表示する
+            hasSpectated = TryGetSpectatedStatus(out spectated);
+
             // --- 1. ステータスUIの更新 ---
             if (healthSlider != null)
             {
-                healthSlider.value = playerController.Health / 100f;
+                healthSlider.value = (hasSpectated ? spectated.health : playerController.Health) / 100f;
             }
             if (sanitySlider != null)
             {
-                sanitySlider.value = playerController.Sanity / 100f;
+                sanitySlider.value = (hasSpectated ? spectated.sanity : playerController.Sanity) / 100f;
             }
             if (dopamineSlider != null)
             {
-                dopamineSlider.value = playerController.Dopamine / 100f;
+                dopamineSlider.value = (hasSpectated ? spectated.dopamine : playerController.Dopamine) / 100f;
             }
 
             // --- 2. 所持金UIの更新 ---
@@ -93,8 +96,20 @@ public class PlayerUIController : MonoBehaviour
         // スタミナの更新 (PlayerMovementから取得)
         if (staminaSlider != null && playerMovement != null)
         {
-            staminaSlider.value = playerMovement.CurrentStamina / 100f;
+            float stamina = hasSpectated ? spectated.stamina : playerMovement.CurrentStamina;
+            staminaSlider.value = stamina / 100f;
         }
+    }
+
+    private bool hasSpectated;
+    private RemotePlayerSync.PlayerStatus spectated;
+
+    private bool TryGetSpectatedStatus(out RemotePlayerSync.PlayerStatus status)
+    {
+        status = default;
+        long id = RemotePlayerSync.SpectatedClientId;
+        if (id < 0 || RemotePlayerSync.Instance == null) return false;
+        return RemotePlayerSync.Instance.TryGetStatus((ulong)id, out status);
     }
 
     private void UpdateMoneyUI()
@@ -191,7 +206,7 @@ public class PlayerUIController : MonoBehaviour
 
     private void UpdateInventoryUI()
     {
-        int selectedIndex = playerController.SelectedSlotIndex;
+        int selectedIndex = hasSpectated ? spectated.selectedSlot : playerController.SelectedSlotIndex;
 
         for (int i = 0; i < inventorySlots.Length; i++)
         {
@@ -227,7 +242,9 @@ public class PlayerUIController : MonoBehaviour
             // C. インベントリ内のアイテムに応じたアイコンの切り替え
             if (inventorySlots[i].itemIconImage != null)
             {
-                ItemDataAsset itemData = playerController.Inventory[i];
+                ItemDataAsset itemData = hasSpectated
+                    ? (spectated.inventory != null && i < spectated.inventory.Length ? GameplaySync.ResolveItemData(spectated.inventory[i]) : null)
+                    : playerController.Inventory[i];
                 if (itemData != null && itemData.ItemIcon != null)
                 {
                     inventorySlots[i].itemIconImage.sprite = itemData.ItemIcon;

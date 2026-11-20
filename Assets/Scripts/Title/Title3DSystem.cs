@@ -118,7 +118,7 @@ public class Title3DSystem : MonoBehaviour
             {
                 if (data != null && data.hasSaveData)
                 {
-                    slotInfoTexts[i].text = $"SLOT {slotNum}  -  DAY {data.currentDay}  |  DEBT: ${data.remainingDebt:N0}";
+                    slotInfoTexts[i].text = $"SLOT {slotNum}  -  DAY {data.currentDay}  |  MONEY: ${data.currentMoney:N0}";
                 }
                 else
                 {
