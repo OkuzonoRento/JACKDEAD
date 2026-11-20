@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 using TMPro;
 
 public class Title3DSystem : MonoBehaviour
@@ -15,6 +16,10 @@ public class Title3DSystem : MonoBehaviour
     public GameObject saveSlotPanel;
     public GameObject settingsPanel;
     public Image fadeOverlay;
+
+    [Header("セッティング開閉ボタン（空欄でも自動検索）")]
+    public Button settingOpenButton;
+    public Button settingBackButton;
 
     [Header("セーブスロットUI（3枠分）")]
     public TextMeshProUGUI modeHeaderText;
@@ -35,6 +40,7 @@ public class Title3DSystem : MonoBehaviour
     private Vector3 initialCamPos;
     private bool isStartingGame = false;
     private bool selectedMultiplayer = false;
+    private CanvasGroup mainMenuCanvasGroup;
 
     void Start()
     {
@@ -45,16 +51,83 @@ public class Title3DSystem : MonoBehaviour
         if (cameraTransform != null)
             initialCamPos = cameraTransform.localPosition;
 
-        if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
-        if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
-        if (settingsPanel != null) settingsPanel.SetActive(false);
-
+        // 1. FadeOverlayが画面のクリックを吸わないように強制解除
         if (fadeOverlay != null)
+        {
+            fadeOverlay.raycastTarget = false;
             StartCoroutine(FadeScreen(1f, 0f, 1.0f));
+        }
+
+        // 2. パネルの自動検索（インスペクターが空欄でも名前から見つける）
+        if (mainMenuPanel == null) mainMenuPanel = GameObject.Find("MainMenuPanel");
+        if (settingsPanel == null) settingsPanel = GameObject.Find("SettingsPanel");
+
+        if (mainMenuPanel != null)
+        {
+            mainMenuPanel.SetActive(true);
+            mainMenuCanvasGroup = mainMenuPanel.GetComponent<CanvasGroup>();
+            if (mainMenuCanvasGroup == null)
+                mainMenuCanvasGroup = mainMenuPanel.AddComponent<CanvasGroup>();
+        }
+
+        if (saveSlotPanel != null) saveSlotPanel.SetActive(false);
+
+        // 3. ボタンを自動で見つけてクリックイベントを強制接続
+        AutoBindSettingsButtons();
+
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+    }
+
+    private void AutoBindSettingsButtons()
+    {
+        // SETTINGボタンを自動検索して接続
+        if (settingOpenButton == null && mainMenuPanel != null)
+        {
+            foreach (Button btn in mainMenuPanel.GetComponentsInChildren<Button>(true))
+            {
+                if (btn.name.ToUpper().Contains("SETTING"))
+                {
+                    settingOpenButton = btn;
+                    break;
+                }
+            }
+        }
+        if (settingOpenButton != null)
+        {
+            settingOpenButton.onClick.RemoveListener(OnClickOpenSettings);
+            settingOpenButton.onClick.AddListener(OnClickOpenSettings);
+        }
+
+        // BACKボタンを自動検索して接続
+        if (settingBackButton == null && settingsPanel != null)
+        {
+            foreach (Button btn in settingsPanel.GetComponentsInChildren<Button>(true))
+            {
+                if (btn.name.ToUpper().Contains("BACK"))
+                {
+                    settingBackButton = btn;
+                    break;
+                }
+            }
+        }
+        if (settingBackButton != null)
+        {
+            settingBackButton.onClick.RemoveListener(OnClickBackFromSettings);
+            settingBackButton.onClick.AddListener(OnClickBackFromSettings);
+        }
     }
 
     void Update()
     {
+        // 設定画面が開いているときにEscキーで閉じる
+        if (settingsPanel != null && settingsPanel.activeSelf)
+        {
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                OnClickBackFromSettings();
+            }
+        }
+
         if (cameraTransform == null) return;
 
         if (!isStartingGame)
@@ -148,18 +221,37 @@ public class Title3DSystem : MonoBehaviour
         mainMenuPanel.SetActive(true);
     }
 
-    public void OnClickSettings()
+    // 設定ボタンを押したとき（左メニューを薄暗くロックしつつ開く）
+    public void OnClickOpenSettings()
     {
         PlayClickSound();
-        mainMenuPanel.SetActive(false);
-        settingsPanel.SetActive(true);
+        if (settingsPanel != null)
+        {
+            settingsPanel.SetActive(true);
+            settingsPanel.transform.SetAsLastSibling(); // 最前面に表示
+        }
+
+        if (mainMenuCanvasGroup != null)
+        {
+            mainMenuCanvasGroup.interactable = false;
+            mainMenuCanvasGroup.blocksRaycasts = false;
+            mainMenuCanvasGroup.alpha = 0.45f; // 左側を少し暗くして右の設定パネルを際立たせる
+        }
     }
 
+    // 設定画面からBACKを押したとき
     public void OnClickBackFromSettings()
     {
         PlayClickSound();
-        settingsPanel.SetActive(false);
-        mainMenuPanel.SetActive(true);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        if (mainMenuCanvasGroup != null)
+        {
+            mainMenuCanvasGroup.interactable = true;
+            mainMenuCanvasGroup.blocksRaycasts = true;
+            mainMenuCanvasGroup.alpha = 1.0f;
+        }
     }
 
     public void OnClickQuit()
