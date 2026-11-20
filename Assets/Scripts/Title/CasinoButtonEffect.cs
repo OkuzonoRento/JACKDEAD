@@ -1,23 +1,23 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
 
 public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
-    [Header("˜A“®‚·‚éƒeƒLƒXƒg‚Æü‚è")]
+    [Header("é€£å‹•ã™ã‚‹ãƒ†ã‚­ã‚¹ãƒˆã¨é£¾ã‚Š")]
     public TextMeshProUGUI buttonText;
-    public GameObject casinoIcon; // ƒJ[ƒ\ƒ‹‚ªæ‚Á‚½‚Æ‚«‚¾‚¯o‚éü‚èiƒ`ƒbƒv‚â‚È‚Çj
+    public GameObject casinoIcon; // ã‚«ãƒ¼ã‚½ãƒ«ãŒä¹—ã£ãŸã¨ãã ã‘å‡ºã‚‹é£¾ã‚Šï¼ˆãƒãƒƒãƒ—ã‚„ãªã©ï¼‰
 
-    [Header("Fİ’è")]
-    public Color normalColor = new Color(0.8f, 0.8f, 0.8f, 1f); // ’ÊíF­‚µˆÃ‚¢”’
-    public Color hoverColor = new Color(0.9f, 0.1f, 0.1f, 1f);  // ƒzƒo[F•s‹C–¡‚ÈÔ
+    [Header("è‰²è¨­å®š")]
+    public Color normalColor = new Color(0.8f, 0.8f, 0.8f, 1f); // é€šå¸¸æ™‚ï¼šå°‘ã—æš—ã„ç™½
+    public Color hoverColor = new Color(0.9f, 0.1f, 0.1f, 1f);  // ãƒ›ãƒãƒ¼æ™‚ï¼šä¸æ°—å‘³ãªèµ¤
 
-    [Header("“®‚«İ’è")]
-    public float slideOffsetX = 25f; // ƒzƒo[‚É‰E‚ÖƒXƒ‰ƒCƒh‚·‚é‹——£
-    public float smoothSpeed = 12f;  // ƒAƒjƒ[ƒVƒ‡ƒ“‚ÌŠŠ‚ç‚©‚³
+    [Header("å‹•ãè¨­å®š")]
+    public float slideOffsetX = 25f; // ãƒ›ãƒãƒ¼æ™‚ã«å³ã¸ã‚¹ãƒ©ã‚¤ãƒ‰ã™ã‚‹è·é›¢
+    public float smoothSpeed = 12f;  // ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã®æ»‘ã‚‰ã‹ã•
 
-    [Header("ƒzƒo[‰¹i”CˆÓj")]
-    public Title3DSystem titleSystem; // ‰¹‚ğ–Â‚ç‚·—pi–¢İ’è‚Å‚àƒGƒ‰[‚É‚È‚ç‚È‚¢j
+    [Header("ãƒ›ãƒãƒ¼éŸ³ï¼ˆä»»æ„ï¼‰")]
+    public Title3DSystem titleSystem; // éŸ³ã‚’é³´ã‚‰ã™ç”¨ï¼ˆæœªè¨­å®šã§ã‚‚ã‚¨ãƒ©ãƒ¼ã«ãªã‚‰ãªã„ï¼‰
 
     private Vector2 initialPos;
     private Vector2 targetPos;
@@ -37,7 +37,7 @@ public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerE
 
     void Update()
     {
-        // ˆÊ’u‚ÆF‚ğŠŠ‚ç‚©‚É•Ï‰»‚³‚¹‚é
+        // ä½ç½®ã¨è‰²ã‚’æ»‘ã‚‰ã‹ã«å¤‰åŒ–ã•ã›ã‚‹
         rectTransform.anchoredPosition = Vector2.Lerp(rectTransform.anchoredPosition, targetPos, Time.deltaTime * smoothSpeed);
 
         if (buttonText != null)
@@ -46,7 +46,7 @@ public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerE
         }
     }
 
-    // ƒ}ƒEƒXƒJ[ƒ\ƒ‹‚ªæ‚Á‚½uŠÔ
+    // ãƒã‚¦ã‚¹ã‚«ãƒ¼ã‚½ãƒ«ãŒä¹—ã£ãŸç¬é–“
     public void OnPointerEnter(PointerEventData eventData)
     {
         targetPos = initialPos + new Vector2(slideOffsetX, 0f);
@@ -56,7 +56,7 @@ public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerE
         if (titleSystem != null) titleSystem.PlayHoverSound();
     }
 
-    // ƒ}ƒEƒXƒJ[ƒ\ƒ‹‚ª—£‚ê‚½uŠÔ
+    // ãƒã‚¦ã‚¹ã‚«ãƒ¼ã‚½ãƒ«ãŒé›¢ã‚ŒãŸç¬é–“
     public void OnPointerExit(PointerEventData eventData)
     {
         targetPos = initialPos;

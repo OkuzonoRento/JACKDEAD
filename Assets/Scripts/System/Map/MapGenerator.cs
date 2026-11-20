@@ -43,7 +43,7 @@ public class MapGenerator : MonoBehaviour
     [Tooltip("レベル1のノルマ（基準値）")]
     [SerializeField, Min(1)] private int baseQuotaLevel1 = 500;
     [Tooltip("最大レベルのノルマ（基準値）。レベル1からこの値まで指数的に増える")]
-    [SerializeField, Min(1)] private int baseQuotaFinalLevel = 280000;
+    [SerializeField, Min(1)] private int baseQuotaFinalLevel = 284500;
     [Tooltip("基準ノルマに掛けるランダム幅（0.08 = ±8%）")]
     [SerializeField, Range(0f, 0.5f)] private float quotaRandomRange = 0.08f;
     [Tooltip("ノルマに対してマップへ配置するスクラップ総価値の倍率")]
@@ -267,8 +267,29 @@ public class MapGenerator : MonoBehaviour
         gizmoDrawer = GetComponent<MapGizmoDrawer>();
     }
 
+    /// <summary>
+    /// セーブデータから再開するとき、Start より前に開始レベルを設定する
+    /// </summary>
+    public void SetStartLevel(int level)
+    {
+        currentStageLevel = Mathf.Max(1, level);
+    }
+
+    /// <summary>
+    /// マルチプレイ中は、全員が同じマップ・ノルマになるよう乱数を揃える
+    /// </summary>
+    private void SyncRandomWithSession()
+    {
+        NetworkSession net = NetworkSession.Instance;
+        if (net != null && net.IsOnline)
+        {
+            Random.InitState(net.SharedSeed + currentStageLevel * 7919);
+        }
+    }
+
     private void Start()
     {
+        SyncRandomWithSession();
         RollQuotaForCurrentLevel();
         Debug.Log($"[MAP] 借金総額: ${TotalDebt:N0} / STAGE {currentStageLevel} ノルマ: ${currentMapQuota:N0}");
         GenerateMap();
@@ -306,6 +327,7 @@ public class MapGenerator : MonoBehaviour
     public void AdvanceToNextLevel()
     {
         currentStageLevel++;
+        SyncRandomWithSession();
         RollQuotaForCurrentLevel();
 
         Debug.Log($"[MAP] STAGE {currentStageLevel} 開始！ 部屋数: {GetRoomCountForLevel(currentStageLevel)} / 新ノルマ: ${currentMapQuota:N0}");
@@ -550,6 +572,11 @@ public class MapGenerator : MonoBehaviour
                 Physics.SyncTransforms();
 
                 spawnedSlotList.Add(slotInstance);
+
+                // マルチプレイ同期用：生成順の連番IDを振る（全員同じシードなので同じ台が同じIDになる）
+                SlotMachineController slotController = slotInstance.GetComponentInChildren<SlotMachineController>();
+                if (slotController != null) slotController.NetId = spawnedSlotList.Count;
+
                 spawnedCount++;
                 slotsInThisRoom++;
             }
@@ -1064,6 +1091,7 @@ public class MapGenerator : MonoBehaviour
         }
 
         int safetyCounter = 0;
+        int scrapNetId = 0;
         float maxOffset = tileSize * ScrapSpawnAreaRatio;
 
         while (currentTotalValue < targetTotalValue && safetyCounter < MaxScrapSpawnIterations)
@@ -1116,6 +1144,7 @@ public class MapGenerator : MonoBehaviour
                 worldItem = scrapObj.AddComponent<Item>();
             }
             worldItem.SetItemData(randomScrapData);
+            worldItem.NetId = ++scrapNetId; // マルチプレイ同期用の連番ID
 
             int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
             currentTotalValue += itemVal;

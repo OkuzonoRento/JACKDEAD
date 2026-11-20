@@ -3945,9 +3945,9 @@ MonoBehaviour:
   minRoomCount: 5
   maxRoomCount: 40
   baseQuotaLevel1: 500
-  baseQuotaFinalLevel: 280000
+  baseQuotaFinalLevel: 284500
   quotaRandomRange: 0.08
-  quotaMultiplier: 2.5
+  quotaMultiplier: 10
   postMaxLevelGrowthRate: 1.1
   priceMultiplierFinalLevel: 150
   slotStartLevel: 5
@@ -4500,9 +4500,9 @@ MonoBehaviour:
   gravity: -19.62
   maxStamina: 100
   staminaDrainRate: 20
-  normalRecoveryRate: 4
-  idleRecoveryRate: 9
-  crouchRecoveryRate: 20
+  normalRecoveryRate: 10
+  idleRecoveryRate: 20
+  crouchRecoveryRate: 35
   staminaThresholdToResume: 30
   cameraTransform: {fileID: 330585546}
   mouseSensitivity: 0.1

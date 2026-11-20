@@ -1,9 +1,9 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 
 public class SettingsManager : MonoBehaviour
 {
-    [Header("ƒXƒ‰ƒCƒ_[UI")]
+    [Header("ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼UI")]
     public Slider volumeSlider;
     public Slider sensitivitySlider;
     public Slider brightnessSlider;

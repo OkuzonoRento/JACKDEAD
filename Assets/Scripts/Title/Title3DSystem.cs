@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -6,28 +6,28 @@ using TMPro;
 
 public class Title3DSystem : MonoBehaviour
 {
-    [Header("�V�[���J�ڐݒ�")]
+    [Header("シーン遷移設定")]
     public string singlePlaySceneName = "SampleScene";
     public string multiLobbySceneName = "LobbyScene";
 
-    [Header("UI�p�l��")]
+    [Header("UIパネル")]
     public GameObject mainMenuPanel;
     public GameObject saveSlotPanel;
     public GameObject settingsPanel;
     public Image fadeOverlay;
 
-    [Header("�Z�[�u�X���b�gUI�i3�g���j")]
+    [Header("セーブスロットUI（3枠分）")]
     public TextMeshProUGUI modeHeaderText;
     public TextMeshProUGUI[] slotInfoTexts;
     public GameObject[] deleteSlotButtons;
 
-    [Header("3D�J�������o")]
+    [Header("3Dカメラ演出")]
     public Transform cameraTransform;
     public float swayAmount = 0.08f;
     public float swaySpeed = 1.0f;
     public float zoomOnPlaySpeed = 2.0f;
 
-    [Header("�T�E���h�i�C�Ӂj")]
+    [Header("サウンド（任意）")]
     public AudioSource uiAudioSource;
     public AudioClip hoverSound;
     public AudioClip clickSound;
@@ -80,6 +80,17 @@ public class Title3DSystem : MonoBehaviour
     {
         PlayClickSound();
         selectedMultiplayer = true;
+
+        // マルチ：まず「ルームを作る／参加する」を選ぶ。セーブ選択はルームを作る場合のみ（MultiLobbyUI 内で行う）
+        if (NetworkSession.Instance != null)
+        {
+            if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+            MultiLobbyUI.Open(() =>
+            {
+                if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+            });
+            return;
+        }
         OpenSaveSlotPanel();
     }
 
