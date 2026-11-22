@@ -387,6 +387,8 @@ public class PlayerMovement : MonoBehaviour
         {
             float totalWeight = playerController != null ? playerController.GetTotalInventoryWeight() : 0f;
             float weightMultiplier = 1.0f + (totalWeight * 0.1f);
+            // 正気度が低いと、さらに消費が増える
+            if (playerController != null) weightMultiplier *= playerController.StaminaDrainMultiplier;
 
             currentStamina -= staminaDrainRate * weightMultiplier * Time.deltaTime;
 

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using Unity.AI.Navigation;
@@ -1311,7 +1311,9 @@ public class MapGenerator : MonoBehaviour
                 float angle = (seat * 45f + step * 45f) * Mathf.Deg2Rad;
                 Vector3 candidate = basePos + new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * radius;
 
-                if (!Physics.CheckCapsule(candidate + Vector3.up * 0.6f, candidate + Vector3.up * 1.4f, 0.4f, mask, QueryTriggerInteraction.Ignore))
+                // 足元に床がある場所だけを選ぶ（バスの外の何もない所に出ると、落下して即死になる）
+                bool hasGround = Physics.Raycast(candidate + Vector3.up * 1.0f, Vector3.down, 3f, mask, QueryTriggerInteraction.Ignore);
+                if (hasGround && !Physics.CheckCapsule(candidate + Vector3.up * 0.6f, candidate + Vector3.up * 1.4f, 0.4f, mask, QueryTriggerInteraction.Ignore))
                 {
                     return candidate;
                 }

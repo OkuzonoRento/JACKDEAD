@@ -488,10 +488,11 @@ public class SlotMachineController : MonoBehaviour
         isPlaying = false;
     }
 
-    public void OnPressBetButton(int betAmount)
+    /// <summary>cost: 実際に払う額（正気度が低いと上がる）/ payoutBase: 配当の基準の額（上がる前の掛け金）</summary>
+    public void OnPressBetButton(int cost, int payoutBase)
     {
-        if (IsPlaying || symbols.Count == 0 || !HasEnoughMoney(betAmount)) return;
-        StartCoroutine(PlaySlotSequence(betAmount));
+        if (IsPlaying || symbols.Count == 0 || !HasEnoughMoney(cost)) return;
+        StartCoroutine(PlaySlotSequence(cost, payoutBase));
     }
 
     /// <summary>
@@ -541,7 +542,7 @@ public class SlotMachineController : MonoBehaviour
         }
     }
 
-    private IEnumerator PlaySlotSequence(int betAmount)
+    private IEnumerator PlaySlotSequence(int cost, int betAmount)
     {
         isPlaying = true;
         GameplaySync.NotifySlotBegin(this);
@@ -549,7 +550,7 @@ public class SlotMachineController : MonoBehaviour
 
         if (playerController != null)
         {
-            playerController.AddMoney(-betAmount);
+            playerController.AddMoney(-cost);
         }
 
         // ★ スロット正面の立ち位置と注視点を算出し、プレイヤーを滑らかに移動＆カメラ固定
@@ -588,7 +589,10 @@ public class SlotMachineController : MonoBehaviour
                 }
                 else
                 {
-                    int reward = Mathf.RoundToInt(betAmount * slotRarityMultiplier * winSymbol.symbolMultiplier);
+                    // ドーパミンが多いと、獲得額が増える。勝ちはドーパミンを増やす
+                    float buff = playerController != null ? playerController.GamblePayoutMultiplier : 1f;
+                    int reward = Mathf.RoundToInt(betAmount * slotRarityMultiplier * winSymbol.symbolMultiplier * buff);
+                    if (playerController != null) playerController.OnGambleResult(true);
                     if (reward > 0 && playerController != null)
                     {
                         playerController.AddMoney(reward);
@@ -604,6 +608,7 @@ public class SlotMachineController : MonoBehaviour
             }
             else
             {
+                if (playerController != null) playerController.OnGambleResult(false); // 負けはドーパミンが減る
                 Debug.Log("[ ハズレ ] 0円");
             }
         }

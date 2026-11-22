@@ -598,6 +598,36 @@ public class NetworkSession : MonoBehaviour
         networkManager.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single);
     }
 
+    /// <summary>
+    /// 全員が倒れてゲームオーバーになったあと、部屋は維持したままロビーへ戻る（次は新しいセーブデータで始める）。
+    /// ホストが全員をタイトルシーン（ロビー）へ移し、部屋のロックを外す。参加者はホストの移動を待つ
+    /// </summary>
+    public void ReturnToLobbyAfterGameOver()
+    {
+        if (!IsOnline || networkManager == null || !networkManager.IsListening) return;
+
+        State = NetworkSessionState.InRoom;
+        pollTimer = 0f;
+        pingTimer = 0f;
+
+        if (!IsHost) return;
+        _ = UnlockLobbyAsync();
+        networkManager.SceneManager.LoadScene(TitleSceneName, LoadSceneMode.Single);
+    }
+
+    private async Task UnlockLobbyAsync()
+    {
+        if (currentLobby == null) return;
+        try
+        {
+            await LobbyService.Instance.UpdateLobbyAsync(currentLobby.Id, new UpdateLobbyOptions { IsLocked = false });
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[ONLINE] 部屋のロック解除に失敗: {e.Message}");
+        }
+    }
+
     private async Task LockLobbyAsync()
     {
         if (currentLobby == null) return;

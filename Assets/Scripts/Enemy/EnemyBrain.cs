@@ -126,6 +126,25 @@ public class EnemyBrain : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 近くに、こちらに気づいて追ってきている敵がいるか（正気度の減りを速めるのに使う）。
+    /// 敵を動かしているホストでは「気づいている」状態、参加者側の見た目だけの敵では「走る・投げる」動きで判断する
+    /// </summary>
+    public static bool IsChasedNear(Vector3 position, float radius)
+    {
+        foreach (EnemyBrain enemy in Registry.Values)
+        {
+            if (enemy == null) continue;
+            if ((enemy.transform.position - position).sqrMagnitude > radius * radius) continue;
+
+            bool chasing = enemy.isPuppet
+                ? (enemy.animState == AnimState.Run || enemy.animState == AnimState.Throw)
+                : (enemy.noticed && enemy.stunTimer <= 0f);
+            if (chasing) return true;
+        }
+        return false;
+    }
+
     private void TakeBombDamage(float amount)
     {
         if (immuneToBombs || isPuppet) return;

@@ -36,6 +36,26 @@ public class PlayerController : MonoBehaviour
     private float _maxDopamine = 100f;
     private float _maxStamina = 100f;
 
+    [Header("正気度・ドーパミンの仕様")]
+    [SerializeField, Min(1f), Tooltip("敵に追われている間の、正気度の減る速さの倍率（1 = 追われても変わらない）")]
+    private float chaseSanityDrainMultiplier = 3f;
+    [SerializeField, Tooltip("この距離以内で気づいている敵がいれば、追われているとみなす（m）")]
+    private float chaseDetectRadius = 25f;
+    [SerializeField, Range(0f, 1f), Tooltip("正気度がこの割合を下回ると、デバフが始まる（0 になるほど強くなる）")]
+    private float lowSanityThreshold = 0.5f;
+    [SerializeField, Min(0f), Tooltip("正気度が 0 のときの、スロットの掛け金の上乗せ（1 = 2倍。配当は変わらない）")]
+    private float betPenaltyAtZeroSanity = 1f;
+    [SerializeField, Min(0f), Tooltip("正気度が 0 のときの、スタミナの消費の上乗せ（1 = 2倍）")]
+    private float staminaPenaltyAtZeroSanity = 1f;
+    [SerializeField, Min(0f), Tooltip("ギャンブルに勝ったときに増えるドーパミン")]
+    private float dopamineOnWin = 15f;
+    [SerializeField, Min(0f), Tooltip("ギャンブルに負けたときに減るドーパミン")]
+    private float dopamineOnLose = 5f;
+    [SerializeField, Range(0f, 1f), Tooltip("ドーパミンがこの割合以上のとき、ギャンブルの獲得額が増える")]
+    private float dopamineBuffThreshold = 0.5f;
+    [SerializeField, Min(1f), Tooltip("ドーパミンのバフ中の、獲得額の倍率")]
+    private float dopamineBuffPayoutMultiplier = 1.25f;
+
     private bool pauseSanityDrain = false;
     private bool statusInitialized = false;
     private bool isGameOver = false;
@@ -206,7 +226,7 @@ public class PlayerController : MonoBehaviour
             _sanity = PlayerData.MaxSanity;
 
             _maxDopamine = PlayerData.MaxDopamine;
-            _dopamine = PlayerData.MaxDopamine;
+            _dopamine = 0f; // ドーパミンは 0 から始まる（ギャンブルに勝って貯める）
 
             _maxStamina = PlayerData.MaxStamina;
             _stamina = PlayerData.MaxStamina;
@@ -235,7 +255,11 @@ public class PlayerController : MonoBehaviour
 
         if (!pauseSanityDrain)
         {
-            ConsumeSanity(Time.deltaTime * sanityDrainPerSecond);
+            float drain = sanityDrainPerSecond;
+            // 敵に追われている間は、正気度がさらに速く減る
+            if (!isSpectating && statusInitialized && EnemyBrain.IsChasedNear(transform.position, chaseDetectRadius))
+                drain *= chaseSanityDrainMultiplier;
+            ConsumeSanity(Time.deltaTime * drain);
         }
         HandleSlotSelectionInput();
         TickHeldBombs();
@@ -257,6 +281,9 @@ public class PlayerController : MonoBehaviour
         string deathReason;
         if (transform.position.y < fallDeathHeight)
         {
+            // ステージの切り替え中（マップが作り直される間）に落ちても、死亡にはしない（次のステージで配置し直される）
+            if (IsInvulnerable()) return;
+
             // マップの外へ落下した場合は即死
             _health = 0f;
             deathReason = "FELL TO DEATH";
@@ -265,18 +292,17 @@ public class PlayerController : MonoBehaviour
         {
             deathReason = "YOU DIED";
         }
-        else if (_sanity <= 0f)
-        {
-            deathReason = "LOST YOUR SANITY";
-        }
         else
         {
             return;
         }
 
-        // マルチプレイで他に生きている人がいれば、ゲームオーバーにはならず観戦に回る（次のステージで復活）
-        // （観戦に入るのは体力が0になった場合のみ。正気度が尽きた場合は従来どおりゲームオーバー）
-        if (_health <= 0f && TryBeginSpectating(deathReason)) return;
+        // 原因の確認用（体力・正気度・位置）。何も食らっていないのに終了した、というときはこのログで原因が分かる
+        Debug.Log($"[死亡判定] {deathReason} / 体力 {_health:0} / 正気度 {_sanity:0} / 位置 {transform.position}");
+
+        // ゲームオーバーの条件は体力 0（と落下）だけ。正気度が 0 でも死なず、デバフ（掛け金・スタミナ）が強くなるだけ。
+        // マルチプレイで他に生きている人がいれば、ゲームオーバーにはならず観戦に回る（次のステージで復活）。全員が倒れたときだけゲームオーバー
+        if (TryBeginSpectating(deathReason)) return;
 
         isGameOver = true;
         pauseSanityDrain = true;
@@ -610,6 +636,36 @@ public class PlayerController : MonoBehaviour
             }
         }
         return totalWeight;
+    }
+
+    // ───────── 正気度が低いときのデバフ・ドーパミンの効果 ─────────
+
+    /// <summary>正気度が低いほど 1 に近づく（しきい値以上は 0）。ドーパミンが残っている間は、正気度が減らないので 0 のまま</summary>
+    public float LowSanityDebuff
+    {
+        get
+        {
+            if (_maxSanity <= 0f || lowSanityThreshold <= 0f) return 0f;
+            float ratio = _sanity / _maxSanity;
+            return Mathf.Clamp01(1f - ratio / lowSanityThreshold);
+        }
+    }
+
+    /// <summary>スロットの掛け金にかける倍率。正気度が低いほど上がる（もらえる配当は変わらない）</summary>
+    public float BetPriceMultiplier => 1f + LowSanityDebuff * betPenaltyAtZeroSanity;
+
+    /// <summary>スタミナの消費にかける倍率。正気度が低いほど上がる</summary>
+    public float StaminaDrainMultiplier => 1f + LowSanityDebuff * staminaPenaltyAtZeroSanity;
+
+    /// <summary>ドーパミンが多いときの、ギャンブルの獲得額の倍率</summary>
+    public float GamblePayoutMultiplier =>
+        _maxDopamine > 0f && _dopamine / _maxDopamine >= dopamineBuffThreshold ? dopamineBuffPayoutMultiplier : 1f;
+
+    /// <summary>ギャンブルの結果。勝つとドーパミンが増え、負けると減る</summary>
+    public void OnGambleResult(bool won)
+    {
+        if (won) _dopamine = Mathf.Clamp(_dopamine + dopamineOnWin, 0f, _maxDopamine);
+        else _dopamine = Mathf.Clamp(_dopamine - dopamineOnLose, 0f, _maxDopamine);
     }
 
     public void ConsumeSanity(float amount)

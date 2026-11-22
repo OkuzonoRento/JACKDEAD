@@ -38,6 +38,19 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
         }
     }
 
+    private PlayerController player;
+
+    /// <summary>実際に払う掛け金。正気度が低いと上がる（もらえる配当は、上がる前の額が基準のまま）</summary>
+    private int CurrentCost
+    {
+        get
+        {
+            if (player == null) player = FindAnyObjectByType<PlayerController>();
+            float m = player != null ? player.BetPriceMultiplier : 1f;
+            return Mathf.RoundToInt(CurrentBetAmount * m);
+        }
+    }
+
     private void Awake()
     {
         initialLocalPos = transform.localPosition;
@@ -62,7 +75,7 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
     {
         if (buttonText != null)
         {
-            buttonText.text = $"${CurrentBetAmount:N0}";
+            buttonText.text = $"${CurrentCost:N0}";
 
             if (slotMachine != null)
             {
@@ -79,7 +92,7 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
     public bool CanInteract()
     {
         if (slotMachine == null) return false;
-        return !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(CurrentBetAmount);
+        return !slotMachine.IsPlaying && slotMachine.HasEnoughMoney(CurrentCost);
     }
 
     public void OnInteract()
@@ -90,7 +103,7 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
             {
                 StartCoroutine(AnimateButtonPress());
             }
-            slotMachine.OnPressBetButton(CurrentBetAmount);
+            slotMachine.OnPressBetButton(CurrentCost, CurrentBetAmount);
         }
     }
 

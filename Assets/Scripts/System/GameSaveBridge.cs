@@ -77,6 +77,15 @@ public static class GameSaveBridge
     }
 
     /// <summary>
+    /// 全滅のあと、同じスロットで新しいセーブデータを用意する（マルチのホストだけ。ファイルは、次のゲーム開始のときに作る）
+    /// </summary>
+    public static void StartFreshSlot()
+    {
+        if (!CanWriteSave()) return;
+        SaveSystem.SelectAndLoadSlot(true, SaveSystem.ActiveSlotIndex);
+    }
+
+    /// <summary>
     /// 死亡時に、このスロットのセーブデータを削除する（次回は新規データで始まる）。マルチではホストのPCのデータだけ削除する
     /// </summary>
     public static void DeleteSaveOnDeath()

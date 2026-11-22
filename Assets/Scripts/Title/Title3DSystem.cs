@@ -46,6 +46,10 @@ public class Title3DSystem : MonoBehaviour
 
         if (mainMenuPanel == null) mainMenuPanel = GameObject.Find("MainMenuPanel");
         if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+
+        // 全滅のあと、部屋に入ったままタイトル（ロビー）へ戻ってきたときは、そのままルームの画面を開く（次のゲームの開始を待つ）
+        if (NetworkSession.Instance != null && NetworkSession.Instance.State == NetworkSessionState.InRoom)
+            OpenMulti(MultiLobbyUI.Step.Menu);
     }
 
     void Update()

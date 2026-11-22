@@ -531,14 +531,28 @@ public class ResultUIController : MonoBehaviour
         GameSaveBridge.DeleteSaveOnDeath();
         if (playerController != null) playerController.ResetForNewRun();
 
-        // マルチプレイ中は部屋からも抜ける（全員が倒れた場合、各自がここへ来る）
-        if (NetworkSession.Instance != null && NetworkSession.Instance.IsOnline)
-        {
-            NetworkSession.Instance.LeaveRoom();
-        }
-
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+
+        // マルチプレイ：全員が倒れたら、部屋は維持したまま、新しいセーブデータでロビーへ戻って待機する
+        NetworkSession net = NetworkSession.Instance;
+        if (net != null && net.IsOnline)
+        {
+            GameSaveBridge.StartFreshSlot();
+            net.ReturnToLobbyAfterGameOver();
+
+            if (net.IsHost) yield break; // ホストがタイトル（ロビー）へ全員を移す。この画面は、移動で片付く
+
+            // 参加者：ホストの移動を待つ。来なければ（ホストが落ちたなど）部屋を出てタイトルへ
+            float waited = 0f;
+            while (waited < 10f && SceneManager.GetActiveScene().name != titleSceneName)
+            {
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            if (SceneManager.GetActiveScene().name == titleSceneName) yield break;
+            net.LeaveRoom();
+        }
 
         if (Application.CanStreamedLevelBeLoaded(titleSceneName))
         {
