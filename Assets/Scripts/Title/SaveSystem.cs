@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using UnityEngine;
 
 [System.Serializable]
@@ -58,10 +58,17 @@ public static class SaveSystem
         else
         {
             CurrentData = new GameSaveData();
+            // 新しいセーブデータは、ここでは作らない（メモリ上だけ）。ゲームを開始したときに CommitNewSlot で作る。
+            // こうすると、スロットを選んで戻っただけでは、空のセーブファイルが残らない
             CurrentData.hasSaveData = true;
-            SaveCurrentGame();
         }
         return CurrentData;
+    }
+
+    /// <summary>ゲーム開始のときに呼ぶ。選んだスロットにセーブファイルがまだ無ければ、ここで新規に作る</summary>
+    public static void CommitNewSlot()
+    {
+        if (!File.Exists(GetSavePath(ActiveSlotIndex))) SaveCurrentGame();
     }
 
     public static void SaveCurrentGame()

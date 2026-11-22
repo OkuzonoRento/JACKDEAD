@@ -1,9 +1,15 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
-/// ゲーム中に Esc で開くメニュー（IMGUI）。再開 / 設定（音量・マウス感度）/ タイトルへ戻る / ゲーム終了。
+/// ゲーム中に Esc で開くメニュー。再開 / 設定（全体音量・BGM・SE・マウス感度・明るさ）/ タイトルへ戻る / ゲーム終了。
+/// 画面の部品は、ゲームシーンの Hierarchy にある「PauseUI」に置いてある（作成: メニュー JackDead/Game/ポーズUIをシーンに作成）。
+/// このスクリプトは、置いてある部品に、ボタンの動作・値の読み書き・ページの切り替えをつなぐだけで、部品を作ることはしない。
+/// ・言語の設定はタイトルだけ（ここには無い）
+/// ・設定の値と保存先はタイトルの設定画面と共通（SettingsManager のキー）
 /// ・ソロプレイ中は Time.timeScale = 0 で一時停止する。マルチプレイ中は他プレイヤーが動き続けるので止めない
 /// ・セーブはデータ作成時とステージクリア時のみ（GameSaveBridge）。ここでは保存しない
 /// </summary>
@@ -14,10 +20,14 @@ public class PauseMenu : MonoBehaviour
     /// <summary>メニュー表示中。プレイヤーの移動・視点・インタラクトはこの間止める</summary>
     public static bool IsOpen { get; private set; }
 
+    [Tooltip("ポーズ画面のルート（Canvas の子の PauseUI）。メニューを開くときだけ表示する")]
+    public GameObject ui;
+
     private Page page = Page.Main;
     private ResultUIController resultUI;
-    private float volume;
-    private float sensitivity;
+    private Transform content;
+    private bool bound;
+    private bool warned;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -29,8 +39,6 @@ public class PauseMenu : MonoBehaviour
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         IsOpen = false;
-        if (scene.name != NetworkSession.GameSceneName) return;
-        new GameObject("PauseMenu").AddComponent<PauseMenu>();
     }
 
     private void OnDestroy()
@@ -67,13 +75,22 @@ public class PauseMenu : MonoBehaviour
 
     private void SetOpen(bool open)
     {
+        if (open && ui == null)
+        {
+            if (!warned) Debug.LogWarning("[PauseMenu] ポーズ画面（PauseUI）がシーンにありません。メニュー JackDead/Game/ポーズUIをシーンに作成 を実行してください。");
+            warned = true;
+            return;
+        }
+
         IsOpen = open;
         page = Page.Main;
 
         if (open)
         {
-            volume = PlayerPrefs.GetFloat(SettingsManager.KEY_VOLUME, 1.0f);
-            sensitivity = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity);
+            Bind();
+            LoadSettingValues();
+            ui.SetActive(true);
+            Refresh();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             if (!IsMultiplayerActive()) Time.timeScale = 0f;
@@ -81,6 +98,7 @@ public class PauseMenu : MonoBehaviour
         else
         {
             PlayerPrefs.Save();
+            if (ui != null) ui.SetActive(false);
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
             Time.timeScale = 1f;
@@ -107,78 +125,103 @@ public class PauseMenu : MonoBehaviour
 #endif
     }
 
-    private void OnGUI()
+    // ───────── 部品の取得 ─────────
+
+    private Transform P(string path)
     {
-        if (!IsOpen) return;
+        Transform t = content.Find(path);
+        if (t == null) Debug.LogWarning("[PauseMenu] 部品が見つかりません: " + path);
+        return t;
+    }
 
-        const float w = 420f, h = 340f;
-        Rect box = new Rect((Screen.width - w) / 2f, (Screen.height - h) / 2f, w, h);
-        GUI.Box(box, "PAUSE");
+    private void Show(string path, bool on)
+    {
+        Transform t = P(path);
+        if (t != null && t.gameObject.activeSelf != on) t.gameObject.SetActive(on);
+    }
 
-        GUILayout.BeginArea(new Rect(box.x + 24, box.y + 40, w - 48, h - 60));
+    private void OnClick(string path, UnityEngine.Events.UnityAction action)
+    {
+        Transform t = P(path);
+        if (t == null) return;
+        Button b = t.GetComponent<Button>();
+        if (b != null) b.onClick.AddListener(action);
+    }
 
-        switch (page)
+    private void SetPage(Page p)
+    {
+        page = p;
+        Refresh();
+    }
+
+    // ───────── ボタンなどをつなぐ（最初に開いたとき一度だけ） ─────────
+
+    private void Bind()
+    {
+        if (bound) return;
+        bound = true;
+        content = ui.transform.Find("Panel/Content");
+
+        OnClick("Main/Resume", () => SetOpen(false));
+        OnClick("Main/Settings", () => SetPage(Page.Settings));
+        OnClick("Main/ToTitle", () => SetPage(Page.ConfirmTitle));
+        OnClick("Main/Quit", () => SetPage(Page.ConfirmQuit));
+
+        BindSlider("Settings/Row_Master", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_VOLUME, v); GameSettingsRuntime.ApplyMasterVolume(v); }, false);
+        BindSlider("Settings/Row_Bgm", v => PlayerPrefs.SetFloat(SettingsManager.KEY_BGM, v), false);
+        BindSlider("Settings/Row_Se", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SE, v), false);
+        BindSlider("Settings/Row_Sensitivity", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SENSITIVITY, v), true);
+        BindSlider("Settings/Row_Brightness", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_BRIGHTNESS, v); GameSettingsRuntime.ApplyBrightness(v); }, false);
+        OnClick("Settings/Back", () => { PlayerPrefs.Save(); SetPage(Page.Main); });
+
+        OnClick("ConfirmTitle/Confirm", ReturnToTitle);
+        OnClick("ConfirmTitle/Cancel", () => SetPage(Page.Main));
+        OnClick("ConfirmQuit/Confirm", QuitGame);
+        OnClick("ConfirmQuit/Cancel", () => SetPage(Page.Main));
+    }
+
+    private void BindSlider(string rowPath, System.Action<float> apply, bool oneDecimal)
+    {
+        Transform row = P(rowPath);
+        if (row == null) return;
+        Slider s = row.Find("Slider").GetComponent<Slider>();
+        TMP_Text value = row.Find("Value").GetComponent<TMP_Text>();
+        s.onValueChanged.AddListener(v =>
         {
-            case Page.Main:
-                if (GUILayout.Button("再開", GUILayout.Height(40))) SetOpen(false);
-                GUILayout.Space(8);
-                if (GUILayout.Button("設定", GUILayout.Height(40))) page = Page.Settings;
-                GUILayout.Space(8);
-                if (GUILayout.Button("タイトルへ戻る", GUILayout.Height(40))) page = Page.ConfirmTitle;
-                GUILayout.Space(8);
-                if (GUILayout.Button("ゲームを終了", GUILayout.Height(40))) page = Page.ConfirmQuit;
-                if (IsMultiplayerActive())
-                {
-                    GUILayout.Space(8);
-                    GUILayout.Label("マルチプレイ中のため、ゲームは止まりません。");
-                }
-                break;
+            apply(v);
+            value.text = oneDecimal ? v.ToString("F1") : Mathf.RoundToInt(v * 100f) + "%";
+        });
+    }
 
-            case Page.Settings:
-                GUILayout.Label($"音量  {volume:0.00}");
-                float newVol = GUILayout.HorizontalSlider(volume, 0f, 1f);
-                if (!Mathf.Approximately(newVol, volume))
-                {
-                    volume = newVol;
-                    AudioListener.volume = volume;
-                    PlayerPrefs.SetFloat(SettingsManager.KEY_VOLUME, volume);
-                }
-                GUILayout.Space(14);
-                GUILayout.Label($"マウス感度  {sensitivity:0.0}");
-                float newSens = GUILayout.HorizontalSlider(sensitivity, 0.1f, 3f);
-                if (!Mathf.Approximately(newSens, sensitivity))
-                {
-                    sensitivity = newSens;
-                    PlayerPrefs.SetFloat(SettingsManager.KEY_SENSITIVITY, sensitivity);
-                }
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("戻る", GUILayout.Height(34)))
-                {
-                    PlayerPrefs.Save();
-                    page = Page.Main;
-                }
-                break;
+    private void SetSlider(string rowPath, float v, bool oneDecimal)
+    {
+        Transform row = P(rowPath);
+        if (row == null) return;
+        Slider s = row.Find("Slider").GetComponent<Slider>();
+        s.SetValueWithoutNotify(Mathf.Clamp(v, s.minValue, s.maxValue));
+        row.Find("Value").GetComponent<TMP_Text>().text = oneDecimal ? s.value.ToString("F1") : Mathf.RoundToInt(s.value * 100f) + "%";
+    }
 
-            case Page.ConfirmTitle:
-                GUILayout.Label("タイトルへ戻りますか？");
-                GUILayout.Label("セーブされるのはステージクリア時のみです。\n今のステージの進行は失われます。");
-                if (IsMultiplayerActive()) GUILayout.Label("部屋からも退出します。");
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("タイトルへ戻る", GUILayout.Height(36))) ReturnToTitle();
-                GUILayout.Space(6);
-                if (GUILayout.Button("キャンセル", GUILayout.Height(34))) page = Page.Main;
-                break;
+    private void LoadSettingValues()
+    {
+        SetSlider("Settings/Row_Master", SettingsManager.MasterVolume, false);
+        SetSlider("Settings/Row_Bgm", SettingsManager.BgmVolume, false);
+        SetSlider("Settings/Row_Se", SettingsManager.SeVolume, false);
+        SetSlider("Settings/Row_Sensitivity", SettingsManager.MouseSensitivity, true);
+        SetSlider("Settings/Row_Brightness", SettingsManager.Brightness, false);
+    }
 
-            case Page.ConfirmQuit:
-                GUILayout.Label("ゲームを終了しますか？");
-                GUILayout.Label("セーブされるのはステージクリア時のみです。\n今のステージの進行は失われます。");
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("ゲームを終了", GUILayout.Height(36))) QuitGame();
-                GUILayout.Space(6);
-                if (GUILayout.Button("キャンセル", GUILayout.Height(34))) page = Page.Main;
-                break;
-        }
+    // ───────── ページの切り替え ─────────
 
-        GUILayout.EndArea();
+    private void Refresh()
+    {
+        Show("Main", page == Page.Main);
+        Show("Settings", page == Page.Settings);
+        Show("ConfirmTitle", page == Page.ConfirmTitle);
+        Show("ConfirmQuit", page == Page.ConfirmQuit);
+
+        bool multi = IsMultiplayerActive();
+        Show("Main/MultiNote", multi);
+        Show("ConfirmTitle/LeaveNote", multi);
     }
 }

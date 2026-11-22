@@ -88,6 +88,8 @@ MonoBehaviour:
   patrolWaitRange: {x: 1, y: 3}
   sightRange: 22
   sightHalfAngle: 60
+  noiseGuessError: 0.2
+  noiseInvestigateSpeed: 3.5
   eyeHeight: 1.6
   loseSightTime: 6
   attackMinRange: 5

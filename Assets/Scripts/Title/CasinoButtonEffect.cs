@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
 
@@ -15,6 +15,8 @@ public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerE
     [Header("動き設定")]
     public float slideOffsetX = 25f; // ホバー時に右へスライドする距離
     public float smoothSpeed = 12f;  // アニメーションの滑らかさ
+    [Tooltip("ONにすると、ボタン本体は動かさず文字だけをスライドさせる（端でマウスが乗り降りを繰り返してちらつくのを防ぐ）")]
+    public bool slideTextOnly = false;
 
     [Header("ホバー音（任意）")]
     public Title3DSystem titleSystem; // 音を鳴らす用（未設定でもエラーにならない）
@@ -26,7 +28,7 @@ public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerE
 
     void Start()
     {
-        rectTransform = GetComponent<RectTransform>();
+        rectTransform = (slideTextOnly && buttonText != null) ? buttonText.rectTransform : GetComponent<RectTransform>();
         initialPos = rectTransform.anchoredPosition;
         targetPos = initialPos;
         targetColor = normalColor;
@@ -35,14 +37,26 @@ public class CasinoButtonEffect : MonoBehaviour, IPointerEnterHandler, IPointerE
         if (casinoIcon != null) casinoIcon.SetActive(false);
     }
 
+    // パネルが非表示になると OnPointerExit が呼ばれないので、ホバー状態（赤・スライド・マーク）が残ってしまう。
+    // 非表示になるときに通常の状態へ戻す
+    void OnDisable()
+    {
+        if (rectTransform == null) return; // Start 前
+        targetPos = initialPos;
+        targetColor = normalColor;
+        rectTransform.anchoredPosition = initialPos;
+        if (buttonText != null) buttonText.color = normalColor;
+        if (casinoIcon != null) casinoIcon.SetActive(false);
+    }
+
     void Update()
     {
         // 位置と色を滑らかに変化させる
-        rectTransform.anchoredPosition = Vector2.Lerp(rectTransform.anchoredPosition, targetPos, Time.deltaTime * smoothSpeed);
+        rectTransform.anchoredPosition = Vector2.Lerp(rectTransform.anchoredPosition, targetPos, Time.unscaledDeltaTime * smoothSpeed);
 
         if (buttonText != null)
         {
-            buttonText.color = Color.Lerp(buttonText.color, targetColor, Time.deltaTime * smoothSpeed);
+            buttonText.color = Color.Lerp(buttonText.color, targetColor, Time.unscaledDeltaTime * smoothSpeed);
         }
     }
 

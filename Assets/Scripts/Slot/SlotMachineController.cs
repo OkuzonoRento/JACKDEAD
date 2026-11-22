@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -463,6 +463,29 @@ public class SlotMachineController : MonoBehaviour
         float tilingY = GetTilingY();
         float offset = (0.5f / StripCellCount) - (0.5f * tilingY) + StopCenterOffset;
         return Mathf.Repeat(offset, 1f);
+    }
+
+    /// <summary>Start でリール帯の生成が終わり、演出を再生できる状態か</summary>
+    public bool IsVisualReady => reels != null && currentResults != null && symbols.Count > 0;
+
+    /// <summary>
+    /// タイトル画面などの飾り用。賭け金・プレイヤー・同期なしで、実際のプレイと同じ回転演出
+    /// （レバー → 回転・ガタガタ → 左から順に停止 → 当たりなら本体がボコッと膨らむ）を1回だけ再生する。
+    /// </summary>
+    public IEnumerator PlayDemoRoll()
+    {
+        if (isPlaying || !IsVisualReady) yield break;
+
+        isPlaying = true;
+        int winningIndex = RollOutcomeIndex();
+        AssignReelResults(winningIndex);
+        yield return StartCoroutine(RollVisual(GetTargetStopOffset()));
+
+        if (winningIndex >= 0 && symbols[winningIndex].effectType == SlotSymbolEffect.Payout && machineBodyTransform != null)
+        {
+            yield return StartCoroutine(PunchMachineScale(0.08f, 0.25f));
+        }
+        isPlaying = false;
     }
 
     public void OnPressBetButton(int betAmount)

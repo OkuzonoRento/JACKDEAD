@@ -26,6 +26,8 @@ public class LobbyMember
     public string playerId;
     public string name;
     public bool isHost;
+    /// <summary>ホストまでの往復の通信時間（ミリ秒）。-1 はまだ測れていない。ホスト自身は 0</summary>
+    public int pingMs = -1;
 }
 
 /// <summary>
@@ -36,7 +38,7 @@ public class LobbyMember
 /// </summary>
 public class NetworkSession : MonoBehaviour
 {
-    public const int MaxPlayers = 4;
+    public const int MaxPlayers = 6;
     public const int CompatVersion = 1;
     public const string GameSceneName = "SampleScene";
     public const string TitleSceneName = "TitleScene";
@@ -44,14 +46,19 @@ public class NetworkSession : MonoBehaviour
     private const string LobbyKeyRelayCode = "relay";
     private const string LobbyKeyCompat = "compat";
     private const string PlayerKeyName = "name";
+    private const string PlayerKeyPing = "ping";
     private const string PlayerPrefsName = "OnlinePlayerName";
 
     private const string MsgStart = "jd.start";
     private const string MsgStageClear = "jd.clear";
+    private const string MsgPing = "jd.ping";
+    private const string MsgPong = "jd.pong";
 
     private const float HeartbeatInterval = 15f;
     private const float PollInterval = 2f;
     private const float ConnectTimeoutSeconds = 15f;
+    private const float PingInterval = 3f;        // 回線の測定の間隔（参加者 → ホスト）
+    private const float PingPublishInterval = 4f;  // 測定値を部屋の情報へ書く最短の間隔
 
     public static NetworkSession Instance { get; private set; }
 
@@ -71,6 +78,13 @@ public class NetworkSession : MonoBehaviour
     private UnityTransport transport;
     private Lobby currentLobby;
     private readonly List<LobbyMember> members = new List<LobbyMember>();
+
+    /// <summary>自分からホストまでの往復の通信時間（ミリ秒）。-1 は未測定。ホストは 0</summary>
+    public int LocalPingMs { get; private set; } = -1;
+    private float pingTimer;
+    private float pingPublishedAt;
+    private int pingPublishedValue = int.MinValue;
+    private bool isPublishingPing;
 
     private float heartbeatTimer;
     private float pollTimer;
@@ -155,6 +169,8 @@ public class NetworkSession : MonoBehaviour
             heartbeatTimer = 0f;
             _ = SendHeartbeatAsync();
         }
+
+        UpdatePing(dt);
 
         // ロビー画面の間だけ参加者リストを更新する（ゲーム中は不要）
         if (State == NetworkSessionState.InRoom && pollTimer >= PollInterval && !isPolling)
@@ -260,8 +276,15 @@ public class NetworkSession : MonoBehaviour
             id: AuthenticationService.Instance.PlayerId,
             data: new Dictionary<string, PlayerDataObject>
             {
-                { PlayerKeyName, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, LocalPlayerName) }
+                { PlayerKeyName, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, LocalPlayerName) },
+                { PlayerKeyPing, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, networkManager != null && networkManager.IsHost ? "0" : "-1") }
             });
+    }
+
+    /// <summary>前回のエラー表示を消す（ロビー画面を開くたびに呼ぶ）</summary>
+    public void ClearError()
+    {
+        LastError = "";
     }
 
     private void SetError(string message)
@@ -442,6 +465,9 @@ public class NetworkSession : MonoBehaviour
         currentLobby = null;
         members.Clear();
         RoomCode = "";
+        LocalPingMs = -1;
+        pingTimer = 0f;
+        pingPublishedValue = int.MinValue;
         State = NetworkSessionState.Offline;
         isLeaving = false;
     }
@@ -507,11 +533,22 @@ public class NetworkSession : MonoBehaviour
                 displayName = nameData.Value;
             }
 
+            int ping = -1;
+            if (p.Data != null && p.Data.TryGetValue(PlayerKeyPing, out PlayerDataObject pingData))
+            {
+                int.TryParse(pingData.Value, out ping);
+            }
+            bool isHostMember = p.Id == currentLobby.HostId;
+            // 自分の値は、部屋の情報に反映されるのを待たず、手元の最新を使う
+            if (p.Id == AuthenticationService.Instance.PlayerId && LocalPingMs >= 0) ping = LocalPingMs;
+            if (isHostMember) ping = 0;
+
             members.Add(new LobbyMember
             {
                 playerId = p.Id,
                 name = displayName,
-                isHost = p.Id == currentLobby.HostId
+                isHost = isHostMember,
+                pingMs = ping
             });
         }
     }
@@ -525,6 +562,8 @@ public class NetworkSession : MonoBehaviour
         CustomMessagingManager messaging = networkManager.CustomMessagingManager;
         messaging.RegisterNamedMessageHandler(MsgStart, OnStartMessage);
         messaging.RegisterNamedMessageHandler(MsgStageClear, OnStageClearMessage);
+        messaging.RegisterNamedMessageHandler(MsgPing, OnPingMessage);
+        messaging.RegisterNamedMessageHandler(MsgPong, OnPongMessage);
     }
 
     /// <summary>
@@ -533,6 +572,8 @@ public class NetworkSession : MonoBehaviour
     public void StartGame()
     {
         if (!IsHost || State != NetworkSessionState.InRoom) return;
+
+        SaveSystem.CommitNewSlot(); // 新規のセーブデータは、ゲーム開始のこのとき初めて作る
 
         SharedSeed = Random.Range(int.MinValue, int.MaxValue);
         SharedSave = JsonUtility.FromJson<GameSaveData>(JsonUtility.ToJson(SaveSystem.CurrentData));
@@ -631,5 +672,84 @@ public class NetworkSession : MonoBehaviour
         }
 
         StageClearReceived?.Invoke(clearedLevel, newMoney);
+    }
+
+    // ------------------------------------------------------------------
+    // 回線の強さ（ホストまでの往復の通信時間）
+    // ------------------------------------------------------------------
+
+    /// <summary>参加者が、一定の間隔でホストへ ping を送って測る。ホスト自身は 0 とする</summary>
+    private void UpdatePing(float dt)
+    {
+        if (State != NetworkSessionState.InRoom || networkManager == null || !networkManager.IsListening) return;
+
+        if (networkManager.IsHost)
+        {
+            LocalPingMs = 0;
+            return;
+        }
+        if (!networkManager.IsConnectedClient) return;
+
+        pingTimer += dt;
+        if (pingTimer < PingInterval) return;
+        pingTimer = 0f;
+
+        using (FastBufferWriter writer = new FastBufferWriter(16, Allocator.Temp))
+        {
+            writer.WriteValueSafe(Time.realtimeSinceStartup);
+            networkManager.CustomMessagingManager.SendNamedMessage(
+                MsgPing, NetworkManager.ServerClientId, writer, NetworkDelivery.Reliable);
+        }
+    }
+
+    /// <summary>ホスト：受け取った時刻をそのまま送り返す</summary>
+    private void OnPingMessage(ulong senderId, FastBufferReader reader)
+    {
+        reader.ReadValueSafe(out float sentAt);
+        if (networkManager == null || !networkManager.IsHost) return;
+
+        using (FastBufferWriter writer = new FastBufferWriter(16, Allocator.Temp))
+        {
+            writer.WriteValueSafe(sentAt);
+            networkManager.CustomMessagingManager.SendNamedMessage(MsgPong, senderId, writer, NetworkDelivery.Reliable);
+        }
+    }
+
+    /// <summary>参加者：送った時刻との差が、往復の通信時間。ほかの人にも見えるよう、部屋の情報へ書く</summary>
+    private void OnPongMessage(ulong senderId, FastBufferReader reader)
+    {
+        reader.ReadValueSafe(out float sentAt);
+        int ms = Mathf.Max(1, Mathf.RoundToInt((Time.realtimeSinceStartup - sentAt) * 1000f));
+        LocalPingMs = ms;
+
+        bool changedEnough = pingPublishedValue == int.MinValue || Mathf.Abs(ms - pingPublishedValue) >= Mathf.Max(8, pingPublishedValue / 4);
+        if (changedEnough && !isPublishingPing && Time.unscaledTime - pingPublishedAt >= PingPublishInterval)
+        {
+            _ = PublishPingAsync(ms);
+        }
+    }
+
+    private async Task PublishPingAsync(int ms)
+    {
+        if (currentLobby == null) return;
+        isPublishingPing = true;
+        pingPublishedAt = Time.unscaledTime;
+        pingPublishedValue = ms;
+        try
+        {
+            await LobbyService.Instance.UpdatePlayerAsync(currentLobby.Id, AuthenticationService.Instance.PlayerId,
+                new UpdatePlayerOptions
+                {
+                    Data = new Dictionary<string, PlayerDataObject>
+                    {
+                        { PlayerKeyPing, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, ms.ToString()) }
+                    }
+                });
+        }
+        catch (System.Exception e)
+        {
+            Debug.Log($"[ONLINE] 通信状況の更新に失敗: {e.Message}");
+        }
+        isPublishingPing = false;
     }
 }
