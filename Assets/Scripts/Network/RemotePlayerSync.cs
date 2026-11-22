@@ -22,6 +22,8 @@ public class RemotePlayerSync : MonoBehaviour
     private const float AvatarHeight = 2f;
     private const float LabelHeightOffset = 1.4f;
     private const float LabelFontSize = 3f;
+    private const float LabelShowDistance = 20f;   // この距離より近いとき、名前を表示する
+    private const float LabelHideDistance = 22f;   // この距離より遠いと、名前を隠す（境目でちらつかないよう、少し差をつける）
     private const float StaleTimeoutSeconds = 5f;
     private const float CrouchHeightScale = 0.6f;
 
@@ -605,6 +607,14 @@ public class RemotePlayerSync : MonoBehaviour
             avatar.root.transform.position = Vector3.Lerp(avatar.root.transform.position, targetPos, t);
             avatar.root.transform.rotation = Quaternion.Slerp(
                 avatar.root.transform.rotation, Quaternion.Euler(0f, avatar.targetYaw, 0f), t);
+
+            // 離れているプレイヤーの名前は、表示しない
+            if (avatar.label != null && cam != null)
+            {
+                float distToCam = Vector3.Distance(cam.transform.position, avatar.root.transform.position);
+                bool visible = avatar.label.enabled ? distToCam <= LabelHideDistance : distToCam <= LabelShowDistance;
+                if (avatar.label.enabled != visible) avatar.label.enabled = visible;
+            }
 
             // 名前は常にカメラの方を向ける（回転するカプセルの影響を受けないよう、親の回転を打ち消す）
             if (avatar.label != null && cam != null)
