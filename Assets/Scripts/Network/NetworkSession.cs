@@ -147,6 +147,16 @@ public class NetworkSession : MonoBehaviour
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        // 全滅のあと、ホストの指示でタイトル（ロビー）へ移ってきたとき。自分のゲームオーバー演出が終わる前に移された参加者も、
+        // ここで「部屋にいる」状態に戻す（これがないと、タイトルで部屋の画面が出ず、部屋の更新も止まる）
+        if (scene.name == TitleSceneName && State == NetworkSessionState.InGame)
+        {
+            State = NetworkSessionState.InRoom;
+            pollTimer = 0f;
+            pingTimer = 0f;
+            Debug.Log("[ONLINE] ロビーへ戻りました（部屋は維持）");
+        }
+
         // ゲームシーンに入ったら、他プレイヤーの位置同期を開始する
         if (scene.name == GameSceneName && IsOnline)
         {
@@ -600,19 +610,30 @@ public class NetworkSession : MonoBehaviour
 
     /// <summary>
     /// 全員が倒れてゲームオーバーになったあと、部屋は維持したままロビーへ戻る（次は新しいセーブデータで始める）。
-    /// ホストが全員をタイトルシーン（ロビー）へ移し、部屋のロックを外す。参加者はホストの移動を待つ
+    /// ホストが全員をタイトルシーン（ロビー）へ移し、部屋のロックを外す。参加者はホストの移動を待つ。
+    /// 戻り値: ロビーへ戻る処理を始められたら true（false なら、呼び出し側が部屋を出てタイトルへ戻る）
     /// </summary>
-    public void ReturnToLobbyAfterGameOver()
+    public bool ReturnToLobbyAfterGameOver()
     {
-        if (!IsOnline || networkManager == null || !networkManager.IsListening) return;
+        if (!IsOnline || networkManager == null || !networkManager.IsListening) return false;
+
+        if (!IsHost)
+        {
+            State = NetworkSessionState.InRoom;
+            pollTimer = 0f;
+            pingTimer = 0f;
+            return true;
+        }
+
+        SceneEventProgressStatus status = networkManager.SceneManager.LoadScene(TitleSceneName, LoadSceneMode.Single);
+        Debug.Log($"[ONLINE] 全員をロビーへ移します: {status}");
+        if (status != SceneEventProgressStatus.Started) return false; // 移せなかった（呼び出し側が、部屋を出てタイトルへ戻る）
 
         State = NetworkSessionState.InRoom;
         pollTimer = 0f;
         pingTimer = 0f;
-
-        if (!IsHost) return;
         _ = UnlockLobbyAsync();
-        networkManager.SceneManager.LoadScene(TitleSceneName, LoadSceneMode.Single);
+        return true;
     }
 
     private async Task UnlockLobbyAsync()

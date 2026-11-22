@@ -274,6 +274,14 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    /// <summary>落下・瞬間移動のあとに、落ちる勢いや吹き飛びを消す</summary>
+    public void ResetMotion()
+    {
+        velocity = Vector3.zero;
+        knockVelocity = Vector3.zero;
+        knockTimer = 0f;
+    }
+
     public void Stun(float seconds)
     {
         stunTimer = Mathf.Max(stunTimer, seconds);

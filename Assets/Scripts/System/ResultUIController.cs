@@ -539,18 +539,20 @@ public class ResultUIController : MonoBehaviour
         if (net != null && net.IsOnline)
         {
             GameSaveBridge.StartFreshSlot();
-            net.ReturnToLobbyAfterGameOver();
 
-            if (net.IsHost) yield break; // ホストがタイトル（ロビー）へ全員を移す。この画面は、移動で片付く
-
-            // 参加者：ホストの移動を待つ。来なければ（ホストが落ちたなど）部屋を出てタイトルへ
-            float waited = 0f;
-            while (waited < 10f && SceneManager.GetActiveScene().name != titleSceneName)
+            if (net.ReturnToLobbyAfterGameOver())
             {
-                waited += Time.unscaledDeltaTime;
-                yield return null;
+                if (net.IsHost) yield break; // ホストがタイトル（ロビー）へ全員を移す。この画面は、移動で片付く
+
+                // 参加者：ホストの移動を待つ。来なければ（ホストが落ちたなど）部屋を出てタイトルへ
+                float waited = 0f;
+                while (waited < 10f && SceneManager.GetActiveScene().name != titleSceneName)
+                {
+                    waited += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+                if (SceneManager.GetActiveScene().name == titleSceneName) yield break;
             }
-            if (SceneManager.GetActiveScene().name == titleSceneName) yield break;
             net.LeaveRoom();
         }
 

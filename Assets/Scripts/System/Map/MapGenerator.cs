@@ -1322,6 +1322,10 @@ public class MapGenerator : MonoBehaviour
         return basePos;
     }
 
+    /// <summary>プレイヤーを最後に置いた位置（落下からの復帰先）</summary>
+    public Vector3 PlayerSpawnPoint { get; private set; }
+    public bool HasPlayerSpawnPoint { get; private set; }
+
     private void SpawnPlayerAtPosition(Vector3 targetPosition)
     {
         PlayerController player = FindAnyObjectByType<PlayerController>();
@@ -1333,6 +1337,16 @@ public class MapGenerator : MonoBehaviour
 
         // マルチプレイ：全員が同じ点に出ると重なるので、席番号ごとに少しずつずらす
         targetPosition = GetSeatSpawnPosition(targetPosition);
+
+        // 出現位置の真下に床がなければ、上から探して床の上へ置く（床のない所に出ると落下してしまう）
+        int groundMask = ~(1 << 2);
+        if (!Physics.Raycast(targetPosition + Vector3.up * 0.5f, Vector3.down, 4f, groundMask, QueryTriggerInteraction.Ignore) &&
+            Physics.Raycast(targetPosition + Vector3.up * 12f, Vector3.down, out RaycastHit groundHit, 40f, groundMask, QueryTriggerInteraction.Ignore))
+        {
+            targetPosition = groundHit.point + Vector3.up * 1.0f;
+        }
+        PlayerSpawnPoint = targetPosition;
+        HasPlayerSpawnPoint = true;
 
         CharacterController charController = player.GetComponent<CharacterController>();
         if (charController != null)
