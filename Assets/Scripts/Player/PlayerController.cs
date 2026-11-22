@@ -304,6 +304,10 @@ public class PlayerController : MonoBehaviour
         // マルチプレイで他に生きている人がいれば、ゲームオーバーにはならず観戦に回る（次のステージで復活）。全員が倒れたときだけゲームオーバー
         if (TryBeginSpectating(deathReason)) return;
 
+        // 最後の1人として倒れた場合も、ほかの人に「倒れた」と知らせる。
+        // （知らせないと、先に倒れて観戦中の人は、この人がまだ生きていると思い続け、全滅に気づけない）
+        GameplaySync.NotifyLocalDead(true);
+
         isGameOver = true;
         pauseSanityDrain = true;
 
