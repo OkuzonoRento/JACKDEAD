@@ -84,6 +84,9 @@ public class PlayerController : MonoBehaviour
     /// <summary>ローカルのプレイヤーが実際にダメージを受けたときに通知される（スロットの回転を中止するなど）</summary>
     public static event System.Action Damaged;
 
+    /// <summary>ダメージを受けたときに、受けた量つきで通知される（画面の揺れ・閃光に使う）</summary>
+    public static event System.Action<float> DamageTaken;
+
     /// <summary>レバーでクリアしたあと、リザルト演出と次のステージへの移行が終わるまでは無敵</summary>
     public bool IsInvulnerable()
     {
@@ -114,6 +117,7 @@ public class PlayerController : MonoBehaviour
         _health = Mathf.Max(0f, _health - amount);
         Debug.Log($"[ダメージ] {reason} {amount:0.#} → 体力 {_health:0}/{_maxHealth:0}");
         Damaged?.Invoke();
+        DamageTaken?.Invoke(amount);
     }
 
     private static BombBox GetBombSettings(ItemDataAsset data)
@@ -311,7 +315,23 @@ public class PlayerController : MonoBehaviour
         isGameOver = true;
         pauseSanityDrain = true;
 
-        // ゲームオーバー演出とタイトルへのシーン推移は ResultUIController が担当する
+        // 崩れ落ちる死亡演出のあと、ゲームオーバー演出へ進む（演出がシーンになければ、すぐ進む）
+        DeathEffect fx = FindAnyObjectByType<DeathEffect>();
+        if (fx != null)
+        {
+            PlayerMovement movement = GetComponent<PlayerMovement>();
+            if (movement != null) movement.SetSpectating(true); // 演出の間は、操作できない
+            fx.Play(deathReason, true, () => BeginGameOverFlow(deathReason));
+        }
+        else
+        {
+            BeginGameOverFlow(deathReason);
+        }
+    }
+
+    /// <summary>ゲームオーバー演出とタイトルへのシーン推移は ResultUIController が担当する</summary>
+    private void BeginGameOverFlow(string deathReason)
+    {
         ResultUIController resultUI = FindAnyObjectByType<ResultUIController>();
         if (resultUI != null)
         {
@@ -355,6 +375,9 @@ public class PlayerController : MonoBehaviour
         spectator = SpectatorController.Begin(this);
         GameplaySync.NotifyLocalDead(true);
         Debug.Log($"[観戦] 倒れました（{deathReason}）。生きている仲間を観戦します。");
+
+        DeathEffect fx = FindAnyObjectByType<DeathEffect>();
+        if (fx != null) fx.Play(deathReason, false, null);
         return true;
     }
 
@@ -365,6 +388,9 @@ public class PlayerController : MonoBehaviour
     public void ReviveIfSpectating()
     {
         if (!isSpectating) return;
+
+        DeathEffect fx = FindAnyObjectByType<DeathEffect>();
+        if (fx != null) fx.Clear();
 
         if (spectator != null)
         {
@@ -414,6 +440,9 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public void ResetForNewRun()
     {
+        DeathEffect fx = FindAnyObjectByType<DeathEffect>();
+        if (fx != null) fx.Clear();
+
         if (spectator != null)
         {
             spectator.End();

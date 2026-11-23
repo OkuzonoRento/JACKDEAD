@@ -233,13 +233,43 @@ public class PlayerMovement : MonoBehaviour
     private float knockRecoveryStun = 2.5f; // 着地してから動けるようになるまで（Launch で指定）
 
     /// <summary>スタン中、または吹き飛んでいる間は true（移動・視点・拾う操作ができない）</summary>
-    public bool IsStunned => stunTimer > 0f || knockTimer > 0f;
+    public bool IsStunned => stunTimer > 0f || knockTimer > 0f || isTumbling;
+
+    // 吹き飛ばされて転がっている間（PlayerTumble）。操作も、このスクリプトの移動も止める
+    private bool isTumbling;
+
+    /// <summary>視点の上下の角度（転がっている間も、マウスで自由に動かせる。PlayerTumble がカメラの向きに使う）</summary>
+    public float CameraPitch => cameraPitch;
+
+    public void SetTumbling(bool tumbling)
+    {
+        isTumbling = tumbling;
+        if (tumbling)
+        {
+            moveInput = Vector2.zero;
+            lookInput = Vector2.zero;
+            IsCrouching = false;
+            velocity = Vector3.zero;
+        }
+    }
+
+    /// <summary>起き上がったあと、視点の上下の角度をそろえる（左右の向きは、体の向きで決まる）</summary>
+    public void ResetLook(float pitch)
+    {
+        cameraPitch = Mathf.Clamp(pitch, upLookLimit, downLookLimit);
+    }
 
     /// <summary>指定の速度で吹き飛ばす（水平成分は空気抵抗で弱まり、地面に着くと終わる）</summary>
     /// <param name="recoveryStunSeconds">着地したあと、さらに動けない時間（秒）</param>
     public void Launch(Vector3 launchVelocity, float recoveryStunSeconds = 2.5f)
     {
         if (isControlLocked) return; // スロットで固定中は動かさない
+
+        // 吹き飛ばされると、体が物理で転がる（R.E.P.O. のタンブル）。動きは PlayerTumble が行う
+        PlayerTumble tumble = GetComponent<PlayerTumble>();
+        if (tumble == null) tumble = gameObject.AddComponent<PlayerTumble>();
+        tumble.Begin(launchVelocity);
+        if (tumble.IsTumbling) return;
 
         knockRecoveryStun = recoveryStunSeconds;
         knockVelocity = new Vector3(launchVelocity.x, 0f, launchVelocity.z);
@@ -303,7 +333,14 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         // ポーズメニュー表示中・観戦中は操作を受け付けない
-        if (PauseMenu.IsOpen || isSpectating) return;
+        // 転がっている間も、視点はマウスで自由に動かせる（体だけが動く。カメラの位置と向きは PlayerTumble が決める）
+        if (isTumbling && !PauseMenu.IsOpen && !isSpectating)
+        {
+            HandleLookWhileStunned();
+            return;
+        }
+
+        if (PauseMenu.IsOpen || isSpectating || isTumbling) return;
 
         isGrounded = controller.isGrounded;
         if (isGrounded && velocity.y < 0)
