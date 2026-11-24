@@ -111,7 +111,7 @@ public class MultiLobbyUI : MonoBehaviour
         // 状態（ステップ・接続状況・メンバー・エラー）が変わったときだけ文字などを書き換える
         if (Signature() != lastSignature) Refresh();
 
-        if (UnityEngine.InputSystem.Keyboard.current != null &&
+        if (!KeyBindings.Busy && UnityEngine.InputSystem.Keyboard.current != null &&
             UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
             Back();
     }
@@ -255,6 +255,7 @@ public class MultiLobbyUI : MonoBehaviour
 
         // 設定
         OnClick("Settings/Back", Back);
+        KeyBindingsTab.Attach(P("Settings"));
         BindSlider("Settings/Row_Master", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_VOLUME, v); GameSettingsRuntime.ApplyMasterVolume(v); }, false);
         BindSlider("Settings/Row_Bgm", v => PlayerPrefs.SetFloat(SettingsManager.KEY_BGM, v), false);
         BindSlider("Settings/Row_Se", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SE, v), false);

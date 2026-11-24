@@ -56,7 +56,9 @@ public class PauseMenu : MonoBehaviour
             return;
         }
 
-        if (kb != null && kb.escapeKey.wasPressedThisFrame)
+        Gamepad pad = Gamepad.current;
+        bool menuKey = (kb != null && kb.escapeKey.wasPressedThisFrame) || (pad != null && pad.startButton.wasPressedThisFrame);
+        if (menuKey && !KeyBindings.Busy) // キーの割り当て直し中は、Esc / Start を取り消しに使うので、メニューは開閉しない
         {
             SetOpen(!IsOpen);
         }
@@ -173,6 +175,7 @@ public class PauseMenu : MonoBehaviour
         BindSlider("Settings/Row_Sensitivity", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SENSITIVITY, v), true);
         BindSlider("Settings/Row_Brightness", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_BRIGHTNESS, v); GameSettingsRuntime.ApplyBrightness(v); }, false);
         OnClick("Settings/Back", () => { PlayerPrefs.Save(); SetPage(Page.Main); });
+        KeyBindingsTab.Attach(P("Settings"));
 
         OnClick("ConfirmTitle/Confirm", ReturnToTitle);
         OnClick("ConfirmTitle/Cancel", () => SetPage(Page.Main));

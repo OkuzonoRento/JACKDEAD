@@ -94,8 +94,9 @@ public class SpectatorController : MonoBehaviour
             int step = 0;
             Keyboard kb = Keyboard.current;
             Mouse mouse = Mouse.current;
-            if ((kb != null && kb.rightArrowKey.wasPressedThisFrame) || (mouse != null && mouse.leftButton.wasPressedThisFrame)) step = 1;
-            if ((kb != null && kb.leftArrowKey.wasPressedThisFrame) || (mouse != null && mouse.rightButton.wasPressedThisFrame)) step = -1;
+            Gamepad pad = Gamepad.current;
+            if ((kb != null && kb.rightArrowKey.wasPressedThisFrame) || (mouse != null && mouse.leftButton.wasPressedThisFrame) || (pad != null && pad.rightShoulder.wasPressedThisFrame)) step = 1;
+            if ((kb != null && kb.leftArrowKey.wasPressedThisFrame) || (mouse != null && mouse.rightButton.wasPressedThisFrame) || (pad != null && pad.leftShoulder.wasPressedThisFrame)) step = -1;
 
             if (step != 0)
             {
@@ -123,7 +124,7 @@ public class SpectatorController : MonoBehaviour
 
         string targetName = RemotePlayerSync.Instance.GetAvatarName(targetId);
         string text = $"観戦中: {targetName}";
-        if (aliveIds.Count > 1) text += "\n← → / 左右クリックで観戦先を切り替え";
+        if (aliveIds.Count > 1) text += "\n← → / 左右クリック / LB・RB で観戦先を切り替え";
         text += "\n次のステージで復活します";
 
         GUIStyle style = new GUIStyle(GUI.skin.label)

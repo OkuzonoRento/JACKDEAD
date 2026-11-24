@@ -179,6 +179,8 @@ public class PlayerController : MonoBehaviour
     private InputAction slot1Action;
     private InputAction slot2Action;
     private InputAction slot3Action;
+    private InputAction slotPrevAction;
+    private InputAction slotNextAction;
 
     public float Health => _health;
     public float Sanity => _sanity;
@@ -200,6 +202,8 @@ public class PlayerController : MonoBehaviour
                 slot1Action = map.FindAction("SelectSlot1");
                 slot2Action = map.FindAction("SelectSlot2");
                 slot3Action = map.FindAction("SelectSlot3");
+                slotPrevAction = map.FindAction("SlotPrev");
+                slotNextAction = map.FindAction("SlotNext");
             }
         }
     }
@@ -496,6 +500,8 @@ public class PlayerController : MonoBehaviour
         if (slot1Action != null && slot1Action.triggered) SelectSlot(0);
         if (slot2Action != null && slot2Action.triggered) SelectSlot(1);
         if (slot3Action != null && slot3Action.triggered) SelectSlot(2);
+        if (slotPrevAction != null && slotPrevAction.triggered) SelectSlot((selectedSlotIndex - 1 + Inventory.Length) % Inventory.Length);
+        if (slotNextAction != null && slotNextAction.triggered) SelectSlot((selectedSlotIndex + 1) % Inventory.Length);
 
         Mouse mouse = Mouse.current;
         if (mouse != null)

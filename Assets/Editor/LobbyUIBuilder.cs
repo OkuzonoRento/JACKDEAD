@@ -192,6 +192,7 @@ public static class LobbyUIBuilder
         }
 
         MakeButton(g, "Back", "戻る", "BACK", 920f, 40f, 400f);
+        KeyBindingsUIBuilder.Build(g); // 「キー設定」タブの部品（実行時は KeyBindingsTab が動作をつなぐ）
     }
 
     internal static void Section(Transform g, string name, string ja, string en, float y)

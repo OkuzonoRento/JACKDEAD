@@ -190,15 +190,38 @@ public class PlayerMovement : MonoBehaviour
     private const float StunFovScale = 0.65f; // スタン中の画角（通常の何倍まで狭めるか）
 
     /// <summary>スタン・吹き飛び中でも、視点（カメラ）だけは動かせる</summary>
+    [Header("コントローラーの視点操作")]
+    [SerializeField, Tooltip("右スティックを倒しきったときの視点の回る速さ（度/秒。マウス感度が標準のとき）")]
+    private float gamepadLookSpeed = 170f;
+
+    /// <summary>
+    /// このフレームの視点の動き（度）。マウスは動いた量そのまま、コントローラーはスティックの倒し具合×速さ×時間。
+    /// 設定画面の感度を反映する。使っているのがどちらかは、最後に操作した入力で決まる
+    /// </summary>
+    private Vector2 ReadLookDegrees()
+    {
+        Vector2 raw = lookAction.ReadValue<Vector2>();
+        lookInput = raw;
+
+        float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity) / SettingsManager.DefaultSensitivity;
+
+        InputControl active = lookAction.activeControl;
+        if (active != null && active.device is Gamepad)
+        {
+            // スティックは「傾き」なので、時間を掛けて角度にする（フレームレートに左右されない）
+            return raw * (gamepadLookSpeed * sensScale * Time.deltaTime);
+        }
+        return raw * (mouseSensitivity * sensScale);
+    }
+
     private void HandleLookWhileStunned()
     {
         if (lookAction == null || cameraTransform == null) return;
 
-        lookInput = lookAction.ReadValue<Vector2>();
-        float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity) / SettingsManager.DefaultSensitivity;
-        transform.Rotate(Vector3.up * (lookInput.x * mouseSensitivity * sensScale));
+        Vector2 lookDelta = ReadLookDegrees();
+        transform.Rotate(Vector3.up * lookDelta.x);
 
-        cameraPitch -= lookInput.y * mouseSensitivity * sensScale;
+        cameraPitch -= lookDelta.y;
         cameraPitch = Mathf.Clamp(cameraPitch, upLookLimit, downLookLimit);
     }
 
@@ -370,11 +393,9 @@ public class PlayerMovement : MonoBehaviour
         // --- 通常時の視点操作 (マウス) ---
         if (lookAction != null && cameraTransform != null)
         {
-            lookInput = lookAction.ReadValue<Vector2>();
-            // 設定画面の感度（既定 1.0）を倍率として反映する
-            float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity) / SettingsManager.DefaultSensitivity;
-            float mouseX = lookInput.x * mouseSensitivity * sensScale;
-            float mouseY = lookInput.y * mouseSensitivity * sensScale;
+            Vector2 lookDelta = ReadLookDegrees();
+            float mouseX = lookDelta.x;
+            float mouseY = lookDelta.y;
 
             transform.Rotate(Vector3.up * mouseX);
 
