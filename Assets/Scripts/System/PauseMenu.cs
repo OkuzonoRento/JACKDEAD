@@ -172,6 +172,7 @@ public class PauseMenu : MonoBehaviour
         BindSlider("Settings/Row_Master", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_VOLUME, v); GameSettingsRuntime.ApplyMasterVolume(v); }, false);
         BindSlider("Settings/Row_Bgm", v => PlayerPrefs.SetFloat(SettingsManager.KEY_BGM, v), false);
         BindSlider("Settings/Row_Se", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SE, v), false);
+        BindSlider("Settings/Row_Voice", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_VOICE, v); ProximityVoice.ApplyOutputVolume(); }, false);
         BindSlider("Settings/Row_Sensitivity", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SENSITIVITY, v), true);
         BindSlider("Settings/Row_Brightness", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_BRIGHTNESS, v); GameSettingsRuntime.ApplyBrightness(v); }, false);
         OnClick("Settings/Back", () => { PlayerPrefs.Save(); SetPage(Page.Main); });
@@ -210,6 +211,7 @@ public class PauseMenu : MonoBehaviour
         SetSlider("Settings/Row_Master", SettingsManager.MasterVolume, false);
         SetSlider("Settings/Row_Bgm", SettingsManager.BgmVolume, false);
         SetSlider("Settings/Row_Se", SettingsManager.SeVolume, false);
+        SetSlider("Settings/Row_Voice", SettingsManager.VoiceVolume, false);
         SetSlider("Settings/Row_Sensitivity", SettingsManager.MouseSensitivity, true);
         SetSlider("Settings/Row_Brightness", SettingsManager.Brightness, false);
     }

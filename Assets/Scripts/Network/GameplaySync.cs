@@ -31,7 +31,9 @@ public class GameplaySync : MonoBehaviour
         PlayerDead = 11,  // id = 倒れたプレイヤーの席番号（clientId）
         PlayerAlive = 12, // id = 復活したプレイヤーの席番号
         EnemyPose = 13,   // id = 敵のNetId / v1 = 位置 / v2 = (向きY, 状態, 0)。ホスト → 参加者
-        Explosion = 14    // v1 = 爆発位置 / v2 = (半径, 最大ダメージ, 0)。所持中の爆弾が爆発したとき
+        Explosion = 14,   // v1 = 爆発位置 / v2 = (半径, 最大ダメージ, 0)。所持中の爆弾が爆発したとき
+        Voice = 15,       // v1 = 声が出た位置 / v2 = (音の大きさ, 0, 0)。参加者 → ホストだけ（敵が声に反応するため）
+        ItemPose = 16     // id = アイテムのID / v1 = 位置 / v2 = 回転（オイラー角）。落とした／投げた本人 → 全員。動いている間、短い間隔で送る
     }
 
     private struct NetEvent
@@ -167,6 +169,13 @@ public class GameplaySync : MonoBehaviour
         Instance.Send(new NetEvent { type = EventType.ItemSettle, id = item.NetId, v1 = position, v2 = eulerAngles });
     }
 
+    /// <summary>落とした／投げた本人：動いているアイテムの位置と回転を、全員へ配る（短い間隔。止まっていても、止まるまで送る）</summary>
+    public static void NotifyItemPose(Item item, Vector3 position, Vector3 eulerAngles)
+    {
+        if (Instance == null || item == null || item.NetId == 0) return;
+        Instance.Send(new NetEvent { type = EventType.ItemPose, id = item.NetId, v1 = position, v2 = eulerAngles });
+    }
+
     /// <summary>ホスト：敵の位置・向き・状態を全員へ配る（参加者側の敵は見た目だけ）</summary>
     public static void NotifyEnemyPose(int enemyId, Vector3 position, float yaw, int state)
     {
@@ -182,6 +191,25 @@ public class GameplaySync : MonoBehaviour
     {
         if (Instance == null) return;
         Instance.Send(new NetEvent { type = EventType.Explosion, v1 = position, v2 = new Vector3(radius, damage, 0f) });
+    }
+
+    /// <summary>
+    /// 近接ボイスチャットで声を出したことを、敵に知らせる。敵の判断はホストが行うので、参加者はホストだけに送る
+    /// </summary>
+    public static void NotifyVoiceNoise(Vector3 position, float loudness)
+    {
+        if (Instance == null || Instance.networkManager == null || !Instance.networkManager.IsListening)
+        {
+            EnemyNoise.Emit(position, loudness); // ソロ
+            return;
+        }
+
+        if (Instance.networkManager.IsHost)
+        {
+            EnemyNoise.Emit(position, loudness);
+            return;
+        }
+        Instance.WriteAndSend(new NetEvent { type = EventType.Voice, v1 = position, v2 = new Vector3(loudness, 0f, 0f) }, NetworkManager.ServerClientId);
     }
 
     /// <summary>所持金は全員共通。増減分を全員へ配る</summary>
@@ -244,6 +272,7 @@ public class GameplaySync : MonoBehaviour
     private static NetworkDelivery DeliveryFor(NetEvent e)
     {
         bool isDeadNotice = e.type == EventType.EnemyPose && (int)e.v2.y == 9;
+        if (e.type == EventType.Voice || e.type == EventType.ItemPose) return NetworkDelivery.UnreliableSequenced;
         if (e.type == EventType.EnemyPose && !isDeadNotice) return NetworkDelivery.UnreliableSequenced;
         return NetworkDelivery.ReliableSequenced;
     }
@@ -276,6 +305,13 @@ public class GameplaySync : MonoBehaviour
         if (e.type == EventType.PickRequest)
         {
             if (networkManager.IsHost) HandlePickRequest(senderId, e.id);
+            return;
+        }
+
+        // 声の音は、ホストだけが受けて、敵に聞かせる（中継しない）
+        if (e.type == EventType.Voice)
+        {
+            if (networkManager.IsHost) EnemyNoise.Emit(e.v1, e.v2.x);
             return;
         }
 
@@ -343,10 +379,21 @@ public class GameplaySync : MonoBehaviour
                 if (pc != null) pc.ApplySharedMoneyDelta(e.id);
                 break;
             }
+            case EventType.ItemPose:
+            {
+                Item item = FindItem(e.id);
+                if (item == null) break;
+                RemoteItemFollower follower = item.GetComponent<RemoteItemFollower>();
+                if (follower == null) follower = item.gameObject.AddComponent<RemoteItemFollower>();
+                follower.SetTarget(e.v1, Quaternion.Euler(e.v2));
+                break;
+            }
             case EventType.ItemSettle:
             {
                 Item item = FindItem(e.id);
                 if (item == null) break;
+                RemoteItemFollower follower = item.GetComponent<RemoteItemFollower>();
+                if (follower != null) Destroy(follower);
                 item.transform.SetPositionAndRotation(e.v1, Quaternion.Euler(e.v2));
                 Rigidbody rb = item.GetComponent<Rigidbody>();
                 if (rb != null)
@@ -405,12 +452,32 @@ public class GameplaySync : MonoBehaviour
         }
     }
 
+    // アイテムの位置は毎秒何十回も届くので、見つけた物は覚えておく（毎回、全部を探さない）
+    private static readonly Dictionary<int, Item> itemCache = new Dictionary<int, Item>();
+
+    private static readonly Dictionary<int, float> itemMissUntil = new Dictionary<int, float>();
+
     private static Item FindItem(int netId)
     {
+        if (itemCache.TryGetValue(netId, out Item cached))
+        {
+            if (cached != null && cached.NetId == netId) return cached;
+            itemCache.Remove(netId);
+        }
+
+        // 見つからなかった物（すでに拾われたなど）を、続けて全部探さないようにする
+        if (itemMissUntil.TryGetValue(netId, out float until) && Time.unscaledTime < until) return null;
+
         foreach (Item item in FindObjectsByType<Item>(FindObjectsSortMode.None))
         {
-            if (item.NetId == netId) return item;
+            if (item.NetId != 0) itemCache[item.NetId] = item;
         }
+        if (itemCache.TryGetValue(netId, out Item found) && found != null)
+        {
+            itemMissUntil.Remove(netId);
+            return found;
+        }
+        itemMissUntil[netId] = Time.unscaledTime + 0.5f;
         return null;
     }
 

@@ -99,6 +99,8 @@ public static class KeyBindingsUIBuilder
         if (settings.Find("Tab_General") == null || settings.Find("Tab_Controls") == null) return false;
         Transform content = settings.Find("KeyBindPanel/List/Viewport/Content");
         if (content == null || settings.Find("KeyBindPanel/Row_Device") == null || settings.Find("KeyBindPanel/Reset") == null) return false;
+        if (content.Find("Row_MicMode") == null) return false;
+        if (settings.Find("Row_Se") != null && settings.Find("Row_Voice") == null) return false;
 
         foreach (KeyBindings.Entry e in KeyBindings.Entries)
             if (content.Find(RowName(e)) == null) return false;
@@ -134,6 +136,7 @@ public static class KeyBindingsUIBuilder
         RectTransform panel = (RectTransform)panelGo.transform;
         LobbyUIBuilder.Stretch(panel);
 
+        EnsureVoiceRow(g);
         BuildDeviceRow(panel);
         BuildList(panel);
 
@@ -173,18 +176,18 @@ public static class KeyBindingsUIBuilder
         MakeArrow(bg.transform, "Next", ">", 790f);
     }
 
-    private static void MakeArrow(Transform parent, string name, string text, float x)
+    private static void MakeArrow(Transform parent, string name, string text, float x, float h = 56f)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         go.transform.SetParent(parent, false);
-        LobbyUIBuilder.TopLeft((RectTransform)go.transform, x, 0f, 60f, 56f);
+        LobbyUIBuilder.TopLeft((RectTransform)go.transform, x, 0f, 60f, h);
         Image img = go.GetComponent<Image>();
         img.color = new Color(1f, 1f, 1f, 0f);
         Button b = go.GetComponent<Button>();
         b.targetGraphic = img;
         b.transition = Selectable.Transition.None;
 
-        TextMeshProUGUI t = LobbyUIBuilder.MakeText(go.transform, "Label", text, null, 36f, Color.white, 0f, 0f, 60f, 56f,
+        TextMeshProUGUI t = LobbyUIBuilder.MakeText(go.transform, "Label", text, null, 36f, Color.white, 0f, 0f, 60f, h,
             FontStyles.Normal, TextAlignmentOptions.Midline);
         LobbyUIBuilder.Stretch((RectTransform)t.transform);
     }
@@ -231,8 +234,72 @@ public static class KeyBindingsUIBuilder
         sr.movementType = ScrollRect.MovementType.Clamped;
         sr.scrollSensitivity = 30f;
 
+        BuildMicRow(content);
         foreach (KeyBindings.Entry e in KeyBindings.Entries) BuildRow(content, e);
     }
+
+    /// <summary>マイクの使い方の行（自動 / プッシュトゥトーク）。一覧の一番上。「&lt;」「&gt;」で切り替える</summary>
+    private static void BuildMicRow(Transform parent)
+    {
+        Image bg = LobbyUIBuilder.NewImage(parent, "Row_MicMode", LobbyUIBuilder.RowNormal);
+        bg.raycastTarget = false;
+        LayoutElement le = bg.gameObject.AddComponent<LayoutElement>();
+        le.minHeight = RowH;
+        le.preferredHeight = RowH;
+
+        LobbyUIBuilder.MakeText(bg.transform, "Label", "マイクの使い方", "MIC MODE", 32f, LobbyUIBuilder.TextNormal, 20f, 0f, 460f, RowH);
+        LobbyUIBuilder.MakeText(bg.transform, "Value", "自動", null, 30f, Color.white, 450f, 0f, 340f, RowH,
+            FontStyles.Normal, TextAlignmentOptions.Midline);
+        MakeArrow(bg.transform, "Prev", "<", 380f, RowH);
+        MakeArrow(bg.transform, "Next", ">", 790f, RowH);
+    }
+
+    /// <summary>
+    /// 「サウンド」の並びに、ボイスチャットの音量のつまみを足す（SE 音量の行を写して、下の項目を1行ぶん下げる）。
+    /// すでにあれば何もしない
+    /// </summary>
+    internal static void EnsureVoiceRow(Transform g)
+    {
+        if (g.Find("Row_Voice") != null) return;
+        Transform se = g.Find("Row_Se");
+        if (se == null) return;
+
+        const float Step = 62f;
+        GameObject clone = Object.Instantiate(se.gameObject, g);
+        clone.name = "Row_Voice";
+        RectTransform rt = (RectTransform)clone.transform;
+        rt.anchoredPosition = ((RectTransform)se).anchoredPosition + new Vector2(0f, -Step);
+
+        foreach (string n in new[] { "Section_Controls", "Row_Sensitivity", "Row_Brightness", "Row_Language" })
+        {
+            Transform t = g.Find(n);
+            if (t != null) ((RectTransform)t).anchoredPosition += new Vector2(0f, -Step);
+        }
+
+        Transform label = clone.transform.Find("Label");
+        if (label != null)
+        {
+            LocalizedText lt = label.GetComponent<LocalizedText>();
+            if (lt != null) lt.Set("ボイスチャット音量", "VOICE CHAT VOLUME");
+        }
+
+        UiHover hover = clone.GetComponent<UiHover>();
+        if (hover != null)
+        {
+            hover.descJa = "ボイスチャットの、相手の声の大きさを調整します。";
+            hover.descEn = "ADJUST HOW LOUD OTHER PLAYERS' VOICES ARE.";
+        }
+
+        Transform sliderT = clone.transform.Find("Slider");
+        Slider s = sliderT != null ? sliderT.GetComponent<Slider>() : null;
+        if (s != null)
+        {
+            s.minValue = 0f;
+            s.maxValue = 2f; // 1 が標準。2 までで、少し大きくできる
+            s.SetValueWithoutNotify(1f);
+        }
+    }
+
 
     private static void BuildRow(Transform parent, KeyBindings.Entry e)
     {

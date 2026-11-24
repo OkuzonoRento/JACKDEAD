@@ -67,6 +67,17 @@ public class NetworkSession : MonoBehaviour
     public string LastError { get; private set; } = "";
     public IReadOnlyList<LobbyMember> Members => members;
 
+    /// <summary>部屋にいる全員の回線（ping）が測れているか。測れていないうちは、ゲームを開始できない</summary>
+    public bool AllPingsMeasured
+    {
+        get
+        {
+            if (members.Count == 0) return false;
+            foreach (LobbyMember m in members) if (!m.isHost && m.pingMs < 0) return false;
+            return true;
+        }
+    }
+
     /// <summary>ホストが決めた、全員共通のマップ生成シード（ゲーム開始時に配布される）</summary>
     public int SharedSeed { get; private set; }
     /// <summary>ホストのセーブデータ（ゲーム開始時に配布される）。参加者はこれを元にプレイする</summary>
@@ -274,7 +285,9 @@ public class NetworkSession : MonoBehaviour
         // リレーとの接続が切れる（"Receive queue is full" → Transport failure）。余裕を持たせる
         if (transport != null)
         {
-            transport.MaxPacketQueueSize = 2048;
+            // 位置などを短い間隔で送るので、キューは大きめにとる（メモリは、使った分だけ）
+            transport.MaxPacketQueueSize = 8192;
+            transport.MaxPayloadSize = 16384; // 1つのメッセージの上限（セーブデータなど大きなものを、まとめて送れる）
         }
 
         networkManager.OnClientDisconnectCallback += OnClientDisconnected;
@@ -582,6 +595,7 @@ public class NetworkSession : MonoBehaviour
     public void StartGame()
     {
         if (!IsHost || State != NetworkSessionState.InRoom) return;
+        if (!AllPingsMeasured) return; // 参加者の回線強度が測れるまでは開始できない
 
         SaveSystem.CommitNewSlot(); // 新規のセーブデータは、ゲーム開始のこのとき初めて作る
 

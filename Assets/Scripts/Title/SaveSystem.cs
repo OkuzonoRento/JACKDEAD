@@ -1,6 +1,17 @@
 using System.IO;
 using UnityEngine;
 
+/// <summary>プレイヤーごとのステータス。持ち主は、名前ではなく ID で見分ける（名前を変えても同じ人として扱える）</summary>
+[System.Serializable]
+public class PlayerSaveEntry
+{
+    public string playerId = "";
+    public string lastName = "";   // 最後に使っていた名前（表示用。見分けには使わない）
+    public float health = -1f;     // 負の値は「保存なし」
+    public float sanity = -1f;
+    public float dopamine = 0f;
+}
+
 [System.Serializable]
 public class GameSaveData
 {
@@ -15,6 +26,43 @@ public class GameSaveData
     public bool hasRightArm = true;
     public bool hasLeftEye = true;
     public bool hasLegs = true;
+
+    // 各プレイヤーのステータス（ID ごと）。マルチプレイでは、全員分をホストのセーブに保存する
+    public System.Collections.Generic.List<PlayerSaveEntry> players = new System.Collections.Generic.List<PlayerSaveEntry>();
+
+    public PlayerSaveEntry FindPlayer(string playerId)
+    {
+        if (players == null || string.IsNullOrEmpty(playerId)) return null;
+        foreach (PlayerSaveEntry e in players) if (e != null && e.playerId == playerId) return e;
+        return null;
+    }
+
+    public PlayerSaveEntry GetOrAddPlayer(string playerId)
+    {
+        if (players == null) players = new System.Collections.Generic.List<PlayerSaveEntry>();
+        PlayerSaveEntry e = FindPlayer(playerId);
+        if (e == null) { e = new PlayerSaveEntry { playerId = playerId }; players.Add(e); }
+        return e;
+    }
+
+    /// <summary>
+    /// ID で探し、無ければ以前の ID（別名）で探す。別名で見つかったら、ID を新しいものへ書き換えて引き継ぐ
+    /// （PC の ID から Steam ID へ移ったときなど）
+    /// </summary>
+    public PlayerSaveEntry FindPlayerOrAlias(string playerId, string alias)
+    {
+        PlayerSaveEntry e = FindPlayer(playerId);
+        if (e != null) return e;
+        e = FindPlayer(alias);
+        if (e != null) e.playerId = playerId;
+        return e;
+    }
+
+    public PlayerSaveEntry GetOrAddPlayer(string playerId, string alias)
+    {
+        PlayerSaveEntry e = FindPlayerOrAlias(playerId, alias);
+        return e ?? GetOrAddPlayer(playerId);
+    }
 }
 
 public static class SaveSystem

@@ -15,9 +15,9 @@ public class RemotePlayerSync : MonoBehaviour
     private const string MsgPoseRelay = "jd.poseRelay"; // ホスト → 参加者（誰の位置かを付けて中継）
     private const string MsgState = "jd.state";           // 参加者 → ホスト（体力・正気度・手持ち）
     private const string MsgStateRelay = "jd.stateRelay"; // ホスト → 参加者
-    private const float StateSendInterval = 0.25f;
+    private const float StateSendInterval = 0.1f;   // 状態（体力など）。止まっていても、毎回送る
 
-    private const float SendInterval = 1f / 10f;
+    private const float SendInterval = 1f / 20f;     // 位置・視点。止まっていても、毎回送る
     private const float SmoothingSpeed = 15f;
     private const float AvatarHeight = 2f;
     private const float LabelHeightOffset = 1.4f;
@@ -60,6 +60,8 @@ public class RemotePlayerSync : MonoBehaviour
         public string[] inventory;   // ItemDataAsset のアセット名（空欄は何も持っていない）
         public int selectedSlot;
         public float health, sanity, dopamine, stamina;
+        public string playerId;      // 名前を変えても変わらない、プレイヤーの ID（セーブの持ち主の判定に使う）
+        public string playerAlias;   // 同じ人の以前の ID（Steam ID に移ったときの、PC の ID）
 
         public static PlayerStatus Empty()
         {
@@ -124,6 +126,24 @@ public class RemotePlayerSync : MonoBehaviour
         fov = 60f;
         return false;
     }
+
+    public class RemoteInfo
+    {
+        public ulong clientId;
+        public string name;
+        public PlayerStatus status;
+    }
+
+    /// <summary>他プレイヤー全員の、席番号・名前・ステータス（セーブ用。ホストが使う）</summary>
+    public void CollectRemoteStatuses(List<RemoteInfo> result)
+    {
+        foreach (RemoteAvatar avatar in avatars.Values)
+        {
+            if (string.IsNullOrEmpty(avatar.status.playerId)) continue;
+            result.Add(new RemoteInfo { clientId = avatar.clientId, name = avatar.playerName, status = avatar.status });
+        }
+    }
+
 
     /// <summary>観戦先の体力・正気度・スタミナ・インベントリ</summary>
     public bool TryGetStatus(ulong clientId, out PlayerStatus status)
@@ -197,6 +217,14 @@ public class RemotePlayerSync : MonoBehaviour
         stateTimer = 0f;
 
         PlayerStatus status = PlayerStatus.Empty();
+        status = BuildLocalStatus(status);
+
+
+        SendStatus(status);
+    }
+
+    private PlayerStatus BuildLocalStatus(PlayerStatus status)
+    {
         if (localPc.Inventory != null)
         {
             for (int i = 0; i < InventorySize && i < localPc.Inventory.Length; i++)
@@ -210,7 +238,13 @@ public class RemotePlayerSync : MonoBehaviour
         status.dopamine = localPc.Dopamine;
         if (localMovement == null) localMovement = localPc.GetComponent<PlayerMovement>();
         status.stamina = localMovement != null ? localMovement.CurrentStamina : 0f;
+        status.playerId = PlayerIdentity.Id;
+        status.playerAlias = PlayerIdentity.Alias;
+        return status;
+    }
 
+    private void SendStatus(PlayerStatus status)
+    {
         if (networkManager.IsHost)
         {
             BroadcastState(networkManager.LocalClientId, status, ulong.MaxValue);
@@ -234,6 +268,8 @@ public class RemotePlayerSync : MonoBehaviour
         writer.WriteValueSafe(status.sanity);
         writer.WriteValueSafe(status.dopamine);
         writer.WriteValueSafe(status.stamina);
+        writer.WriteValueSafe(status.playerId ?? "");
+        writer.WriteValueSafe(status.playerAlias ?? "");
     }
 
     private static PlayerStatus ReadStatus(FastBufferReader reader)
@@ -249,6 +285,10 @@ public class RemotePlayerSync : MonoBehaviour
         reader.ReadValueSafe(out status.sanity);
         reader.ReadValueSafe(out status.dopamine);
         reader.ReadValueSafe(out status.stamina);
+        reader.ReadValueSafe(out string pid);
+        status.playerId = pid;
+        reader.ReadValueSafe(out string palias);
+        status.playerAlias = palias;
         return status;
     }
 
@@ -364,6 +404,7 @@ public class RemotePlayerSync : MonoBehaviour
             ? new EyeView { pos = cam.transform.position, rot = cam.transform.rotation, fov = cam.fieldOfView }
             : new EyeView { pos = feetPos + Vector3.up * 1.6f, rot = Quaternion.Euler(0f, yaw, 0f), fov = 60f };
 
+
         if (networkManager.IsHost)
         {
             // ホストの位置は、全参加者へ id=0 として配る
@@ -383,6 +424,7 @@ public class RemotePlayerSync : MonoBehaviour
             }
         }
     }
+
 
     private struct EyeView
     {

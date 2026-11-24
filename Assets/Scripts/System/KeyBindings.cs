@@ -45,6 +45,8 @@ public static class KeyBindings
         new Entry { action = "SelectSlot3", ja = "スロット 3", en = "SLOT 3", descJa = "インベントリの3番を選びます。", descEn = "SELECT INVENTORY SLOT 3." },
         new Entry { action = "SlotPrev", ja = "前のスロット", en = "PREVIOUS SLOT", descJa = "ひとつ前のスロットへ切り替えます（マウスホイールでも切り替えられます）。", descEn = "SWITCH TO THE PREVIOUS SLOT. THE MOUSE WHEEL ALSO WORKS." },
         new Entry { action = "SlotNext", ja = "次のスロット", en = "NEXT SLOT",     descJa = "ひとつ次のスロットへ切り替えます（マウスホイールでも切り替えられます）。", descEn = "SWITCH TO THE NEXT SLOT. THE MOUSE WHEEL ALSO WORKS." },
+        new Entry { action = "MicMute", ja = "マイクのミュート", en = "MUTE MIC", descJa = "ボイスチャットのマイクを、ミュート／解除します。", descEn = "MUTE OR UNMUTE YOUR MICROPHONE IN VOICE CHAT." },
+        new Entry { action = "PushToTalk", ja = "ボイスチャット（押して話す）", en = "PUSH TO TALK", descJa = "マイクの設定が「プッシュトゥトーク」のとき、押している間だけ話せます。", descEn = "WHEN THE MIC IS SET TO PUSH TO TALK, YOU CAN SPEAK ONLY WHILE THIS IS HELD." },
     };
 
     private static InputActionAsset asset;

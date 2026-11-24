@@ -223,6 +223,31 @@ public class PlayerController : MonoBehaviour
         StatusSetUp();
     }
 
+    // セーブから読み込んだステータス。Start の初期化のあとで反映する（Start で最大値に戻されるため）
+    private bool hasPendingSavedStats;
+    private float pendingHealth, pendingSanity, pendingDopamine;
+
+    /// <summary>セーブされていたステータスを反映する（負の値は、保存なしとして無視）</summary>
+    public void ApplySavedStats(float health, float sanity, float dopamine)
+    {
+        if (health < 0f || sanity < 0f) return;
+        pendingHealth = health;
+        pendingSanity = sanity;
+        pendingDopamine = Mathf.Max(0f, dopamine);
+        hasPendingSavedStats = true;
+        if (statusInitialized) ApplyPendingSavedStats();
+    }
+
+    private void ApplyPendingSavedStats()
+    {
+        if (!hasPendingSavedStats) return;
+        hasPendingSavedStats = false;
+        // 体力が 0 以下のまま始まらないよう、最低でも 1 にする
+        _health = Mathf.Clamp(pendingHealth, 1f, _maxHealth);
+        _sanity = Mathf.Clamp(pendingSanity, 1f, _maxSanity);
+        _dopamine = Mathf.Clamp(pendingDopamine, 0f, _maxDopamine);
+    }
+
     private void StatusSetUp()
     {
         if (PlayerData != null)
@@ -250,6 +275,7 @@ public class PlayerController : MonoBehaviour
             }
 
             statusInitialized = true;
+            ApplyPendingSavedStats();
         }
     }
 
@@ -611,8 +637,15 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    // アイテムの「使用」は、効果がまだ無いため、いまは使えない（キー設定や項目は残してある）。
+    // 効果を実装したら、true にして、下の消費の処理を各アイテムの効果に置き換える
+    [Header("アイテム使用")]
+    [Tooltip("オフの間は、アイテムを使えない（使ってもインベントリから消えない）")]
+    [SerializeField] private bool itemUseEnabled = false;
+
     public void UseSelectedInventoryItem()
     {
+        if (!itemUseEnabled) return;
         if (selectedSlotIndex < 0 || selectedSlotIndex >= Inventory.Length) return;
 
         ItemDataAsset itemDataToUse = Inventory[selectedSlotIndex];

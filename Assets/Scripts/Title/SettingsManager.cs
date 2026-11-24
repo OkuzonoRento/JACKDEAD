@@ -10,6 +10,8 @@ public class SettingsManager : MonoBehaviour // 部品としては使わない�
     // PlayerPrefs のキー
     public const string KEY_VOLUME = "MasterVolume";      // 全体音量
     public const string KEY_BGM = "BGMVolume";
+    public const string KEY_VOICE = "VoiceVolume";         // ボイスチャットの音量（0〜2。1 が標準）
+    public const string KEY_MIC_MODE = "MicMode";          // マイクの使い方（0 = 自動で拾う, 1 = プッシュトゥトーク）
     public const string KEY_SE = "SEVolume";
     public const string KEY_SENSITIVITY = "MouseSensitivity";
     public const string KEY_BRIGHTNESS = "Brightness";
@@ -23,6 +25,9 @@ public class SettingsManager : MonoBehaviour // 部品としては使わない�
     public static float MasterVolume => PlayerPrefs.GetFloat(KEY_VOLUME, 1f);
     public static float BgmVolume => PlayerPrefs.GetFloat(KEY_BGM, 1f);
     public static float SeVolume => PlayerPrefs.GetFloat(KEY_SE, 1f);
+    public static float VoiceVolume => PlayerPrefs.GetFloat(KEY_VOICE, 1f);
+    /// <summary>マイクの使い方。false = 声を自動で拾う、true = 押している間だけ話す（プッシュトゥトーク）</summary>
+    public static bool PushToTalk => PlayerPrefs.GetInt(KEY_MIC_MODE, 0) == 1;
     public static float MouseSensitivity => PlayerPrefs.GetFloat(KEY_SENSITIVITY, DefaultSensitivity);
     public static float Brightness => PlayerPrefs.GetFloat(KEY_BRIGHTNESS, DefaultBrightness);
 }

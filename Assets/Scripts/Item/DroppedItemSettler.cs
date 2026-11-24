@@ -15,6 +15,8 @@ public class DroppedItemSettler : MonoBehaviour
     private Rigidbody body;
     private float elapsed;
     private float restTime;
+    private float poseTimer;
+    private const float PoseInterval = 0.05f;   // 動いている間、この間隔で位置を配る（止まるまで。止まっていても送る）
 
     private void Awake()
     {
@@ -30,6 +32,13 @@ public class DroppedItemSettler : MonoBehaviour
         }
 
         elapsed += Time.deltaTime;
+
+        poseTimer += Time.deltaTime;
+        if (poseTimer >= PoseInterval)
+        {
+            poseTimer = 0f;
+            GameplaySync.NotifyItemPose(GetComponent<Item>(), transform.position, transform.eulerAngles);
+        }
 
         bool resting = body.linearVelocity.sqrMagnitude < LinearThresholdSqr
                     && body.angularVelocity.sqrMagnitude < AngularThresholdSqr;

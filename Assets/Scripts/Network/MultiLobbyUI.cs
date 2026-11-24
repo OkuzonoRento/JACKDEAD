@@ -125,7 +125,7 @@ public class MultiLobbyUI : MonoBehaviour
         if (net != null)
         {
             sb.Append('|').Append(net.State).Append('|').Append(net.RoomCode).Append('|').Append(net.LastError);
-            sb.Append('|').Append(net.IsHost);
+            sb.Append('|').Append(net.IsHost).Append('|').Append(net.AllPingsMeasured);
             foreach (LobbyMember m in net.Members) sb.Append('|').Append(m.name).Append(m.isHost).Append(m.pingMs / 5);
         }
         return sb.ToString();
@@ -259,6 +259,7 @@ public class MultiLobbyUI : MonoBehaviour
         BindSlider("Settings/Row_Master", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_VOLUME, v); GameSettingsRuntime.ApplyMasterVolume(v); }, false);
         BindSlider("Settings/Row_Bgm", v => PlayerPrefs.SetFloat(SettingsManager.KEY_BGM, v), false);
         BindSlider("Settings/Row_Se", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SE, v), false);
+        BindSlider("Settings/Row_Voice", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_VOICE, v); ProximityVoice.ApplyOutputVolume(); }, false);
         BindSlider("Settings/Row_Sensitivity", v => PlayerPrefs.SetFloat(SettingsManager.KEY_SENSITIVITY, v), true);
         BindSlider("Settings/Row_Brightness", v => { PlayerPrefs.SetFloat(SettingsManager.KEY_BRIGHTNESS, v); GameSettingsRuntime.ApplyBrightness(v); }, false);
         UnityEngine.Events.UnityAction toggleLanguage = () => Localization.Current = Localization.IsEnglish ? GameLanguage.Japanese : GameLanguage.English;
@@ -345,6 +346,7 @@ public class MultiLobbyUI : MonoBehaviour
         SetSlider("Settings/Row_Master", SettingsManager.MasterVolume, false);
         SetSlider("Settings/Row_Bgm", SettingsManager.BgmVolume, false);
         SetSlider("Settings/Row_Se", SettingsManager.SeVolume, false);
+        SetSlider("Settings/Row_Voice", SettingsManager.VoiceVolume, false);
         SetSlider("Settings/Row_Sensitivity", SettingsManager.MouseSensitivity, true);
         SetSlider("Settings/Row_Brightness", SettingsManager.Brightness, false);
     }
@@ -491,8 +493,27 @@ public class MultiLobbyUI : MonoBehaviour
                 if (has) SetPing("Multi/Room/Member" + (i + 1) + "/Ping", net.Members[i].pingMs);
             }
 
+            // 参加者全員の回線強度が測れるまでは、開始できない（測定中の表示を出す）
+            bool pingsReady = net.AllPingsMeasured;
             Show("Multi/Room/Start", net.IsHost);
-            Show("Multi/Room/Waiting", !net.IsHost);
+            Transform startBtn = P("Multi/Room/Start");
+            if (startBtn != null)
+            {
+                Button sb = startBtn.GetComponent<Button>();
+                if (sb != null) sb.interactable = pingsReady;
+            }
+            bool showWaiting = !net.IsHost || !pingsReady;
+            Show("Multi/Room/Waiting", showWaiting);
+            if (showWaiting)
+            {
+                // 文言は、ここで状況に合わせて書くので、言語の自動切り替えは外す
+                Transform wt = P("Multi/Room/Waiting");
+                LocalizedText autoText = wt != null ? wt.GetComponent<LocalizedText>() : null;
+                if (autoText != null) autoText.enabled = false;
+                SetText("Multi/Room/Waiting", net.IsHost
+                    ? Localization.T("参加者の回線を測定しています...", "MEASURING PLAYERS' CONNECTION...")
+                    : Localization.T("ホストの開始を待っています...", "WAITING FOR THE HOST TO START..."));
+            }
             Transform waiting = P("Multi/Room/Waiting");
             if (waiting != null)
             {

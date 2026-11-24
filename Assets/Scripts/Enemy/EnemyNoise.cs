@@ -16,6 +16,9 @@ public static class EnemyNoise
     public const float BoxBounce = 9f;
     public const float Slot = 30f;
     public const float Explosion = 30f;
+    /// <summary>ボイスチャットの声（小声 → 大声。マイクに入る声の大きさで変わる）</summary>
+    public const float VoiceMin = 8f;
+    public const float VoiceMax = 20f;
 
     /// <summary>聞こえる距離の最大（m）。これより大きい値は切り詰める</summary>
     public const float MaxLoudness = 30f;

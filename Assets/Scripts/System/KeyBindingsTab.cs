@@ -34,7 +34,7 @@ public class KeyBindingsTab : MonoBehaviour
 
     private GameObject panel;
     private RectTransform listContent;
-    private TMP_Text tabGeneral, tabControls, deviceValue, padNote;
+    private TMP_Text tabGeneral, tabControls, deviceValue, padNote, micValue;
     private Button devicePrev, deviceNext;
     private TMP_Text devicePrevText, deviceNextText;
     private KeyBindings.Scheme scheme = KeyBindings.Scheme.KeyboardMouse;
@@ -107,6 +107,23 @@ public class KeyBindingsTab : MonoBehaviour
         listContent = (RectTransform)panelT.Find("List/Viewport/Content");
         padNote = panelT.Find("PadNote").GetComponent<TMP_Text>();
         ButtonLabel(panelT.Find("Reset"), ResetCurrentScheme);
+
+        // マイクの使い方の行（自動 / プッシュトゥトーク）。一覧の一番上
+        Transform micRow = listContent.Find("Row_MicMode");
+        if (micRow != null)
+        {
+            micValue = micRow.Find("Value").GetComponent<TMP_Text>();
+            ButtonLabel(micRow.Find("Prev"), CycleMicMode);
+            ButtonLabel(micRow.Find("Next"), CycleMicMode);
+            foreach (string arrow in new[] { "Prev", "Next" })
+            {
+                HoverNotifier micHover = micRow.Find(arrow).gameObject.AddComponent<HoverNotifier>();
+                micHover.onEnter = () => { if (!KeyBindings.Busy) SetDescription(
+                    "自動：声を出すと自動で拾います。プッシュトゥトーク：話すキーを押している間だけ話せます。",
+                    "AUTO: PICKS UP YOUR VOICE AUTOMATICALLY. PUSH TO TALK: SPEAK ONLY WHILE THE TALK KEY IS HELD."); };
+                micHover.onExit = () => { if (!KeyBindings.Busy) SetDescription(null, null); };
+            }
+        }
 
         // 操作ごとの行（名前で、KeyBindings.Entries と対応させる）
         foreach (KeyBindings.Entry entry in KeyBindings.Entries)
@@ -218,6 +235,24 @@ public class KeyBindingsTab : MonoBehaviour
         RefreshDevices(false);
     }
 
+    /// <summary>マイクの使い方を切り替える（自動 ⇔ プッシュトゥトーク）</summary>
+    private void CycleMicMode()
+    {
+        if (KeyBindings.Busy) return;
+        PlayerPrefs.SetInt(SettingsManager.KEY_MIC_MODE, SettingsManager.PushToTalk ? 0 : 1);
+        PlayerPrefs.Save();
+        ProximityVoice.ApplyMicState();
+        RefreshMicMode();
+    }
+
+    private void RefreshMicMode()
+    {
+        if (micValue == null) return;
+        micValue.text = SettingsManager.PushToTalk
+            ? Localization.T("プッシュトゥトーク", "PUSH TO TALK")
+            : Localization.T("自動で拾う", "AUTO");
+    }
+
     private static void SetTabColor(TMP_Text t, bool active)
     {
         if (t != null) t.color = active ? Color.white : TextDim;
@@ -255,6 +290,8 @@ public class KeyBindingsTab : MonoBehaviour
             if (row.root.activeSelf != available) row.root.SetActive(available);
             if (available) SetKeyText(row.keyText, row.entry);
         }
+
+        RefreshMicMode();
 
         if (!keepScroll && listContent != null) listContent.anchoredPosition = Vector2.zero;
 

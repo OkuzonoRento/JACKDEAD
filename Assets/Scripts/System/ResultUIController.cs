@@ -47,12 +47,10 @@ public class ResultUIController : MonoBehaviour
     [Header("シーン推移設定")]
     [Tooltip("暗転・明転にかける時間（秒）")]
     [SerializeField, Min(0.05f)] private float fadeDuration = 0.6f;
-    [Tooltip("完全に暗転している間の待ち時間（秒）")]
-    [SerializeField, Min(0f)] private float blackHoldDuration = 0.4f;
-    [Tooltip("ゲームオーバー時のゆっくりした暗転時間（秒）")]
-    [SerializeField, Min(0.5f)] private float gameOverFadeDuration = 1.5f;
-    [Tooltip("GAME OVER 表示の保持時間（秒）")]
-    [SerializeField, Min(0.5f)] private float gameOverHoldDuration = 4.0f;
+    [Tooltip("暗転したあと、タイトルカード（ステージ名・GAME OVER）を見せる時間（秒）。クリアでもゲームオーバーでも同じ")]
+    [SerializeField, Min(0.5f)] private float cardHoldDuration = 2.5f;
+    [Tooltip("タイトルカードの文字が浮かび上がる時間（秒）")]
+    [SerializeField, Min(0.05f)] private float cardTextFadeDuration = 0.5f;
     [Tooltip("ゲームオーバー後に遷移するタイトルシーン名（Build Settings に登録が必要）")]
     [SerializeField] private string titleSceneName = "TitleScene";
 
@@ -448,6 +446,10 @@ public class ResultUIController : MonoBehaviour
     {
         isTransitioning = true;
 
+        // 共通の流れ：暗転 → タイトルカード → （暗転中に処理）→ カードを消す → 明転
+        int clearedStage = mapGenerator != null ? mapGenerator.CurrentStageLevel : 1;
+        string debtStatus = BuildDebtStatus();
+
         yield return FadeTo(1f, fadeDuration);
 
         if (resultPanelObj != null)
@@ -455,7 +457,12 @@ public class ResultUIController : MonoBehaviour
             resultPanelObj.SetActive(false);
         }
         if (debtStatusText != null) debtStatusText.gameObject.SetActive(false);
-        yield return new WaitForSecondsRealtime(blackHoldDuration);
+
+        float cardStart = Time.unscaledTime;
+        yield return ShowCard(
+            $"STAGE {clearedStage + 1}",
+            new Color(1f, 0.85f, 0.2f, 1f),
+            $"STAGE {clearedStage} CLEAR\n{debtStatus}");
 
         // 暗転中に次のマップを生成し、操作ロックと正気度減少を再開する
         if (mapGenerator != null)
@@ -463,6 +470,17 @@ public class ResultUIController : MonoBehaviour
             mapGenerator.AdvanceToNextLevel();
             GameSaveBridge.SaveProgress(playerController, mapGenerator);
         }
+        // 操作ロックの目標は、前のマップの立ち位置のまま。カードの間に前の位置へ引き戻されて落ちないよう、
+        // 新しいマップの出現位置で、ロックをかけ直す
+        if (playerMovement != null)
+        {
+            Vector3 spawned = playerMovement.transform.position;
+            playerMovement.LockControlAndMoveTo(spawned, spawned + playerMovement.transform.forward, LockTransitionDuration);
+        }
+        // カードを見せる時間は、マップの生成にかかった時間も含めて、いつも同じ長さにする
+        float remainingHold = cardHoldDuration - (Time.unscaledTime - cardStart);
+        if (remainingHold > 0f) yield return new WaitForSecondsRealtime(remainingHold);
+        HideCard();
         // 倒れて観戦中だった人は、次のステージのバス（トラック）の中で復活する（マップ生成でバスへ移動済み）
         if (playerController != null) playerController.ReviveIfSpectating();
         if (playerMovement != null) playerMovement.UnlockControl();
@@ -521,11 +539,14 @@ public class ResultUIController : MonoBehaviour
         string debtStatus = BuildDebtStatus();
         string reasonLine = string.IsNullOrEmpty(deathReason) ? "" : $"{deathReason}\n";
 
-        yield return FadeTo(1f, gameOverFadeDuration);
+        // クリアと同じ流れ：暗転 → タイトルカード（同じ時間）→ 次の場所へ
+        yield return FadeTo(1f, fadeDuration);
 
-        gameOverText.text = $"GAME OVER\n<size=40%><color=#CCCCCC>{reasonLine}STAGE {reachedStage}\n{debtStatus}</color></size>";
-        gameOverText.gameObject.SetActive(true);
-        yield return new WaitForSecondsRealtime(gameOverHoldDuration);
+        yield return ShowCard(
+            "GAME OVER",
+            new Color(0.85f, 0.05f, 0.05f, 1f),
+            $"{reasonLine}STAGE {reachedStage}\n{debtStatus}");
+        yield return new WaitForSecondsRealtime(cardHoldDuration);
 
         // 次回のプレイが最初から始まるよう、進行データを初期化してからタイトルへ
         GameSaveBridge.DeleteSaveOnDeath();
@@ -570,6 +591,32 @@ public class ResultUIController : MonoBehaviour
     // ------------------------------------------------------------------
     // 共通：フェード
     // ------------------------------------------------------------------
+
+    /// <summary>暗転した画面に、大きなタイトルと小さな補足を出す（クリア・ゲームオーバー共通）。文字は浮かび上がる</summary>
+    private IEnumerator ShowCard(string title, Color titleColor, string sub)
+    {
+        gameOverText.color = new Color(titleColor.r, titleColor.g, titleColor.b, 0f);
+        gameOverText.text = $"{title}\n<size=40%><color=#CCCCCC>{sub}</color></size>";
+        gameOverText.gameObject.SetActive(true);
+
+        float elapsed = 0f;
+        while (elapsed < cardTextFadeDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            Color c = gameOverText.color;
+            c.a = Mathf.Clamp01(elapsed / cardTextFadeDuration);
+            gameOverText.color = c;
+            yield return null;
+        }
+        Color done = gameOverText.color;
+        done.a = 1f;
+        gameOverText.color = done;
+    }
+
+    private void HideCard()
+    {
+        if (gameOverText != null) gameOverText.gameObject.SetActive(false);
+    }
 
     private IEnumerator FadeTo(float targetAlpha, float duration)
     {

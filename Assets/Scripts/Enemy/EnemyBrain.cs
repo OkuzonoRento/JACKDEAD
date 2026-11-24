@@ -66,7 +66,7 @@ public class EnemyBrain : MonoBehaviour
 
     private static readonly Dictionary<int, EnemyBrain> Registry = new Dictionary<int, EnemyBrain>();
 
-    private const float PoseSendInterval = 0.1f;
+    private const float PoseSendInterval = 0.05f;
     private const float AnimBlendSpeed = 8f;
 
     private bool isPuppet;
@@ -308,6 +308,8 @@ public class EnemyBrain : MonoBehaviour
         poseTimer += Time.unscaledDeltaTime;
         if (poseTimer < PoseSendInterval) return;
         poseTimer = 0f;
+
+        // 止まっていても、毎回送る（動きがなくても通信は変わらない。位置のずれを早く直せる）
         GameplaySync.NotifyEnemyPose(NetId, transform.position, transform.eulerAngles.y, (int)animState);
     }
 
