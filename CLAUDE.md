@@ -41,3 +41,8 @@ Difficulty is driven by `MapGenerator` settings. The room count rises linearly f
 **Slots.** `SlotMachineController` drives a coroutine sequence (`PlaySlotSequence`): it deducts the bet, moves the player to the front of the machine, rolls an outcome, and builds each reel strip as a runtime `Texture2D` that `SlotReelScroller` scrolls. Win rates are derived from each symbol's multiplier and the `loseRate` (`RecalculateWinRates`, also run in `OnValidate`). A `Reroll` symbol repeats the spin without a new bet. Reel sprite textures must have Read/Write enabled, or `DrawSpriteIntoVerticalCell` silently skips them. `MapGenerator` auto-orients spawned slot machines by detecting the front from the positions of their `SlotButtonInteractable` and `SlotReelScroller` children.
 
 **Data.** `ItemDataAsset`, `PlayerDataAsset` and `MapChipData` are ScriptableObjects under `Scripts/ScriptableObjects/`. `PlayerDataAsset` is mutated at runtime (money, inventory, stage level). Note that ScriptableObject changes persist in the Editor between Play sessions.
+
+
+## Handover notes
+
+Read `Docs/ClaudeNotes.md` first. It records the current state of multiplayer, voice chat (Vivox, with an unresolved `RTP Timeout` problem), player IDs and saves, and how to check Unity errors from `Editor.log`.
