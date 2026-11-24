@@ -133,7 +133,18 @@ public class BombBox : MonoBehaviour
         if (Remaining <= 0f)
         {
             exploded = true;
-            ExplodeAt(transform.position, explosionRadius, explosionDamage);
+            // 爆心は、見た目の中心（モデルの原点がずれていても正しい位置にする）。
+            // 吹き飛ぶ体が、この Box の当たり判定に押し返されないよう、先に判定を切る
+            Vector3 center = transform.position;
+            Collider[] cols = GetComponentsInChildren<Collider>();
+            if (cols.Length > 0)
+            {
+                Bounds b = cols[0].bounds;
+                for (int i = 1; i < cols.Length; i++) b.Encapsulate(cols[i].bounds);
+                center = b.center;
+            }
+            foreach (Collider c in cols) c.enabled = false;
+            ExplodeAt(center, explosionRadius, explosionDamage);
             Destroy(gameObject);
             return;
         }
@@ -273,11 +284,20 @@ public class BombBox : MonoBehaviour
         pc.TakeDamage(damage, "BLOWN UP");
 
         // 爆心から離れる向きへ吹き飛ばす（近いほど強く、少し上へ浮く）。着地するまで操作できない
+        // 爆心 → 体の中心 の向き（水平）。ほぼ真上・真下にいる場合は、体が向いている方向の逆へ
         Vector3 away = bodyCenter - position;
         away.y = 0f;
-        if (away.sqrMagnitude < 0.01f) away = Random.insideUnitSphere;
-        away.y = 0f;
+        if (away.sqrMagnitude < 0.04f)
+        {
+            away = -pc.transform.forward;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.01f) away = Vector3.back;
+        }
         away = away.normalized;
+
+        Debug.Log($"[Box爆発] 爆心={position} 体の中心={bodyCenter} 飛ぶ向き={away}");
+        Debug.DrawRay(position, Vector3.up * 3f, Color.red, 5f);
+        Debug.DrawRay(bodyCenter, away * 3f, Color.green, 5f);
 
         float horizontalSpeed = Mathf.Lerp(3.5f, 8f, falloff);
         float upwardSpeed = Mathf.Lerp(3f, 6f, falloff);

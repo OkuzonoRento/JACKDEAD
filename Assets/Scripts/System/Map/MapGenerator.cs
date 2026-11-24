@@ -1432,6 +1432,24 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
+        // それでも見つからない場合：スタート部屋も含め、外側に面した扉のある部屋ならどこでもよい
+        if (busCandidates.Count == 0)
+        {
+            foreach (var room in spawnedRoomList) AddOuterDoorBusCandidates(room, busCandidates);
+        }
+
+        // 最後の手段：扉がなくても、外側に面した部屋の辺にバスを置く（バスが無いまま始まるのを防ぐ）
+        if (busCandidates.Count == 0)
+        {
+            Debug.LogWarning("[MAP] 外側に扉のある部屋が無いため、扉のない辺にバスを配置します。");
+            foreach (var room in spawnedRoomList) AddOuterDoorBusCandidates(room, busCandidates, false);
+        }
+
+        if (busCandidates.Count == 0)
+        {
+            Debug.LogError("[MAP] バスを置ける場所が見つかりませんでした。");
+        }
+
         if (busCandidates.Count > 0)
         {
             (GeneratedRoom room, Vector3 pos, Quaternion rot, int dir) bestCandidate = busCandidates[0];
@@ -1456,29 +1474,29 @@ public class MapGenerator : MonoBehaviour
         }
     }
 
-    private void AddOuterDoorBusCandidates(GeneratedRoom room, List<(GeneratedRoom room, Vector3 pos, Quaternion rot, int dir)> busCandidates)
+    private void AddOuterDoorBusCandidates(GeneratedRoom room, List<(GeneratedRoom room, Vector3 pos, Quaternion rot, int dir)> busCandidates, bool requireDoor = true)
     {
         bool isTopEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.up);
         bool isBottomEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.down);
         bool isLeftEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.left);
         bool isRightEdge = !generatedRooms.ContainsKey(room.gridPos + Vector2Int.right);
 
-        if (isTopEdge && room.topDoor)
+        if (isTopEdge && (!requireDoor || room.topDoor))
         {
             Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[1] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.forward * busOffsetDistance, rot, 0));
         }
-        if (isBottomEdge && room.bottomDoor)
+        if (isBottomEdge && (!requireDoor || room.bottomDoor))
         {
             Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[0] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.back * busOffsetDistance, rot, 1));
         }
-        if (isLeftEdge && room.leftDoor)
+        if (isLeftEdge && (!requireDoor || room.leftDoor))
         {
             Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[3] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.left * busOffsetDistance, rot, 2));
         }
-        if (isRightEdge && room.rightDoor)
+        if (isRightEdge && (!requireDoor || room.rightDoor))
         {
             Quaternion rot = Quaternion.Euler(0f, wallInwardYawAngles[2] + busYRotationOffset, 0f);
             busCandidates.Add((room, room.worldPos + Vector3.right * busOffsetDistance, rot, 3));

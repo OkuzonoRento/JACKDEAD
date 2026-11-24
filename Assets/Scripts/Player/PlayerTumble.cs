@@ -82,6 +82,7 @@ public class PlayerTumble : MonoBehaviour
 
         CreateBody(transform.TransformPoint(cc.center));
         body.linearVelocity = v;
+        Debug.Log($"[タンブル] 開始 位置={body.position} 初速={v}");
         body.angularVelocity = Random.onUnitSphere * spinSpeed;
 
         movement.SetTumbling(true); // 操作できない（移動・視点・拾う）
@@ -112,12 +113,32 @@ public class PlayerTumble : MonoBehaviour
 
         body = go.AddComponent<Rigidbody>();
         body.mass = mass;
+        body.maxDepenetrationVelocity = 3f;
         body.linearDamping = linearDamping;
         body.angularDamping = angularDamping;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         body.interpolation = RigidbodyInterpolation.Interpolate;
 
         go.AddComponent<TumbleBodyProxy>().owner = this;
+    }
+
+    // 異常な加速（壁にめり込んだときの押し出しなど）を抑える
+    private const float MaxBodySpeed = 20f;
+
+    private void FixedUpdate()
+    {
+        if (phase != Phase.Tumble || body == null) return;
+
+        Vector3 v = body.linearVelocity;
+        if (v.magnitude > MaxBodySpeed) body.linearVelocity = v.normalized * MaxBodySpeed;
+    }
+
+    /// <summary>体の下に床があるか（空中かどうか）</summary>
+    private bool IsBodyGrounded()
+    {
+        int itemsLayer = LayerMask.NameToLayer("Items");
+        int mask = ~((1 << 2) | (itemsLayer >= 0 ? 1 << itemsLayer : 0));
+        return Physics.Raycast(body.position, Vector3.down, radius + 0.3f, mask, QueryTriggerInteraction.Ignore);
     }
 
     private void Update()
@@ -130,7 +151,10 @@ public class PlayerTumble : MonoBehaviour
         bool slow = body.linearVelocity.magnitude < settleSpeed && body.angularVelocity.magnitude < settleSpeed * 3f;
         settleTimer = slow ? settleTimer + dt : 0f;
 
-        if (timer >= maxTumbleSeconds || (timer >= minTumbleSeconds && settleTimer >= settleHold))
+        // 空中では解除しない（床に着いて、止まったときだけ起き上がる）
+        bool grounded = IsBodyGrounded();
+        if (!grounded) settleTimer = 0f;
+        if (grounded && (timer >= maxTumbleSeconds || (timer >= minTumbleSeconds && settleTimer >= settleHold)))
             BeginStandUp();
     }
 

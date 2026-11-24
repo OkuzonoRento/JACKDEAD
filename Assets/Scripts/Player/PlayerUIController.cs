@@ -48,6 +48,14 @@ public class PlayerUIController : MonoBehaviour
     [SerializeField] private float selectedScale = 1.2f;  // 選択中のサイズ倍率
     [SerializeField] private float scaleLerpSpeed = 15f;  // サイズ変更のスムーズさ
 
+    [Header("選択中アイテム名・重量（未設定なら自動で作る）")]
+    [SerializeField] private TextMeshProUGUI selectedNameText;
+    [SerializeField] private TextMeshProUGUI weightText;
+    [Tooltip("自動で作った名前テキストの位置の調整（スロット列の中央の上端からの距離。キャンバス単位）")]
+    [SerializeField] private Vector2 nameOffset = new Vector2(0f, 90f);
+    [Tooltip("自動で作った重量テキストの位置の調整（一番右のスロットの右端からの距離。キャンバス単位）")]
+    [SerializeField] private Vector2 weightOffset = new Vector2(120f, 0f);
+
     private int targetMoney = 0;
     private float currentDisplayedMoney = 0f;
     private bool isMoneyInitialized = false;
@@ -257,5 +265,94 @@ public class PlayerUIController : MonoBehaviour
                 }
             }
         }
+
+        UpdateNameAndWeight(selectedIndex);
+    }
+
+    private ItemDataAsset GetSlotItem(int i)
+    {
+        if (hasSpectated)
+            return spectated.inventory != null && i < spectated.inventory.Length ? GameplaySync.ResolveItemData(spectated.inventory[i]) : null;
+        return i >= 0 && i < playerController.Inventory.Length ? playerController.Inventory[i] : null;
+    }
+
+    private void UpdateNameAndWeight(int selectedIndex)
+    {
+        EnsureNameAndWeightTexts();
+
+        if (selectedNameText != null)
+        {
+            ItemDataAsset sel = GetSlotItem(selectedIndex);
+            selectedNameText.text = sel != null ? sel.ItemName : "";
+        }
+
+        if (weightText != null)
+        {
+            float total = 0f;
+            for (int i = 0; i < inventorySlots.Length; i++)
+            {
+                ItemDataAsset d = GetSlotItem(i);
+                if (d != null) total += d.ItemWeight;
+            }
+            weightText.text = total.ToString("0.#") + " kg";
+        }
+    }
+    // 未設定の場合は、キャンバス直下に名前と重量を自動で作る。
+    // 位置は、インスペクターのオフセットで調整できる（名前＝スロット列の中央の上端から、重量＝最後のスロットの右端から）。
+    // 自分で用意したテキストを割り当てた場合は、位置には触らない
+    private bool autoName, autoWeight;
+
+    private void EnsureNameAndWeightTexts()
+    {
+        if (inventorySlots.Length == 0) return;
+        RectTransform first = inventorySlots[0].slotRectTransform;
+        RectTransform last = inventorySlots[inventorySlots.Length - 1].slotRectTransform;
+        if (first == null || last == null) return;
+        Canvas canvas = first.GetComponentInParent<Canvas>();
+        if (canvas == null) return;
+        Transform root = canvas.rootCanvas.transform;
+
+        if (selectedNameText == null) { selectedNameText = CreateHudText("SelectedItemName", root, true); autoName = true; }
+        if (weightText == null) { weightText = CreateHudText("InventoryWeight", root, false); autoWeight = true; }
+        if (!autoName && !autoWeight) return;
+
+        // スロットの拡大縮小（選択演出）で動かないよう、枠の中心（ピボット）と通常サイズの大きさから位置を決める
+        Transform slotParent = first.parent != null ? first.parent : first;
+        float pScale = slotParent.lossyScale.y;
+        float baseH = first.rect.height * normalScale * pScale;
+        float baseW = last.rect.width * normalScale * pScale;
+        float scale = root.lossyScale.y;
+        Vector3 fp = first.position;
+        Vector3 lp = last.position;
+        if (autoName)
+        {
+            Vector3 mid = (fp + lp) * 0.5f;
+            float topY = Mathf.Max(fp.y, lp.y) + baseH * 0.5f;
+            selectedNameText.rectTransform.position = new Vector3(mid.x + nameOffset.x * scale, topY + nameOffset.y * scale, mid.z);
+        }
+        if (autoWeight)
+        {
+            weightText.rectTransform.position = new Vector3(lp.x + baseW * 0.5f + weightOffset.x * scale, lp.y + weightOffset.y * scale, lp.z);
+        }
+    }
+
+    private static TextMeshProUGUI CreateHudText(string objName, Transform parent, bool nameLabel)
+    {
+        GameObject go = new GameObject(objName, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = nameLabel ? new Vector2(700f, 44f) : new Vector2(240f, 44f);
+
+        TextMeshProUGUI t = go.AddComponent<TextMeshProUGUI>();
+        t.raycastTarget = false;
+        t.fontSize = nameLabel ? 30f : 32f;
+        t.alignment = TextAlignmentOptions.Center;
+        t.color = Color.white;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.outlineWidth = 0.25f;
+        t.outlineColor = new Color32(0, 0, 0, 255);
+        return t;
     }
 }

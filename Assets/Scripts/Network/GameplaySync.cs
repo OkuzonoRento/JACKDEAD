@@ -436,21 +436,28 @@ public class GameplaySync : MonoBehaviour
     public static ItemDataAsset ResolveItemData(string assetName)
     {
         if (string.IsNullOrEmpty(assetName)) return null;
-        if (itemDataByName == null)
-        {
-            itemDataByName = new Dictionary<string, ItemDataAsset>();
-            foreach (ItemDataAsset data in Resources.FindObjectsOfTypeAll<ItemDataAsset>())
-            {
-                itemDataByName[data.name] = data;
-            }
-            // Resources フォルダのアイテム（Box など、シーンから参照されていないもの）も対象にする
-            foreach (ItemDataAsset data in Resources.LoadAll<ItemDataAsset>(""))
-            {
-                itemDataByName[data.name] = data;
-            }
-        }
-        itemDataByName.TryGetValue(assetName, out ItemDataAsset found);
+
+        if (itemDataByName == null) RebuildItemDataIndex();
+        if (itemDataByName.TryGetValue(assetName, out ItemDataAsset found) && found != null) return found;
+
+        // 見つからないときは、敵の出現設定（Box のデータを持つ）を読み込んでから、一覧を作り直して、もう一度探す
+        EnemySpawnConfig.Load();
+        RebuildItemDataIndex();
+        itemDataByName.TryGetValue(assetName, out found);
         return found != null ? found : null;
+    }
+
+    /// <summary>
+    /// 読み込まれているアイテムデータの一覧を作る。
+    /// Resources.LoadAll("") は、Resources の中のすべて（フォントの画像など）を読み込んでしまい重く、警告も出るので使わない。
+    /// </summary>
+    private static void RebuildItemDataIndex()
+    {
+        itemDataByName = new Dictionary<string, ItemDataAsset>();
+        foreach (ItemDataAsset data in Resources.FindObjectsOfTypeAll<ItemDataAsset>())
+        {
+            itemDataByName[data.name] = data;
+        }
     }
 
     /// <summary>他プレイヤーが落とした／投げたアイテムを、こちらにも出す（PlayerController.DropSelectedInventoryItem と同じ作り）</summary>
