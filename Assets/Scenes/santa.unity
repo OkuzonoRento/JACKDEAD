@@ -2892,6 +2892,13 @@ MonoBehaviour:
   releaseDelay: 0.45
   throwSpeed: 12
   upwardArc: 3.5
+  santaVoiceClip: {fileID: 8300000, guid: 1a4e43a1011df77489f32accf3754c3a, type: 3}
+  spotPitch: 0.637
+  spotVolume: 1
+  throwPitch: 0.85
+  throwVolume: 0.648
+  pitchVariation: 0.05
+  preventOverlap: 1
 --- !u!136 &1596591638
 CapsuleCollider:
   m_ObjectHideFlags: 0

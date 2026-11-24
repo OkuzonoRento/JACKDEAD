@@ -26,8 +26,23 @@ public class SantaEnemyAI : MonoBehaviour
     public float throwSpeed = 12f;        // 投げる強さ（横スピード）
     public float upwardArc = 3.5f;        // 山なりに飛ばす上向きの力
 
+    [Header("ボイス・効果音の設定")]
+    public AudioClip santaVoiceClip;      // サンタの「Ho, ho, ho」音声ファイル
+    [Range(0.1f, 2.0f)]
+    public float spotPitch = 0.78f;       // 発見時の声の高さ（1より小さいほど低く不気味になる）
+    [Range(0.0f, 1.0f)]
+    public float spotVolume = 1.0f;       // 発見時の音量
+    [Range(0.1f, 2.0f)]
+    public float throwPitch = 0.85f;      // 投げる時の声の高さ
+    [Range(0.0f, 1.0f)]
+    public float throwVolume = 0.85f;     // 投げる時の音量
+    [Range(0.0f, 0.2f)]
+    public float pitchVariation = 0.05f;  // 再生ごとに声の高さを少しだけ揺らす幅（0で固定）
+    public bool preventOverlap = true;    // 声が再生中に次の声が重ならないようにする
+
     private Animator animator;
     private CharacterController controller;
+    private AudioSource audioSource;
     private Transform player;
     private Transform playerRoot;
     private float lastAttackTime;
@@ -40,6 +55,15 @@ public class SantaEnemyAI : MonoBehaviour
     {
         animator = GetComponent<Animator>();
         controller = GetComponent<CharacterController>();
+
+        // AudioSourceが未設定なら自動で追加し、距離で減衰する3Dサウンドにする
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 1.0f;
+        }
 
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
@@ -65,7 +89,6 @@ public class SantaEnemyAI : MonoBehaviour
         Vector3 flatPlayer = new Vector3(player.position.x, 0f, player.position.z);
         float distance = Vector3.Distance(flatSelf, flatPlayer);
 
-        // 最大視認距離以内 ＋ 遮蔽物なし の時だけ視認できる
         bool canSeePlayer = (distance <= maxSightDistance) && HasLineOfSight();
 
         if (!isChasing)
@@ -74,6 +97,9 @@ public class SantaEnemyAI : MonoBehaviour
             {
                 isChasing = true;
                 timeSinceLastSawPlayer = 0f;
+
+                // プレイヤーを発見した瞬間に声を再生
+                PlaySantaVoice(spotPitch, spotVolume);
             }
         }
         else
@@ -87,7 +113,6 @@ public class SantaEnemyAI : MonoBehaviour
                 timeSinceLastSawPlayer += Time.deltaTime;
             }
 
-            // 視認距離の外に出るか壁に隠れて一定時間経ったら追跡終了
             if (timeSinceLastSawPlayer >= loseSightTime)
             {
                 isChasing = false;
@@ -98,7 +123,6 @@ public class SantaEnemyAI : MonoBehaviour
         {
             if (distance <= attackRange && canSeePlayer)
             {
-                // 攻撃範囲内：足を止めて投げる
                 animator.SetBool("IsRunning", false);
                 LookAtTarget(player.position);
 
@@ -111,7 +135,6 @@ public class SantaEnemyAI : MonoBehaviour
             }
             else
             {
-                // 追跡中：走って追いかける
                 animator.SetBool("IsRunning", true);
                 LookAtTarget(player.position);
                 MoveForward(runSpeed);
@@ -119,7 +142,6 @@ public class SantaEnemyAI : MonoBehaviour
         }
         else
         {
-            // 未発見・見失った後：周囲をゆっくり歩く
             animator.SetBool("IsRunning", false);
             WanderAround();
         }
@@ -130,6 +152,9 @@ public class SantaEnemyAI : MonoBehaviour
         yield return new WaitForSeconds(releaseDelay);
 
         if (presentPrefab == null || player == null) yield break;
+
+        // プレゼントを投げる瞬間に声を再生
+        PlaySantaVoice(throwPitch, throwVolume);
 
         Vector3 spawnPos = (rightHandPoint != null)
             ? rightHandPoint.position
@@ -156,6 +181,17 @@ public class SantaEnemyAI : MonoBehaviour
             Vector3 dir = (targetPos - spawnPos).normalized;
             rb.linearVelocity = dir * throwSpeed + Vector3.up * upwardArc;
         }
+    }
+
+    // 指定した高さ・音量でサンタの声を再生する
+    void PlaySantaVoice(float basePitch, float volume)
+    {
+        if (santaVoiceClip == null || audioSource == null) return;
+        if (preventOverlap && audioSource.isPlaying) return;
+
+        float randomOffset = Random.Range(-pitchVariation, pitchVariation);
+        audioSource.pitch = Mathf.Clamp(basePitch + randomOffset, 0.1f, 3.0f);
+        audioSource.PlayOneShot(santaVoiceClip, volume);
     }
 
     bool IsPlayerInAngle()
@@ -247,15 +283,12 @@ public class SantaEnemyAI : MonoBehaviour
     {
         Vector3 origin = transform.position + Vector3.up * eyeHeight;
 
-        // 視認できる距離と視野角（黄色）
         Gizmos.color = Color.yellow;
         Vector3 leftDir = Quaternion.Euler(0, -viewAngle * 0.5f, 0) * transform.forward;
         Vector3 rightDir = Quaternion.Euler(0, viewAngle * 0.5f, 0) * transform.forward;
         Gizmos.DrawRay(origin, leftDir * maxSightDistance);
         Gizmos.DrawRay(origin, rightDir * maxSightDistance);
-        Gizmos.DrawWireSphere(transform.position, maxSightDistance);
 
-        // 攻撃範囲（赤色）
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
     }
