@@ -15,6 +15,9 @@ public class SettingsManager : MonoBehaviour // 部品としては使わない�
     public const string KEY_SE = "SEVolume";
     public const string KEY_SENSITIVITY = "MouseSensitivity";
     public const string KEY_BRIGHTNESS = "Brightness";
+    public const string KEY_FRAME_RATE = "FrameRate";     // フレームレートの上限（30 / 60 / 120）
+    public const int DefaultFrameRate = 60;
+    public static readonly int[] FrameRates = { 30, 60, 120 };
 
     /// <summary>マウス感度の標準値。この値のとき、視点操作の速さは PlayerMovement の設定どおりになる</summary>
     public const float DefaultSensitivity = 1f;
@@ -26,6 +29,7 @@ public class SettingsManager : MonoBehaviour // 部品としては使わない�
     public static float BgmVolume => PlayerPrefs.GetFloat(KEY_BGM, 1f);
     public static float SeVolume => PlayerPrefs.GetFloat(KEY_SE, 1f);
     public static float VoiceVolume => PlayerPrefs.GetFloat(KEY_VOICE, 1f);
+    public static int FrameRate => PlayerPrefs.GetInt(KEY_FRAME_RATE, DefaultFrameRate);
     /// <summary>マイクの使い方。false = 声を自動で拾う、true = 押している間だけ話す（プッシュトゥトーク）</summary>
     public static bool PushToTalk => PlayerPrefs.GetInt(KEY_MIC_MODE, 0) == 1;
     public static float MouseSensitivity => PlayerPrefs.GetFloat(KEY_SENSITIVITY, DefaultSensitivity);

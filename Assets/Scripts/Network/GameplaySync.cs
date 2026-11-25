@@ -32,7 +32,7 @@ public class GameplaySync : MonoBehaviour
         PlayerAlive = 12, // id = 復活したプレイヤーの席番号
         EnemyPose = 13,   // id = 敵のNetId / v1 = 位置 / v2 = (向きY, 状態, 0)。ホスト → 参加者
         Explosion = 14,   // v1 = 爆発位置 / v2 = (半径, 最大ダメージ, 0)。所持中の爆弾が爆発したとき
-        Voice = 15,       // v1 = 声が出た位置 / v2 = (音の大きさ, 0, 0)。参加者 → ホストだけ（敵が声に反応するため）
+        Voice = 15,       // v1 = 音が出た位置 / v2 = (音の大きさ, 0, 0)。参加者 → ホストだけ（敵が声やジャンプの音などに反応するため）
         ItemPose = 16     // id = アイテムのID / v1 = 位置 / v2 = 回転（オイラー角）。落とした／投げた本人 → 全員。動いている間、短い間隔で送る
     }
 
@@ -194,9 +194,9 @@ public class GameplaySync : MonoBehaviour
     }
 
     /// <summary>
-    /// 近接ボイスチャットで声を出したことを、敵に知らせる。敵の判断はホストが行うので、参加者はホストだけに送る
+    /// 自分が立てた音（声・ジャンプ・着地・物を落とすなど）を、敵に知らせる。敵の判断はホストが行うので、参加者はホストだけに送る
     /// </summary>
-    public static void NotifyVoiceNoise(Vector3 position, float loudness)
+    public static void NotifyNoise(Vector3 position, float loudness)
     {
         if (Instance == null || Instance.networkManager == null || !Instance.networkManager.IsListening)
         {
@@ -308,7 +308,7 @@ public class GameplaySync : MonoBehaviour
             return;
         }
 
-        // 声の音は、ホストだけが受けて、敵に聞かせる（中継しない）
+        // 参加者が立てた音は、ホストだけが受けて、敵に聞かせる（中継しない）
         if (e.type == EventType.Voice)
         {
             if (networkManager.IsHost) EnemyNoise.Emit(e.v1, e.v2.x);

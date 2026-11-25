@@ -26,6 +26,8 @@ public class RemotePlayerSync : MonoBehaviour
     private const float LabelHideDistance = 22f;   // この距離より遠いと、名前を隠す（境目でちらつかないよう、少し差をつける）
     private const float StaleTimeoutSeconds = 5f;
     private const float CrouchHeightScale = 0.6f;
+    private const float FootstepWindow = 0.35f;       // 足音の速さを測る時間（秒）
+    private const float SprintSpeedThreshold = 7.5f;  // これより速ければ走り（歩き 5、走り 10）
 
     private readonly List<ulong> staleIds = new List<ulong>();
 
@@ -43,6 +45,8 @@ public class RemotePlayerSync : MonoBehaviour
         public float heightScale = 1f; // しゃがみ中は縮める（滑らかに補間）
         public bool initialized;
         public float lastReceivedTime;
+        public Vector3 stepPos;      // 足音の速さを測り始めた位置と時刻
+        public float stepTime;
 
         // プレイヤーの状態（体力・正気度・手持ちアイテム）
         public string playerName = "Player";
@@ -125,6 +129,12 @@ public class RemotePlayerSync : MonoBehaviour
         rotation = Quaternion.identity;
         fov = 60f;
         return false;
+    }
+
+    /// <summary>他のプレイヤーがしゃがんでいるか（敵の気づきやすさに使う）</summary>
+    public bool IsRemoteCrouching(ulong clientId)
+    {
+        return avatars.TryGetValue(clientId, out RemoteAvatar avatar) && avatar.crouching;
     }
 
     public class RemoteInfo
@@ -524,18 +534,21 @@ public class RemotePlayerSync : MonoBehaviour
         // 他プレイヤーの足音：位置の変化から速さを割り出し、敵に聞こえる音として通知する（敵を動かすホストだけが使う）
         if (avatar.initialized && networkManager != null && networkManager.IsHost)
         {
-            float elapsed = Time.unscaledTime - avatar.lastReceivedTime;
-            if (elapsed > 0.02f && elapsed < 0.6f)
+            // 届く間隔のばらつきで、歩きが走りに見えないよう、少し長い時間の平均の速さで判定する
+            float elapsed = Time.unscaledTime - avatar.stepTime;
+            if (elapsed >= FootstepWindow)
             {
-                Vector3 delta = feetPos - avatar.targetFeetPos;
+                Vector3 delta = feetPos - avatar.stepPos;
                 delta.y = 0f;
                 float speed = delta.magnitude / elapsed;
-                // ステージ開始のワープなど、極端に速い移動は足音にしない
-                if (speed > 0.5f && speed < 12f)
+                // 通信が途切れたあとや、ステージ開始のワープなど、極端に速い移動は足音にしない
+                if (elapsed < 1f && speed > 0.5f && speed < 14f)
                 {
-                    float loudness = crouching ? EnemyNoise.Crouch : (speed > 5f ? EnemyNoise.Sprint : EnemyNoise.Walk);
+                    float loudness = crouching ? EnemyNoise.Crouch : (speed > SprintSpeedThreshold ? EnemyNoise.Sprint : EnemyNoise.Walk);
                     EnemyNoise.Emit(feetPos, loudness);
                 }
+                avatar.stepPos = feetPos;
+                avatar.stepTime = Time.unscaledTime;
             }
         }
 

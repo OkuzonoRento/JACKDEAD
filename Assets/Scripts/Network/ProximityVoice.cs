@@ -384,7 +384,7 @@ public class ProximityVoice : MonoBehaviour
         Camera cam = Camera.main;
         Vector3 pos = localPlayer != null ? localPlayer.transform.position : (cam != null ? cam.transform.position : Vector3.zero);
         float loudness = Mathf.Lerp(EnemyNoise.VoiceMin, EnemyNoise.VoiceMax, Mathf.Clamp01(energy * 2f));
-        GameplaySync.NotifyVoiceNoise(pos, loudness);
+        GameplaySync.NotifyNoise(pos, loudness);
     }
 
     // ------------------------------------------------------------------

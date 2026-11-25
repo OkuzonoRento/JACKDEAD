@@ -249,6 +249,9 @@ public class PlayerTumble : MonoBehaviour
         float k = Mathf.Clamp01((relativeSpeed - impactMinSpeed) / Mathf.Max(0.1f, impactMaxSpeed - impactMinSpeed));
         HitFeedback hit = FindAnyObjectByType<HitFeedback>();
         if (hit != null) hit.Impact(k);
+
+        // 吹き飛ばされて床や壁にぶつかる音も、敵に聞こえる
+        if (body != null) GameplaySync.NotifyNoise(body.position, Mathf.Lerp(EnemyNoise.LandMin, EnemyNoise.LandMax, k));
     }
 
     private static float NormalizeAngle(float a)

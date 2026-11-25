@@ -611,7 +611,7 @@ public class PlayerController : MonoBehaviour
                 }
             }
             GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity, fuseToCarry);
-            EnemyNoise.Emit(spawnPosition, EnemyNoise.ItemDrop);
+            ItemImpactNoise.Attach(droppedObj); // 音は、ぶつかったときに、ぶつかった場所で出る
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }

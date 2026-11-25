@@ -27,10 +27,35 @@ public class EnemyBrain : MonoBehaviour
     [Header("索敵")]
     [SerializeField, Tooltip("この距離まで見える")] private float sightRange = 22f;
     [SerializeField, Tooltip("視界の左右の広さ（度）。正面からこの角度まで見える（人間は片側およそ60度）")] private float sightHalfAngle = 60f;
+    [SerializeField, Range(10f, 89f), Tooltip("視界の上下の広さ（度）。視線の向きから、上下この角度まで見える")] private float sightVerticalHalfAngle = 45f;
+    [SerializeField, Range(-30f, 45f), Tooltip("視線を下へ向ける角度（度）")] private float sightDownTilt = 10f;
     [SerializeField, Tooltip("音のした場所を推測するときのずれ（音源までの距離に対する割合）。遠いほど正確に分からない")] private float noiseGuessError = 0.2f;
-    [SerializeField, Tooltip("音を聞いて調べに行くときの移動速度（歩きと走りの中間）")] private float noiseInvestigateSpeed = 3.5f;
-    [SerializeField] private float eyeHeight = 1.6f;
-    [SerializeField, Tooltip("見失ってから、追うのをやめるまでの時間（秒）")] private float loseSightTime = 6f;
+    [SerializeField, Tooltip("頭の骨が見つからないときの、目の高さ（m）")] private float eyeHeight = 1.6f;
+    [SerializeField, Tooltip("物音を調べに歩いて向かう最大の時間（秒）。この時間で着けなければ、その場の周りを探す")] private float investigateMaxSeconds = 25f;
+
+    [Header("気づくまで（REPO風。見えてから気づくまでに時間がかかる。しゃがむと気づかれにくい）")]
+    [SerializeField, Tooltip("立っている相手に気づくまでの時間（秒）。x = すぐ気づく近さのすぐ外、y = 見える距離の端")] private Vector2 standingNoticeSeconds = new Vector2(0.9f, 2.8f);
+    [SerializeField, Tooltip("しゃがんでいる相手に気づくまでの時間（秒）。x = 近く、y = 遠く")] private Vector2 crouchingNoticeSeconds = new Vector2(2f, 4.5f);
+    [SerializeField, Tooltip("しゃがんでいる相手が見える距離（m）。これより遠いと、見えていても気づかない")] private float crouchSightRange = 11f;
+    [SerializeField, Tooltip("立っている相手に、すぐ気づく近さ（m）")] private float instantNoticeRange = 3f;
+    [SerializeField, Tooltip("しゃがんでいる相手に、すぐ気づく近さ（m）")] private float instantNoticeRangeCrouching = 1.5f;
+    [SerializeField, Tooltip("見えなくなってから、気づきかけが消えるまでの時間（秒）")] private float awarenessFadeTime = 2f;
+    [SerializeField, Range(0.05f, 0.95f), Tooltip("気づきかけがこの割合を超えると、立ち止まって相手の方を向く")] private float suspicionLevel = 0.35f;
+    [SerializeField, Min(1f), Tooltip("頭・胴・腰のうち2か所だけ見えているとき、気づくまでの時間の倍率")] private float twoPartsTimeScale = 1.4f;
+    [SerializeField, Min(1f), Tooltip("頭・胴・腰のうち1か所だけ見えているとき、気づくまでの時間の倍率")] private float onePartTimeScale = 2.2f;
+
+    [Header("机や椅子の下に潜っている相手（しゃがんでいて、頭のすぐ上に物がある）")]
+    [SerializeField, Tooltip("頭の上、この高さ（m）までに当たり判定があれば、潜っているとみなす")] private float coverCheckHeight = 0.7f;
+    [SerializeField, Tooltip("潜っている相手が見える距離（m）")] private float hiddenSightRange = 6f;
+    [SerializeField, Tooltip("潜っている相手に気づくまでの時間（秒）。x = 近く、y = 遠く")] private Vector2 hiddenNoticeSeconds = new Vector2(3.5f, 6f);
+    [SerializeField, Tooltip("潜っている相手に、すぐ気づく近さ（m）")] private float instantNoticeRangeHidden = 0.8f;
+
+    [Header("追跡の流れ")]
+    [SerializeField, Tooltip("見失ってから、この時間（秒）以内に最後に見た場所へ着いたら、逃げた先を予測して走る")] private float chaseMemorySeconds = 3f;
+    [SerializeField, Tooltip("逃げた先の予測で、最後に見た場所から進む距離（m）")] private float predictDistance = 9f;
+    [SerializeField, Tooltip("予測した場所へ走る最大の時間（秒）")] private float predictMaxSeconds = 4f;
+    [SerializeField, Tooltip("見失った場所の周りを、歩いて探す時間（秒）")] private float seekSeconds = 5f;
+    [SerializeField, Tooltip("探し回る範囲（m）")] private float seekRadius = 6f;
 
     [Header("攻撃")]
     [SerializeField, Tooltip("これより近いと距離を取る")] private float attackMinRange = 5f;
@@ -74,9 +99,27 @@ public class EnemyBrain : MonoBehaviour
     private Animator animator;
 
     // AI の状態
-    private bool noticed;
+    // 徘徊 →（物音）物音を調べる →（発見）追跡 → 逃げた先を予測して走る → 周りを歩いて探す → 徘徊
+    private enum AiState { Roam, Investigate, Chase, Seek }
+
+    private AiState state = AiState.Roam;
+    private float stateTime;         // いまの状態になってからの時間（秒）
+    private float lostTime;          // 相手が見えなくなってからの時間（秒）
+    private ulong visibleTargetId;   // 見えている相手
+    private ulong chaseTargetId;     // 追っている相手
+    private Vector3 targetVelocity;  // 追っている相手の動き（見えている間に測る）
+    private Vector3 trackedPos;
+    private float trackTimer;
+    private Vector3 chaseStartPos;   // 見失ったときに自分がいた場所
+    private bool predicting;         // 逃げた先を予測して走っている最中
+    private float predictTimer;
+    private Vector3 seekPoint;
+    private bool hasSeekPoint;
+    private float seekPointTime;
+    private const float VelocitySampleSeconds = 0.2f;
+    private static readonly float[] PredictAngles = { 0f, -45f, 45f, -90f, 90f };
+    private readonly HashSet<ulong> hiddenIds = new HashSet<ulong>(); // 机などの下に潜っているプレイヤー
     private Vector3 lastKnownPos;
-    private float loseTimer;
     private float cooldownTimer;
     private float windupTimer;      // > 0 のあいだ構えている
     private bool winding;
@@ -85,6 +128,14 @@ public class EnemyBrain : MonoBehaviour
     private Vector3 visibleTargetPos;
     private bool targetVisible;
     private float poseTimer;
+
+    // プレイヤーごとの「気づきかけ」（0〜1。1 で気づく）。自分のPCのプレイヤーは LocalAwarenessKey
+    private const ulong LocalAwarenessKey = ulong.MaxValue;
+    private readonly Dictionary<ulong, float> awareness = new Dictionary<ulong, float>();
+    private bool suspicious;          // 気づきかけている（まだ確信はない）
+    private Vector3 suspectPos;
+    private float suspectLevelNow;
+    private PlayerMovement localMovement;
 
     // 見た目
     private AnimState animState = AnimState.Idle;
@@ -139,7 +190,7 @@ public class EnemyBrain : MonoBehaviour
 
             bool chasing = enemy.isPuppet
                 ? (enemy.animState == AnimState.Run || enemy.animState == AnimState.Throw)
-                : (enemy.noticed && enemy.stunTimer <= 0f);
+                : (enemy.IsHunting && enemy.stunTimer <= 0f);
             if (chasing) return true;
         }
         return false;
@@ -168,7 +219,7 @@ public class EnemyBrain : MonoBehaviour
 
         enemy.puppetTargetPos = position;
         enemy.puppetTargetYaw = yaw;
-        enemy.animState = (AnimState)Mathf.Clamp(state, 0, 3);
+        enemy.animState = (AnimState)Mathf.Clamp(state, 0, (int)AnimState.Throw);
         if (!enemy.puppetInitialized)
         {
             enemy.puppetInitialized = true;
@@ -220,6 +271,7 @@ public class EnemyBrain : MonoBehaviour
     private void Start()
     {
         if (animator != null && animator.isHuman) armBone = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+        if (animator != null && animator.isHuman) headBone = animator.GetBoneTransform(HumanBodyBones.Head);
         BuildAnimationGraph();
     }
 
@@ -227,7 +279,8 @@ public class EnemyBrain : MonoBehaviour
     // 聴覚：聞こえる範囲の音がしたら、音源の位置を推測して歩いて調べに行く
     // ------------------------------------------------------------------
 
-    private float investigateSpeed;
+    /// <summary>プレイヤーを追っている最中</summary>
+    private bool IsHunting => state == AiState.Chase;
 
     private void OnEnable()
     {
@@ -254,21 +307,14 @@ public class EnemyBrain : MonoBehaviour
         guess.y = source.y;
         if (!NavMesh.SamplePosition(guess, out NavMeshHit hit, 4f, NavMesh.AllAreas)) return;
 
-        // すでに別の音を調べているときは、より近い音を優先する
-        if (noticed && investigateSpeed <= noiseInvestigateSpeed + 0.01f)
-        {
-            if (Vector3.Distance(transform.position, hit.position) > Vector3.Distance(transform.position, lastKnownPos)) return;
-        }
-        else if (noticed)
-        {
-            return; // プレイヤーを追っている最中（見失った直後など）は、そちらを優先
-        }
+        if (IsHunting) return; // プレイヤーを追っている最中は、そちらを優先
 
-        noticed = true;
+        // すでに別の音を調べているときは、より近い音を優先する
+        if (state == AiState.Investigate
+            && Vector3.Distance(transform.position, hit.position) > Vector3.Distance(transform.position, lastKnownPos)) return;
+
         lastKnownPos = hit.position;
-        loseTimer = 0f;
-        investigateSpeed = noiseInvestigateSpeed;
-        hasPatrolDest = false;
+        EnterState(AiState.Investigate);
     }
 
     private void OnDestroy()
@@ -325,6 +371,8 @@ public class EnemyBrain : MonoBehaviour
         if (isPuppet) return;
         stunTimer = Mathf.Max(stunTimer, seconds);
         winding = false;
+        // スタンから起きたら、周りを探すところから
+        if (IsHunting) EnterState(AiState.Seek);
     }
 
     private void UpdateAI()
@@ -343,31 +391,199 @@ public class EnemyBrain : MonoBehaviour
             return;
         }
 
+        stateTime += dt;
         FindVisibleTarget();
 
         if (targetVisible)
         {
-            noticed = true;
+            TrackTarget(dt);
             lastKnownPos = visibleTargetPos;
-            loseTimer = 0f;
-            investigateSpeed = chaseSpeed; // 見失ったら、最後に見た場所へ走って向かう
-            UpdateEngage(dt);
+            lostTime = 0f;
+            if (state != AiState.Chase) EnterState(AiState.Chase); // 発見したら、すぐ追う
         }
         else
         {
-            CancelWindup();
-            if (noticed)
-            {
-                UpdateInvestigate(dt);
-            }
-            else
-            {
-                UpdatePatrol(dt);
-            }
+            if (lostTime <= 0f) chaseStartPos = transform.position;
+            lostTime += dt;
+        }
+
+        switch (state)
+        {
+            case AiState.Roam:
+                // 気づきかけ：立ち止まらず、見えたあたりへ歩いて向かう
+                if (suspicious) WalkToSuspect();
+                else UpdatePatrol(dt);
+                break;
+
+            case AiState.Investigate:
+                if (suspicious) lastKnownPos = suspectPos;
+                MoveTo(lastKnownPos, patrolSpeed); // 走らず、歩いて調べに行く
+                if (stateTime > investigateMaxSeconds || HasArrived()) EnterState(AiState.Seek);
+                break;
+
+            case AiState.Chase:
+                UpdateChase(dt);
+                break;
+
+            case AiState.Seek:
+                if (suspicious)
+                {
+                    // 探している最中の気づきかけ：見えたあたりへ歩いて向かう
+                    seekPoint = suspectPos;
+                    hasSeekPoint = true;
+                    seekPointTime = 0f;
+                }
+                UpdateSeek(dt);
+                break;
         }
 
         UpdateFacing(dt);
         animState = ChooseAnimState();
+    }
+
+    // 状態を切り替える
+    private void EnterState(AiState next)
+    {
+        state = next;
+        stateTime = 0f;
+        winding = false;
+        hasSeekPoint = false;
+        hasPatrolDest = false;
+        predicting = false;
+
+        if (next == AiState.Roam)
+        {
+            patrolWaitTimer = Random.Range(patrolWaitRange.x, patrolWaitRange.y);
+        }
+    }
+
+    private void MoveTo(Vector3 destination, float speed)
+    {
+        agent.isStopped = false;
+        agent.speed = speed;
+        agent.SetDestination(destination);
+    }
+
+    // 目的地に着いたか（目的地を出した直後は、まだ数えない）
+    private bool HasArrived()
+    {
+        return stateTime > 0.4f && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f;
+    }
+
+    // 気づきかけた場所へ歩く。見えなくなっても、そこへ着くまでは歩き続ける（徘徊の目的地にする）
+    private void WalkToSuspect()
+    {
+        if (!NavMesh.SamplePosition(suspectPos, out NavMeshHit hit, 3f, NavMesh.AllAreas)) return;
+        MoveTo(hit.position, patrolSpeed);
+        hasPatrolDest = true;
+    }
+
+    // 見えている相手の動き（向きと速さ）を覚えておく。見失ったあと、逃げた先を予測するのに使う
+    private void TrackTarget(float dt)
+    {
+        if (visibleTargetId != chaseTargetId || lostTime > 0.3f)
+        {
+            // 相手が変わった／見失っていた直後は、測り直し
+            chaseTargetId = visibleTargetId;
+            targetVelocity = Vector3.zero;
+            trackedPos = visibleTargetPos;
+            trackTimer = 0f;
+            return;
+        }
+
+        trackTimer += dt;
+        if (trackTimer < VelocitySampleSeconds) return;
+
+        Vector3 moved = visibleTargetPos - trackedPos;
+        moved.y = 0f; // 見えている部位（頭・胴・腰）が変わっても、上下は数えない
+        targetVelocity = Vector3.Lerp(targetVelocity, moved / trackTimer, 0.6f);
+        trackedPos = visibleTargetPos;
+        trackTimer = 0f;
+    }
+
+    private void UpdateChase(float dt)
+    {
+        if (targetVisible)
+        {
+            predicting = false;
+            UpdateEngage(dt);
+            return;
+        }
+
+        CancelWindup();
+
+        if (!predicting)
+        {
+            // まず、最後に見た場所まで走る
+            MoveTo(lastKnownPos, chaseSpeed);
+            bool arrived = lostTime > 0.3f && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f;
+            if (arrived && lostTime <= chaseMemorySeconds)
+            {
+                // 時間内に着いた：相手が逃げた先を予測して、そこへ走る
+                lastKnownPos = PredictEscapePoint();
+                predicting = true;
+                predictTimer = 0f;
+                MoveTo(lastKnownPos, chaseSpeed);
+            }
+            else if (lostTime > chaseMemorySeconds)
+            {
+                EnterState(AiState.Seek);
+            }
+            return;
+        }
+
+        predictTimer += dt;
+        MoveTo(lastKnownPos, chaseSpeed);
+        bool reached = predictTimer > 0.4f && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f;
+        if (reached || predictTimer > predictMaxSeconds) EnterState(AiState.Seek);
+    }
+
+    // 逃げた先の予測：相手が最後に動いていた方向（止まっていたなら、自分が走ってきた方向の先）へ進んだ場所
+    private Vector3 PredictEscapePoint()
+    {
+        Vector3 direction = targetVelocity.magnitude > 0.5f ? targetVelocity : lastKnownPos - chaseStartPos;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.01f) direction = transform.forward;
+        direction.Normalize();
+
+        if (!NavMesh.SamplePosition(lastKnownPos, out NavMeshHit from, 3f, NavMesh.AllAreas)) return lastKnownPos;
+
+        // まっすぐが壁で行き止まりなら、左右へ振って、先まで進める向きを選ぶ（まっすぐに近いほど優先）
+        Vector3 best = from.position;
+        float bestScore = 0f;
+        foreach (float angle in PredictAngles)
+        {
+            Vector3 end = from.position + Quaternion.Euler(0f, angle, 0f) * direction * predictDistance;
+            Vector3 reach = NavMesh.Raycast(from.position, end, out NavMeshHit blocked, NavMesh.AllAreas) ? blocked.position : end;
+            float score = Vector3.Distance(from.position, reach) * Mathf.Cos(angle * 0.5f * Mathf.Deg2Rad);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = reach;
+            }
+        }
+        return NavMesh.SamplePosition(best, out NavMeshHit hit, 2f, NavMesh.AllAreas) ? hit.position : from.position;
+    }
+
+    // 見失った場所の周りを、歩いてあちこち探す。見つからなければ、徘徊に戻る
+    private void UpdateSeek(float dt)
+    {
+        seekPointTime += dt;
+        bool arrived = hasSeekPoint && seekPointTime > 0.4f && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f;
+        if (!hasSeekPoint || arrived || seekPointTime > 3f)
+        {
+            Vector3 random = lastKnownPos + Random.insideUnitSphere * seekRadius;
+            random.y = lastKnownPos.y;
+            if (NavMesh.SamplePosition(random, out NavMeshHit hit, seekRadius, NavMesh.AllAreas))
+            {
+                seekPoint = hit.position;
+                hasSeekPoint = true;
+                seekPointTime = 0f;
+            }
+        }
+
+        if (hasSeekPoint) MoveTo(seekPoint, patrolSpeed);
+        if (stateTime > seekSeconds) EnterState(AiState.Roam);
     }
 
     private void UpdateEngage(float dt)
@@ -434,21 +650,6 @@ public class EnemyBrain : MonoBehaviour
         winding = false;
     }
 
-    private void UpdateInvestigate(float dt)
-    {
-        loseTimer += dt;
-        agent.isStopped = false;
-        agent.speed = investigateSpeed;
-        agent.SetDestination(lastKnownPos);
-
-        if (loseTimer > loseSightTime)
-        {
-            noticed = false;
-            hasPatrolDest = false;
-            patrolWaitTimer = Random.Range(patrolWaitRange.x, patrolWaitRange.y);
-        }
-    }
-
     private void UpdatePatrol(float dt)
     {
         agent.speed = patrolSpeed;
@@ -485,7 +686,11 @@ public class EnemyBrain : MonoBehaviour
     private void UpdateFacing(float dt)
     {
         Vector3 look = Vector3.zero;
-        if (targetVisible && (winding || agent.isStopped))
+        if (!targetVisible && state != AiState.Chase && suspicious)
+        {
+            look = suspectPos - transform.position;
+        }
+        else if (targetVisible && (winding || agent.isStopped))
         {
             look = visibleTargetPos - transform.position;
         }
@@ -520,19 +725,41 @@ public class EnemyBrain : MonoBehaviour
     private void FindVisibleTarget()
     {
         targetVisible = false;
+        suspicious = false;
+        suspectLevelNow = 0f;
+#if UNITY_EDITOR
+        DebugRays.Clear();
+#endif
         float bestDist = float.MaxValue;
-        Vector3 eye = transform.position + Vector3.up * eyeHeight;
+        Vector3 eye = EyePosition();
 
         // ローカル（ホスト自身）のプレイヤー
         if (localPlayer == null)
         {
             localPlayer = FindAnyObjectByType<PlayerController>();
-            if (localPlayer != null) localController = localPlayer.GetComponent<CharacterController>();
+            if (localPlayer != null)
+            {
+                localController = localPlayer.GetComponent<CharacterController>();
+                localMovement = localPlayer.GetComponent<PlayerMovement>();
+            }
         }
-        if (localPlayer != null && !localPlayer.IsDown)
+        if (localPlayer != null)
         {
-            Vector3 chest = localController != null ? localController.bounds.center : localPlayer.transform.position;
-            ConsiderTarget(eye, chest, ref bestDist);
+            if (localPlayer.IsDown)
+            {
+                awareness.Remove(LocalAwarenessKey);
+                hiddenIds.Remove(LocalAwarenessKey);
+            }
+            else
+            {
+                // 頭・胴・腰の位置は、当たり判定の高さから出す（しゃがむと低くなる）
+                Vector3 chest = localController != null ? localController.bounds.center : localPlayer.transform.position;
+                float half = localController != null ? localController.bounds.extents.y : 1f;
+                bool crouching = localMovement != null && localMovement.IsCrouching;
+                ConsiderTarget(LocalAwarenessKey, eye,
+                    chest + Vector3.up * Mathf.Max(0f, half - 0.15f), chest, chest - Vector3.up * (half * 0.5f),
+                    crouching, ref bestDist);
+            }
         }
 
         // 他のプレイヤー（アバターの位置から）
@@ -542,9 +769,39 @@ public class EnemyBrain : MonoBehaviour
             foreach (ulong id in remoteIds)
             {
                 if (!RemotePlayerSync.Instance.TryGetAvatarView(id, out Vector3 eyePos, out _, out _)) continue;
-                ConsiderTarget(eye, eyePos - Vector3.up * 0.4f, ref bestDist);
+                // 他のプレイヤーは、届いた目の位置から下へ、胴と腰を出す
+                bool remoteCrouching = RemotePlayerSync.Instance.IsRemoteCrouching(id);
+                ConsiderTarget(id, eye, eyePos,
+                    eyePos - Vector3.up * (remoteCrouching ? 0.25f : 0.6f),
+                    eyePos - Vector3.up * (remoteCrouching ? 0.5f : 1.1f),
+                    remoteCrouching, ref bestDist);
             }
         }
+    }
+
+    private Transform headBone;
+
+    /// <summary>目の位置。頭の骨があれば頭（動きに合わせて上下する）、なければ決まった高さ</summary>
+    private Vector3 EyePosition()
+    {
+        return headBone != null ? headBone.position + Vector3.up * 0.08f : transform.position + Vector3.up * eyeHeight;
+    }
+
+    /// <summary>視線の向き。体の正面を、少し下へ傾けた向き</summary>
+    private Quaternion ViewRotation()
+    {
+        return Quaternion.LookRotation(transform.forward, Vector3.up) * Quaternion.Euler(sightDownTilt, 0f, 0f);
+    }
+
+    /// <summary>目から前へ広がるコーン（左右と上下で広さが違う）の中にあるか。距離と遮るものは別に調べる</summary>
+    private bool IsInViewCone(Vector3 eye, Vector3 point)
+    {
+        Vector3 local = Quaternion.Inverse(ViewRotation()) * (point - eye);
+        float yaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+        float pitch = Mathf.Atan2(local.y, new Vector2(local.x, local.z).magnitude) * Mathf.Rad2Deg;
+        float h = yaw / Mathf.Max(1f, sightHalfAngle);
+        float v = pitch / Mathf.Max(1f, sightVerticalHalfAngle);
+        return h * h + v * v <= 1f;
     }
 
     private static readonly RaycastHit[] SightHits = new RaycastHit[32];
@@ -579,23 +836,175 @@ public class EnemyBrain : MonoBehaviour
         return true;
     }
 
-    private void ConsiderTarget(Vector3 eye, Vector3 chest, ref float bestDist)
+    // 見えている間は「気づきかけ」がたまり、1 になると気づく。見えない間は少しずつ消える。
+    // 視線は、頭・胴・腰の3本。見えている本数が多いほど早く気づく（物陰から少しだけ出ていると、気づくのが遅い）。
+    // しゃがんでいる相手は、見える距離が短く、気づくまでの時間も長い。
+    // 気づいた直後（残りが多い間）は、しゃがんでも、すぐには見失わない
+    private void ConsiderTarget(ulong id, Vector3 eye, Vector3 head, Vector3 chest, Vector3 waist, bool crouching, ref float bestDist)
     {
+        awareness.TryGetValue(id, out float level);
+        bool remembered = level > RememberLevel;
+
+        // 机や椅子の下に潜っている（しゃがんでいて、頭のすぐ上に何かある）ときは、さらに気づかれにくい
+        bool hidden = crouching && IsUnderCover(head);
+        if (hidden) hiddenIds.Add(id); else hiddenIds.Remove(id);
+
         Vector3 to = chest - eye;
         float dist = to.magnitude;
-        if (dist >= bestDist || dist > sightRange) return;
+        float range = sightRange;
+        if (crouching && !remembered) range = hidden ? hiddenSightRange : crouchSightRange;
+        float instant = !crouching ? instantNoticeRange : (hidden ? instantNoticeRangeHidden : instantNoticeRangeCrouching);
 
-        // 人間と同じ視界：正面の一定の広さの中だけが見える（真後ろや真横は見えない）
+        // 頭から前へ広がるコーン状の視界の中に入っていて、当たり判定に遮られていない部位を数える
         Vector3 flat = new Vector3(to.x, 0f, to.z);
-        if (Vector3.Angle(transform.forward, flat) > sightHalfAngle) return;
+        int visibleParts = 0;
+        Vector3 seenPoint = chest; // 狙う場所（胴が見えれば胴、次に頭、腰の順）
+        if (dist <= range)
+        {
+            bool seeWaist = IsInViewCone(eye, waist) && HasLineOfSight(eye, waist);
+            bool seeHead = IsInViewCone(eye, head) && HasLineOfSight(eye, head);
+            bool seeChest = IsInViewCone(eye, chest) && HasLineOfSight(eye, chest);
+            if (seeWaist) { visibleParts++; seenPoint = waist; }
+            if (seeHead) { visibleParts++; seenPoint = head; }
+            if (seeChest) { visibleParts++; seenPoint = chest; }
+#if UNITY_EDITOR
+            DebugAddRay(eye, head, IsInViewCone(eye, head), seeHead);
+            DebugAddRay(eye, chest, IsInViewCone(eye, chest), seeChest);
+            DebugAddRay(eye, waist, IsInViewCone(eye, waist), seeWaist);
+#endif
+        }
+#if UNITY_EDITOR
+        else
+        {
+            DebugAddRay(eye, chest, false, false);
+        }
+#endif
+        bool canSee = visibleParts > 0;
 
-        // 当たり判定に遮られていたら見えない
-        if (!HasLineOfSight(eye, chest)) return;
+        if (!canSee)
+        {
+            level = Mathf.MoveTowards(level, 0f, Time.deltaTime / Mathf.Max(0.05f, awarenessFadeTime));
+        }
+        else if (remembered || flat.magnitude <= instant)
+        {
+            level = 1f;
+        }
+        else
+        {
+            // 遠いほど、また見えている部分が少ないほど、気づくまでに時間がかかる
+            Vector2 seconds = !crouching ? standingNoticeSeconds : (hidden ? hiddenNoticeSeconds : crouchingNoticeSeconds);
+            float time = Mathf.Lerp(seconds.x, seconds.y, Mathf.InverseLerp(instant, range, dist));
+            if (visibleParts == 2) time *= twoPartsTimeScale;
+            else if (visibleParts == 1) time *= onePartTimeScale;
+            level = Mathf.Min(1f, level + Time.deltaTime / Mathf.Max(0.05f, time));
+        }
+        awareness[id] = level;
 
-        bestDist = dist;
-        targetVisible = true;
-        visibleTargetPos = chest;
+        if (!canSee) return;
+
+        if (level >= 1f)
+        {
+            if (dist >= bestDist) return;
+            bestDist = dist;
+            targetVisible = true;
+            visibleTargetId = id;
+            visibleTargetPos = seenPoint;
+        }
+        else if (level >= suspicionLevel && level > suspectLevelNow)
+        {
+            suspicious = true;
+            suspectLevelNow = level;
+            suspectPos = seenPoint;
+        }
     }
+
+    private const float RememberLevel = 0.7f;
+
+    private static readonly RaycastHit[] CoverHits = new RaycastHit[16];
+
+    /// <summary>頭のすぐ上に当たり判定があるか（机や椅子などの下に潜っている）</summary>
+    private bool IsUnderCover(Vector3 head)
+    {
+        int itemsLayer = LayerMask.NameToLayer("Items");
+        int mask = ~(1 << 2);
+        if (itemsLayer >= 0) mask &= ~(1 << itemsLayer);
+
+        // 机の天板は薄いことがあるので、裏面も当たるようにする
+        bool previous = Physics.queriesHitBackfaces;
+        Physics.queriesHitBackfaces = true;
+        int count = Physics.RaycastNonAlloc(head, Vector3.up, CoverHits, coverCheckHeight, mask, QueryTriggerInteraction.Ignore);
+        Physics.queriesHitBackfaces = previous;
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider col = CoverHits[i].collider;
+            if (col == null) continue;
+            if (col.GetComponentInParent<EnemyBrain>() != null) continue;
+            if (col.GetComponentInParent<PlayerController>() != null) continue;
+            return true;
+        }
+        return false;
+    }
+
+#if UNITY_EDITOR
+    // ------------------------------------------------------------------
+    // デバッグ表示（DebugOverlay）用の情報。エディタだけで、ビルドには含まれない
+    // ------------------------------------------------------------------
+
+    public struct DebugRay
+    {
+        public Vector3 from, to;
+        public bool inView; // 距離と角度の範囲内
+        public bool clear;  // 遮られていない
+    }
+
+    /// <summary>机などの下に潜っていると判定しているプレイヤー</summary>
+    public HashSet<ulong> DebugHidden => hiddenIds;
+
+    /// <summary>直前の索敵で調べた視線</summary>
+    public readonly List<DebugRay> DebugRays = new List<DebugRay>();
+
+    public static IEnumerable<EnemyBrain> DebugAll => Registry.Values;
+    public IReadOnlyDictionary<ulong, float> DebugAwareness => awareness;
+    public static ulong DebugLocalKey => LocalAwarenessKey;
+
+    public bool DebugIsPuppet => isPuppet;
+    public Vector3 DebugEye => EyePosition();
+    public Quaternion DebugViewRotation => ViewRotation();
+    public float DebugSightVerticalHalfAngle => sightVerticalHalfAngle;
+    public float DebugSightHalfAngle => sightHalfAngle;
+    public float DebugSightRange => sightRange;
+    public float DebugCrouchSightRange => crouchSightRange;
+    public float DebugInstantRange => instantNoticeRange;
+    public float DebugInstantRangeCrouching => instantNoticeRangeCrouching;
+    public Vector3 DebugLastKnownPos => lastKnownPos;
+    public bool DebugInvestigating => !isPuppet && state != AiState.Roam && !targetVisible;
+    public NavMeshPath DebugPath => agent != null && agent.isOnNavMesh && agent.hasPath ? agent.path : null;
+
+    public string DebugState
+    {
+        get
+        {
+            if (isPuppet) return "参加者側（見た目だけ）: " + animState;
+            if (stunTimer > 0f) return $"スタン {stunTimer:0.0}s";
+            if (winding) return $"構え {windupTimer:0.0}s";
+            switch (state)
+            {
+                case AiState.Chase:
+                    if (targetVisible) return "追跡（見えている）";
+                    return predicting ? $"予測した場所へ走る（{predictTimer:0.0}s）" : $"最後に見た場所へ走る（見失い {lostTime:0.0}s）";
+                case AiState.Investigate: return suspicious ? "物音を調べる（気づきかけ）" : "物音を調べる";
+                case AiState.Seek: return $"歩いて探す（あと {Mathf.Max(0f, seekSeconds - stateTime):0.0}s）";
+                default: return suspicious ? "気づきかけ（歩いて向かう）" : "徘徊";
+            }
+        }
+    }
+
+    private void DebugAddRay(Vector3 from, Vector3 to, bool inView, bool clear)
+    {
+        DebugRays.Add(new DebugRay { from = from, to = to, inView = inView, clear = clear });
+    }
+#endif
 
     // ------------------------------------------------------------------
     // 攻撃
@@ -631,6 +1040,7 @@ public class EnemyBrain : MonoBehaviour
 
         BombBox bomb = obj.GetComponent<BombBox>();
         if (bomb != null) bomb.SetThrower(this);
+        ItemImpactNoise.Attach(obj, transform); // 飛んだ先でぶつかる音は、ほかの敵に聞こえる
         if (boxItemData != null)
         {
             GameplaySync.NotifyItemDropped(item, boxItemData, origin, velocity, bomb != null ? bomb.FuseTime : -1f);
@@ -745,7 +1155,7 @@ public class EnemyBrain : MonoBehaviour
 
         // 構えのクリップが無いときは、体は待機のままにして腕だけ動かす
         int activeIndex = (int)animState;
-        if (clipList[activeIndex] == null) activeIndex = (int)AnimState.Idle;
+        if (activeIndex >= clipList.Length || clipList[activeIndex] == null) activeIndex = (int)AnimState.Idle;
 
         float step = AnimBlendSpeed * Time.deltaTime;
         float total = 0f;

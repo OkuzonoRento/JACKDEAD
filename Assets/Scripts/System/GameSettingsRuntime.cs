@@ -45,11 +45,19 @@ public class GameSettingsRuntime : MonoBehaviour
     {
         ApplyMasterVolume(SettingsManager.MasterVolume);
         ApplyBrightness(SettingsManager.Brightness);
+        ApplyFrameRate(SettingsManager.FrameRate);
     }
 
     public static void ApplyMasterVolume(float value)
     {
         AudioListener.volume = Mathf.Clamp01(value);
+    }
+
+    /// <summary>フレームレートの上限を反映する。垂直同期が有効だと上限が効かないので、切る</summary>
+    public static void ApplyFrameRate(int fps)
+    {
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = fps;
     }
 
     public static void ApplyBrightness(float value)

@@ -204,7 +204,6 @@ public class BombBox : MonoBehaviour
     // 一度でも何かに当たって跳ねたら、その Box はダメージもスタンも与えなくなる（爆発だけは残る）
     private bool bounced;
     private float spawnTime;
-    private float lastBounceNoiseTime = -10f;
 
     // 敵に動いている Box が当たったらスタンさせる（敵・味方どちらが投げた Box でも同じ。判定は敵を動かしているホストだけ）
     private EnemyBrain thrower;
@@ -245,13 +244,8 @@ public class BombBox : MonoBehaviour
             return;
         }
 
-        // 床・壁・他のものに当たって跳ねた：以降はダメージもスタンもしない。跳ねる音は敵に聞こえる
+        // 床・壁・他のものに当たって跳ねた：以降はダメージもスタンもしない（ぶつかる音は ItemImpactNoise が出す）
         if (impact >= 1f) bounced = true;
-        if (impact >= 3f && Time.time - lastBounceNoiseTime > 0.4f)
-        {
-            lastBounceNoiseTime = Time.time;
-            EnemyNoise.Emit(transform.position, EnemyNoise.BoxBounce);
-        }
     }
 
     // ------------------------------------------------------------------

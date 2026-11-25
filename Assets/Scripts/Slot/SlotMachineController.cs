@@ -82,6 +82,11 @@ public class SlotMachineController : MonoBehaviour
     /// <summary>他プレイヤーがこの台を回している間 true（マルチプレイ同期）</summary>
     private bool remoteBusy = false;
     private Coroutine remoteRollCoroutine;
+    private float remoteBusySince;
+
+    private const float NoiseInterval = 0.5f;          // 回している間、この間隔で音を出す
+    private const float RemoteNoiseMaxSeconds = 10f;   // 終了の通知が届かない（切断など）場合に、音を打ち切る
+    private float noiseTimer;
 
     /// <summary>マルチプレイ同期用のID（0 = 同期しない）。MapGenerator が生成順の連番を振る</summary>
     public int NetId { get; set; }
@@ -91,6 +96,24 @@ public class SlotMachineController : MonoBehaviour
     public void SetRemoteBusy(bool busy)
     {
         remoteBusy = busy;
+        if (busy) remoteBusySince = Time.time;
+    }
+
+    // 回している間（自分でも他の人でも）は、ずっと音が鳴っていて、敵に聞こえる。敵を動かしているのはホストのPC
+    private void Update()
+    {
+        bool sounding = isPlaying || (remoteBusy && Time.time - remoteBusySince < RemoteNoiseMaxSeconds);
+        if (!sounding)
+        {
+            noiseTimer = 0f; // 次に回し始めたときは、すぐ鳴る
+            return;
+        }
+
+        noiseTimer -= Time.deltaTime;
+        if (noiseTimer > 0f) return;
+
+        noiseTimer = NoiseInterval;
+        EnemyNoise.Emit(transform.position, EnemyNoise.Slot);
     }
 
     /// <summary>他プレイヤーが回した1回分の演出だけを再生する（賭け金・配当は本人側のみ）</summary>
@@ -106,6 +129,7 @@ public class SlotMachineController : MonoBehaviour
 
         if (remoteRollCoroutine != null) StopCoroutine(remoteRollCoroutine);
         remoteBusy = true;
+        remoteBusySince = Time.time; // 再ロールのたびに測り直す
         remoteRollCoroutine = StartCoroutine(RollVisual(GetTargetStopOffset()));
     }
 
@@ -546,7 +570,6 @@ public class SlotMachineController : MonoBehaviour
     {
         isPlaying = true;
         GameplaySync.NotifySlotBegin(this);
-        EnemyNoise.Emit(transform.position, EnemyNoise.Slot);
 
         if (playerController != null)
         {

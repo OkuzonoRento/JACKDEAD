@@ -182,6 +182,8 @@ public class PlayerMovement : MonoBehaviour
     public void UnlockControl()
     {
         isControlLocked = false;
+        wasAirborne = false;
+        noLandNoiseUntil = Time.time + LandNoiseGrace;
     }
 
     // スタン（Box が当たったとき）：しばらく操作できない。しゃがみと同じ姿勢になり、描画の画角が狭まる
@@ -316,6 +318,7 @@ public class PlayerMovement : MonoBehaviour
 
         velocity.y += gravity * dt;
         controller.Move((knockVelocity + Vector3.up * velocity.y) * dt);
+        CheckLanding();
 
         knockTimer -= dt;
         if (knockAge > KnockMinSeconds && controller.isGrounded)
@@ -351,6 +354,7 @@ public class PlayerMovement : MonoBehaviour
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+        CheckLanding();
     }
 
     private void Update()
@@ -483,7 +487,7 @@ public class PlayerMovement : MonoBehaviour
         if (isSprinting) currentSpeed = sprintSpeed;
         else if (isCrouching) currentSpeed = crouchSpeed;
 
-        // 足音：走る＞歩く＞しゃがみ歩き の順に遠くまで聞こえる（立ち止まっているときは無音）。敵が聞き取る
+        // 足音：敵が聞き取るのは走る音だけ（歩きとしゃがみ歩きは無音。大きさは EnemyNoise で決める）
         footstepTimer -= Time.deltaTime;
         if (footstepTimer <= 0f && isMoving && isGrounded)
         {
@@ -516,10 +520,37 @@ public class PlayerMovement : MonoBehaviour
         if (jumpAction != null && jumpAction.triggered && isGrounded && !isCrouching)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            GameplaySync.NotifyNoise(transform.position, EnemyNoise.Jump); // 踏み切る音（敵に聞こえる）
         }
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+        CheckLanding();
+    }
+
+    // ---- 着地の音（高い所から落ちるほど大きく、遠くの敵まで聞こえる）----
+    private const float LandNoiseMinSpeed = 5.5f;  // これより遅い着地（小さな段差）は無音。ジャンプの着地は約 7
+    private const float LandNoiseMaxSpeed = 16f;   // この速さで、音が最大になる
+    private const float LandNoiseGrace = 1.5f;     // ステージ開始などで出現した直後の着地は、数えない
+    private bool wasAirborne;
+    private float noLandNoiseUntil;
+
+    /// <summary>移動（controller.Move）のあとに呼ぶ。空中から床に着いた瞬間に、落ちる速さに応じた音を出す</summary>
+    private void CheckLanding()
+    {
+        if (!controller.isGrounded)
+        {
+            wasAirborne = true;
+            return;
+        }
+        if (!wasAirborne) return;
+        wasAirborne = false;
+
+        float impact = -velocity.y;
+        if (impact < LandNoiseMinSpeed || Time.time < noLandNoiseUntil || Time.timeSinceLevelLoad < LandNoiseGrace) return;
+
+        float k = Mathf.InverseLerp(LandNoiseMinSpeed, LandNoiseMaxSpeed, impact);
+        GameplaySync.NotifyNoise(transform.position, Mathf.Lerp(EnemyNoise.LandMin, EnemyNoise.LandMax, k));
     }
 
     private void UpdateLockedMovementAndLook()

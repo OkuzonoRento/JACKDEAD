@@ -101,6 +101,7 @@ public static class KeyBindingsUIBuilder
         if (content == null || settings.Find("KeyBindPanel/Row_Device") == null || settings.Find("KeyBindPanel/Reset") == null) return false;
         if (content.Find("Row_MicMode") == null) return false;
         if (settings.Find("Row_Se") != null && settings.Find("Row_Voice") == null) return false;
+        if (settings.Find("Row_Brightness") != null && settings.Find("Row_FrameRate") == null) return false;
 
         foreach (KeyBindings.Entry e in KeyBindings.Entries)
             if (content.Find(RowName(e)) == null) return false;
@@ -137,6 +138,7 @@ public static class KeyBindingsUIBuilder
         LobbyUIBuilder.Stretch(panel);
 
         EnsureVoiceRow(g);
+        EnsureFrameRateRow(g);
         BuildDeviceRow(panel);
         BuildList(panel);
 
@@ -252,6 +254,34 @@ public static class KeyBindingsUIBuilder
             FontStyles.Normal, TextAlignmentOptions.Midline);
         MakeArrow(bg.transform, "Prev", "<", 380f, RowH);
         MakeArrow(bg.transform, "Next", ">", 790f, RowH);
+    }
+
+    /// <summary>
+    /// 「操作・表示」の一番下に、フレームレート（30 / 60 / 120）の行を足す。形は言語の行と同じ「&lt;」「&gt;」。
+    /// すでにあれば何もしない
+    /// </summary>
+    internal static void EnsureFrameRateRow(Transform g)
+    {
+        if (g.Find("Row_FrameRate") != null) return;
+
+        // 一番下の行（タイトルは言語、ゲーム中は明るさ）の下に置く。説明の表示先は、明るさの行と同じ
+        Transform brightness = g.Find("Row_Brightness");
+        if (brightness == null) return;
+        Transform last = g.Find("Row_Language");
+        if (last == null) last = brightness;
+        UiHover source = brightness.GetComponent<UiHover>();
+        if (source == null) return;
+
+        float y = -((RectTransform)last).anchoredPosition.y + 62f;
+        GameObject row = LobbyUIBuilder.Row(g, "Row_FrameRate", y,
+            "1秒間に描く回数の上限を選びます（30 / 60 / 120）。", "CHOOSE THE FRAME RATE LIMIT: 30, 60 OR 120.",
+            source.descTarget as TextMeshProUGUI, source.defaultJa, source.defaultEn);
+        LobbyUIBuilder.MakeText(row.transform, "Label", "フレームレート", "FRAME RATE", 32f, LobbyUIBuilder.TextNormal, 20f, 0f, 340f, LobbyUIBuilder.RowHeight);
+        LobbyUIBuilder.MakeText(row.transform, "Value", "60 fps", null, 32f, Color.white, 450f, 0f, 220f, LobbyUIBuilder.RowHeight,
+            FontStyles.Normal, TextAlignmentOptions.Midline);
+        MakeArrow(row.transform, "Prev", "<", 380f);
+        MakeArrow(row.transform, "Next", ">", 690f);
+        row.AddComponent<FrameRateRow>();
     }
 
     /// <summary>
