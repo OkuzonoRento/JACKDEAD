@@ -53,6 +53,44 @@ public class SlotReelScroller : MonoBehaviour
         reelMaterial.mainTextureScale = new Vector2(1f, tilingY);
     }
 
+    private string tintProperty;
+    private Color baseTint;
+
+    /// <summary>当たりの演出でリールを光らせる。amount が 0 なら元の色</summary>
+    public void SetFlash(Color color, float amount)
+    {
+        if (amount <= 0f)
+        {
+            ResetTint();
+            return;
+        }
+        if (!PrepareTint()) return;
+
+        Color bright = baseTint * Color.Lerp(Color.white, color, 0.7f) * 2.2f;
+        bright.a = baseTint.a;
+        reelMaterial.SetColor(tintProperty, Color.Lerp(baseTint, bright, Mathf.Clamp01(amount)));
+    }
+
+    /// <summary>元の色に戻す</summary>
+    public void ResetTint()
+    {
+        if (reelMaterial != null && !string.IsNullOrEmpty(tintProperty)) reelMaterial.SetColor(tintProperty, baseTint);
+    }
+
+    private bool PrepareTint()
+    {
+        InitMaterial();
+        if (reelMaterial == null) return false;
+
+        if (tintProperty == null)
+        {
+            tintProperty = reelMaterial.HasProperty("_BaseColor") ? "_BaseColor"
+                : reelMaterial.HasProperty("_Color") ? "_Color" : "";
+            if (tintProperty.Length > 0) baseTint = reelMaterial.GetColor(tintProperty);
+        }
+        return tintProperty.Length > 0;
+    }
+
     public void SetOffset(float offsetY)
     {
         InitMaterial();

@@ -36,7 +36,8 @@ public class GameplaySync : MonoBehaviour
         ItemPose = 16,    // id = アイテムのID / v1 = 位置 / v2 = 回転（オイラー角）。落とした／投げた本人 → 全員。動いている間、短い間隔で送る
         ItemValue = 17,   // id = アイテムのID / text = ぶつけて変わった売値（0 = 壊れた）。投げた本人 → 全員
         PlayerStun = 18,  // id = 当てられたプレイヤーの席番号 / v1.x = スタンする秒数。投げた本人 → 当てられた人
-        EnemyHit = 19     // id = 敵のNetId / v1 = (ダメージ, スタン秒数, 0)。参加者 → ホストだけ（敵を動かしているのはホスト）
+        EnemyHit = 19,    // id = 敵のNetId / v1 = (ダメージ, スタン秒数, 0)。参加者 → ホストだけ（敵を動かしているのはホスト）
+        SlotWin = 20      // id = SlotMachineController.NetId / text = 獲得額 / v1 = (当たりの大きさ, 出目の倍率, ドーパミンの上乗せ)
     }
 
     private struct NetEvent
@@ -271,6 +272,19 @@ public class GameplaySync : MonoBehaviour
         Instance.Send(new NetEvent { type = EventType.SlotRoll, id = slot.NetId, text = string.Join(",", results) });
     }
 
+    /// <summary>当たった（再ロールを含む）。他の人の画面でも、台の演出を出す</summary>
+    public static void NotifySlotWin(SlotMachineController slot, SlotWinInfo win)
+    {
+        if (Instance == null || slot == null || slot.NetId == 0) return;
+        Instance.Send(new NetEvent
+        {
+            type = EventType.SlotWin,
+            id = slot.NetId,
+            text = win.reward.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            v1 = new Vector3((int)win.tier, win.symbolMultiplier, win.buffMultiplier)
+        });
+    }
+
     /// <param name="aborted">攻撃を受けて途中で中止したとき true（他の人の画面でも回転を止める）</param>
     public static void NotifySlotEnd(SlotMachineController slot, bool aborted = false)
     {
@@ -472,13 +486,28 @@ public class GameplaySync : MonoBehaviour
             case EventType.SlotBegin:
             {
                 SlotMachineController slot = FindSlot(e.id);
-                if (slot != null) slot.SetRemoteBusy(true);
+                if (slot != null)
+                {
+                    slot.SetRemoteBusy(true);
+                    slot.PlayRemoteStart();
+                }
                 break;
             }
             case EventType.SlotRoll:
             {
                 SlotMachineController slot = FindSlot(e.id);
                 if (slot != null) slot.PlayRemoteRoll(ParseResults(e.text));
+                break;
+            }
+            case EventType.SlotWin:
+            {
+                SlotMachineController slot = FindSlot(e.id);
+                if (slot != null && int.TryParse(e.text, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out int reward))
+                {
+                    SlotWinTier tier = (SlotWinTier)Mathf.Clamp((int)e.v1.x, 0, (int)SlotWinTier.Jackpot);
+                    slot.PlayRemoteWin(tier, reward, e.v1.y, e.v1.z);
+                }
                 break;
             }
             case EventType.SlotEnd:

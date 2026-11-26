@@ -58,6 +58,16 @@ public class SlotMachineController : MonoBehaviour
     [Tooltip("各出目のリスト（倍率から当選確率が自動算出）")]
     [SerializeField] private List<SlotSymbolData> symbols = new List<SlotSymbolData>();
 
+    [Header("当たりの演出")]
+    [SerializeField] private SlotCelebrationSettings celebration = new SlotCelebrationSettings();
+
+    private SlotWinEffects winEffects;
+    private Coroutine punchCoroutine;
+    private bool resultSettled; // 配当を受け取り済み（このあと攻撃を受けても、失うものはない）
+    private Coroutine shakeCoroutine;
+    private bool remoteRolling;      // 他の人の回転を、こちらの画面で再生している間
+    private SlotWinInfo? pendingWin; // 回転が止まったら見せる、他の人の当たり
+
     private Transform playerStandPoint;
     private PlayerController playerController;
     private PlayerMovement playerMovement;
@@ -128,9 +138,11 @@ public class SlotMachineController : MonoBehaviour
         }
 
         if (remoteRollCoroutine != null) StopCoroutine(remoteRollCoroutine);
+        StopCelebration(true); // ボタンを押した音は、鳴らしたままにする
+        pendingWin = null;
         remoteBusy = true;
         remoteBusySince = Time.time; // 再ロールのたびに測り直す
-        remoteRollCoroutine = StartCoroutine(RollVisual(GetTargetStopOffset()));
+        remoteRollCoroutine = StartCoroutine(RemoteRoll());
     }
 
     private void Awake()
@@ -221,14 +233,23 @@ public class SlotMachineController : MonoBehaviour
 
         isPlaying = false;
         GameplaySync.NotifySlotEnd(this, true);
-        Debug.Log("[スロット] 攻撃を受けたため、回転を中止しました（賭け金は戻りません）。");
+        Debug.Log(resultSettled
+            ? "[スロット] 攻撃を受けたため、当たりの演出を中止しました（配当は受け取り済みです）。"
+            : "[スロット] 攻撃を受けたため、回転を中止しました（賭け金は戻りません）。");
     }
 
     /// <summary>リールの回転・本体の揺れ・レバーを止めて、元の見た目に戻す（他プレイヤーの画面でも中止の通知で呼ばれる）</summary>
     public void AbortVisual()
     {
+        // 自分が回していなければ、他の人の回転の再生もここで止める
+        if (!isPlaying) StopAllCoroutines();
         remoteRollCoroutine = null;
         remoteBusy = false;
+        remoteRolling = false;
+        pendingWin = null;
+        shakeCoroutine = null;
+        punchCoroutine = null;
+        StopCelebration();
 
         if (reels != null)
         {
@@ -253,6 +274,8 @@ public class SlotMachineController : MonoBehaviour
         {
             playerMovement.UnlockControl();
         }
+
+        if (winEffects != null) Destroy(winEffects.gameObject);
 
         if (runtimeTextures == null) return;
         for (int i = 0; i < runtimeTextures.Length; i++)
@@ -344,7 +367,7 @@ public class SlotMachineController : MonoBehaviour
                 if (r is TMPro.TMP_SubMeshUI || r.gameObject == labelObj) continue;
                 if (first) { bounds = r.bounds; first = false; } else bounds.Encapsulate(r.bounds);
             }
-            labelObj.transform.position = new Vector3(bounds.center.x, bounds.max.y + 0.3f, bounds.center.z);
+            labelObj.transform.position = new Vector3(bounds.center.x, bounds.max.y + 0.45f, bounds.center.z); // 下に当たりの掲示板が出る分、高くする
 
             rarityLabel = labelObj.AddComponent<TMPro.TextMeshPro>();
             rarityLabel.alignment = TMPro.TextAlignmentOptions.Center;
@@ -522,8 +545,10 @@ public class SlotMachineController : MonoBehaviour
     /// <summary>
     /// currentResults の出目でリール帯を作り、レバー・回転・ガタガタ・左から順の停止までを演出する
     /// </summary>
-    private IEnumerator RollVisual(float targetOffset)
+    private IEnumerator RollVisual(float targetOffset, SlotWinEffects sound = null)
     {
+        if (sound != null) sound.StartSpin();
+
         if (leverTransform != null)
         {
             StartCoroutine(AnimateLeverPull());
@@ -540,7 +565,7 @@ public class SlotMachineController : MonoBehaviour
             reel.StartRolling(3.5f);
         }
 
-        Coroutine shakeCoroutine = null;
+        shakeCoroutine = null;
         if (machineBodyTransform != null)
         {
             shakeCoroutine = StartCoroutine(ShakeMachineWhileRolling());
@@ -552,6 +577,7 @@ public class SlotMachineController : MonoBehaviour
         for (int i = 0; i < reels.Length; i++)
         {
             yield return StartCoroutine(reels[i].StopAt(targetOffset, 0.6f));
+            if (sound != null) sound.ReelStopped(i, CountMatched(i));
             if (machineBodyTransform != null)
             {
                 StartCoroutine(PunchMachineScale(0.03f, 0.12f));
@@ -566,9 +592,243 @@ public class SlotMachineController : MonoBehaviour
         }
     }
 
+    /// <summary>左のリールからここまで同じ目が並んでいれば、その数（並んでいなければ 0）</summary>
+    private int CountMatched(int reelIndex)
+    {
+        for (int i = 1; i <= reelIndex; i++)
+        {
+            if (currentResults[i] != currentResults[0]) return 0;
+        }
+        return reelIndex + 1;
+    }
+
+    /// <summary>他プレイヤーが当てたときの演出（台の音と画面は、周りの人にも見える）</summary>
+    public void PlayRemoteWin(SlotWinTier tier, int reward, float symbolMultiplier, float buffMultiplier)
+    {
+        if (isPlaying || !IsVisualReady) return;
+
+        SlotWinInfo info = new SlotWinInfo
+        {
+            tier = tier,
+            reward = reward,
+            symbolMultiplier = symbolMultiplier,
+            machineMultiplier = slotRarityMultiplier,
+            buffMultiplier = buffMultiplier
+        };
+
+        // こちらの画面のリールがまだ回っていれば、止まってから見せる
+        if (remoteRolling) pendingWin = info;
+        else Celebrate(info, false);
+    }
+
+    private IEnumerator RemoteRoll()
+    {
+        remoteRolling = true;
+        SlotWinEffects effects = EnsureEffects();
+        yield return RollVisual(GetTargetStopOffset(), effects);
+        remoteRolling = false;
+
+        if (pendingWin.HasValue)
+        {
+            Celebrate(pendingWin.Value, false);
+            pendingWin = null;
+        }
+        else if (!IsAllMatched() && effects != null)
+        {
+            effects.PlayLose();
+        }
+    }
+
+    /// <summary>当たりの演出を始める。戻り値は、金額が出るまでの時間（秒）</summary>
+    private float Celebrate(SlotWinInfo info, bool shakeCamera)
+    {
+        SlotWinEffects effects = EnsureEffects();
+        if (effects == null)
+        {
+            if (info.tier != SlotWinTier.Reroll) Punch(0.08f);
+            return 0.25f;
+        }
+
+        effects.PlayWin(info, shakeCamera, Punch);
+        return effects.GetRevealTime(info);
+    }
+
+    /// <summary>台を一度はねさせる</summary>
+    private void Punch(float amount)
+    {
+        if (machineBodyTransform == null) return;
+        if (punchCoroutine != null) StopCoroutine(punchCoroutine);
+        punchCoroutine = StartCoroutine(PunchMachineScale(amount, 0.22f));
+    }
+
+    /// <param name="keepStartSound">ボタンを押したときの音は止めない</param>
+    private void StopCelebration(bool keepStartSound = false)
+    {
+        if (punchCoroutine != null)
+        {
+            StopCoroutine(punchCoroutine);
+            punchCoroutine = null;
+            if (machineBodyTransform != null) machineBodyTransform.localScale = bodyInitialLocalScale;
+        }
+
+        if (winEffects == null) return;
+        if (keepStartSound) winEffects.Clear();
+        else winEffects.Stop();
+    }
+
+    /// <summary>他の人がボタンを押した。同じ音を鳴らす</summary>
+    public void PlayRemoteStart()
+    {
+        if (isPlaying || !IsVisualReady) return;
+
+        StopCelebration();
+        SlotWinEffects effects = EnsureEffects();
+        if (effects != null) effects.PlayStart();
+    }
+
+    /// <summary>音と演出の部品（オフにしているときは null）。台が揺れる前に呼んで、位置を測る</summary>
+    private SlotWinEffects EnsureEffects()
+    {
+        if (!celebration.enabled || reels == null || reels.Length == 0) return null;
+        if (winEffects == null)
+        {
+            winEffects = new GameObject("SlotWinEffects").AddComponent<SlotWinEffects>();
+            winEffects.Setup(MeasureAnchors(), reels, celebration);
+        }
+        return winEffects;
+    }
+
+    /// <summary>演出を置く場所：リールの窓の中心と大きさ、台の正面の向き、台の下端と上端</summary>
+    private SlotAnchors MeasureAnchors()
+    {
+        SlotAnchors anchors = new SlotAnchors();
+        Vector3 first = GetVisualCenter(reels[0].transform);
+        Vector3 last = GetVisualCenter(reels[reels.Length - 1].transform);
+        anchors.center = (first + last) * 0.5f;
+
+        // 正面は、ボタンがある側（どのPCでも同じ向きになる）
+        Vector3 toButtons = Vector3.zero;
+        foreach (SlotButtonInteractable button in GetComponentsInChildren<SlotButtonInteractable>())
+        {
+            toButtons += GetVisualCenter(button.transform) - anchors.center;
+        }
+        toButtons.y = 0f;
+
+        Vector3 front = transform.forward;
+        Vector3 along = last - first;
+        along.y = 0f;
+        if (along.sqrMagnitude > 0.0001f) front = Vector3.Cross(along.normalized, Vector3.up);
+        if (toButtons.sqrMagnitude > 0.0001f && Vector3.Dot(front, toButtons) < 0f) front = -front;
+        front.y = 0f;
+        anchors.front = front.normalized;
+
+        Vector3 right = Vector3.Cross(Vector3.up, -anchors.front); // 正面から見て右
+        anchors.reelOffsets = new float[reels.Length];
+        for (int i = 0; i < reels.Length; i++)
+        {
+            anchors.reelOffsets[i] = Vector3.Dot(GetVisualCenter(reels[i].transform) - anchors.center, right);
+        }
+
+        Renderer middle = reels[reels.Length / 2].GetComponent<Renderer>();
+        Bounds reelBounds = middle != null ? middle.bounds : new Bounds(anchors.center, new Vector3(0.4f, 0.7f, 0.05f));
+        float spacing = reels.Length >= 2 ? Mathf.Abs(anchors.reelOffsets[1] - anchors.reelOffsets[0]) : reelBounds.size.x;
+        anchors.windowWidth = spacing * reels.Length;
+        anchors.windowHeight = reelBounds.size.y;
+        // 窓には縦に 2 つ分の目が見える。目は横長に表示されるので、枠はリールの幅に合わせる
+        anchors.frameWidth = spacing * 0.97f;
+        anchors.frameHeight = reelBounds.size.y * 0.44f;
+        anchors.symbolY = -StopCenterOffset / GetTilingY() * reelBounds.size.y; // 目は窓の中心より少し下で止まる
+        anchors.face = Vector3.Dot(reelBounds.center - anchors.center, anchors.front)
+            + Mathf.Abs(anchors.front.x) * reelBounds.extents.x + Mathf.Abs(anchors.front.z) * reelBounds.extents.z;
+
+        anchors.floorY = anchors.center.y - 1f;
+        anchors.topY = anchors.center.y + 0.45f;
+        bool found = false;
+        foreach (Renderer r in GetComponentsInChildren<Renderer>())
+        {
+            if (r.GetComponent<TMPro.TMP_Text>() != null) continue;
+            anchors.floorY = found ? Mathf.Min(anchors.floorY, r.bounds.min.y) : r.bounds.min.y;
+            anchors.topY = found ? Mathf.Max(anchors.topY, r.bounds.max.y) : r.bounds.max.y;
+            found = true;
+        }
+        return anchors;
+    }
+
+    // 演出の確認用：再生中に、このコンポーネント右上の ︙ メニューから選ぶ（お金は動かない）
+    [ContextMenu("演出テスト/ハズレ（再生中のみ）")]
+    private void TestLose() => StartTest(null);
+
+    [ContextMenu("演出テスト/WIN（再生中のみ）")]
+    private void TestWin() => StartTest(SlotWinTier.Win);
+
+    [ContextMenu("演出テスト/BIG WIN（再生中のみ）")]
+    private void TestBigWin() => StartTest(SlotWinTier.BigWin);
+
+    [ContextMenu("演出テスト/JACKPOT（再生中のみ）")]
+    private void TestJackpot() => StartTest(SlotWinTier.Jackpot);
+
+    [ContextMenu("演出テスト/再ロール（再生中のみ）")]
+    private void TestReroll() => StartTest(SlotWinTier.Reroll);
+
+    private void StartTest(SlotWinTier? tier)
+    {
+        if (!Application.isPlaying || IsPlaying || !IsVisualReady) return;
+        StartCoroutine(TestSpin(tier));
+    }
+
+    private IEnumerator TestSpin(SlotWinTier? tier)
+    {
+        isPlaying = true;
+        resultSettled = true;
+        StopCelebration();
+
+        // 見せたい当たりに合う目を選ぶ（WIN は低い倍率、BIG WIN は中くらい、JACKPOT は最高）
+        int index = -1;
+        if (tier.HasValue)
+        {
+            float wanted = tier == SlotWinTier.Jackpot ? 1000f : tier == SlotWinTier.BigWin ? 3f : 0f;
+            for (int i = 0; i < symbols.Count; i++)
+            {
+                bool reroll = symbols[i].effectType == SlotSymbolEffect.Reroll;
+                if (reroll != (tier == SlotWinTier.Reroll)) continue;
+                if (index < 0 || Mathf.Abs(symbols[i].symbolMultiplier - wanted) < Mathf.Abs(symbols[index].symbolMultiplier - wanted)) index = i;
+            }
+        }
+        AssignReelResults(index);
+
+        SlotWinEffects effects = EnsureEffects();
+        if (effects != null)
+        {
+            effects.PlayStart();
+            yield return new WaitForSeconds(SlotWinEffects.StartWait);
+        }
+        yield return RollVisual(GetTargetStopOffset(), effects);
+
+        if (index < 0)
+        {
+            if (effects != null) effects.PlayLose();
+        }
+        else
+        {
+            float multiplier = symbols[index].symbolMultiplier;
+            SlotWinInfo info = new SlotWinInfo
+            {
+                tier = tier.Value,
+                reward = tier == SlotWinTier.Reroll ? 0 : Mathf.RoundToInt(1000f * slotRarityMultiplier * multiplier),
+                symbolMultiplier = multiplier,
+                machineMultiplier = slotRarityMultiplier,
+                buffMultiplier = 1f
+            };
+            yield return new WaitForSeconds(Celebrate(info, true) + 0.2f);
+        }
+        isPlaying = false;
+    }
+
     private IEnumerator PlaySlotSequence(int cost, int betAmount)
     {
         isPlaying = true;
+        resultSettled = false;
+        StopCelebration();
         GameplaySync.NotifySlotBegin(this);
 
         if (playerController != null)
@@ -576,13 +836,23 @@ public class SlotMachineController : MonoBehaviour
             playerController.AddMoney(-cost);
         }
 
+        // ボタンを押した音（てっててっててん）
+        float startWait = 0f;
+        SlotWinEffects starter = EnsureEffects();
+        if (starter != null)
+        {
+            starter.PlayStart();
+            startWait = SlotWinEffects.StartWait;
+        }
+
         // ★ スロット正面の立ち位置と注視点を算出し、プレイヤーを滑らかに移動＆カメラ固定
         if (playerMovement != null)
         {
             CalculateSlotStandAndLookPositions(out Vector3 standPos, out Vector3 lookPos);
             playerMovement.LockControlAndMoveTo(standPos, lookPos, moveAndLookDuration);
-            yield return new WaitForSeconds(moveAndLookDuration);
+            startWait = Mathf.Max(startWait, moveAndLookDuration);
         }
+        if (startWait > 0f) yield return new WaitForSeconds(startWait);
 
         float targetOffset = GetTargetStopOffset();
         bool needsRoll = true;
@@ -597,7 +867,8 @@ public class SlotMachineController : MonoBehaviour
             GameplaySync.NotifySlotRoll(this, currentResults);
 
             // 2. リール帯の生成 → 回転 → 左から順に停止
-            yield return StartCoroutine(RollVisual(targetOffset));
+            SlotWinEffects effects = EnsureEffects();
+            yield return StartCoroutine(RollVisual(targetOffset, effects));
 
             // 4. 結果判定と配当・効果の実行
             if (winningIndex >= 0)
@@ -608,7 +879,11 @@ public class SlotMachineController : MonoBehaviour
                 {
                     Debug.Log("[ REROLL! ] 再ロールが揃いました！もう一度回します！");
                     needsRoll = true;
-                    yield return new WaitForSeconds(0.6f);
+                    SlotWinInfo again = new SlotWinInfo { tier = SlotWinTier.Reroll, buffMultiplier = 1f };
+                    float reveal = Celebrate(again, false);
+                    GameplaySync.NotifySlotWin(this, again);
+                    yield return new WaitForSeconds(reveal + 0.5f);
+                    StopCelebration();
                 }
                 else
                 {
@@ -621,23 +896,32 @@ public class SlotMachineController : MonoBehaviour
                         playerController.AddMoney(reward);
                     }
 
-                    if (machineBodyTransform != null)
-                    {
-                        yield return StartCoroutine(PunchMachineScale(0.08f, 0.25f));
-                    }
-
                     Debug.Log($"[ 当選: 出目{winSymbol.symbolName} ({winSymbol.winRate}%) ] 賭け金({betAmount}) × 台倍率({slotRarityMultiplier}x) × 出目倍率({winSymbol.symbolMultiplier}x) = {reward}円獲得！");
+
+                    resultSettled = true;
+                    SlotWinInfo info = new SlotWinInfo
+                    {
+                        tier = celebration.GetTier(slotRarityMultiplier, winSymbol.symbolMultiplier),
+                        reward = reward,
+                        symbolMultiplier = winSymbol.symbolMultiplier,
+                        machineMultiplier = slotRarityMultiplier,
+                        buffMultiplier = buff
+                    };
+                    float wait = Celebrate(info, true);
+                    GameplaySync.NotifySlotWin(this, info);
+                    yield return new WaitForSeconds(wait + (celebration.enabled ? celebration.GetLinger(info.tier) : 0f));
                 }
             }
             else
             {
                 if (playerController != null) playerController.OnGambleResult(false); // 負けはドーパミンが減る
                 Debug.Log("[ ハズレ ] 0円");
+                if (effects != null) effects.PlayLose();
             }
         }
 
-        // 結果確認の余韻のあと、プレイヤーの移動＆視点ロックを解除
-        yield return new WaitForSeconds(0.8f);
+        // 結果確認の余韻のあと、プレイヤーの移動＆視点ロックを解除（当たりは、演出の中で待った）
+        yield return new WaitForSeconds(resultSettled ? 0.1f : 0.8f);
 
         if (playerMovement != null)
         {

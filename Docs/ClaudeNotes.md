@@ -126,3 +126,13 @@
 
 ## ゲーム開始時のステージ表示（2026-11-26）
 - `ResultUIController.OpeningCardRoutine`: ゲームシーン開始時に、暗転したまま `STAGE n` / ノルマ / 借金を出してから明転する。表示中は `IsTransitioning` なので無敵で、ポーズは開けず、操作と正気度減少も止める。`showOpeningCard` でオフにできる。再生では未確認。
+
+## スロットの音と当たり演出（2026-11-26、CloverPit 風の見た目・重い鉄の音）
+- ユーザーの要望の経緯: 画面全体の派手な演出は「微妙」→ CloverPit 風 → 「ホラー・不気味感が薄れた」「ボタンで『てっててっててん』」「実機の効果音みたいに」→ 「音はジャグラー」「実機の音がいい」（著作物なので入れていない）→ **「音が可愛いので可愛くないように」「ホラーテイストでなく CloverPit 風に」が最新**。血の垂れる文字・髑髏・停電・666 は消した。
+- 見た目: そろった目にピンクの枠 → 台の上の掲示板（クリーム色）に倍率 → リールの上で「+金額」が数え上がる → 黄色く光る窓の枠・ピンクの星・コイン。WIN は金額だけ、BIG WIN は見出し＋金額、JACKPOT は見出しだけ。
+- 音: `SlotSynth`（素材なし）。重い鉄の音は「低すぎ」とされ、実機との中間の高さにした（`NoteBase`・`ImpactPitch` で調整）。明るい和音は使わない。曲は自作。**素材に差し替えるには `Assets/Resources/SlotSounds` に `SlotSynth.Sound` と同じ名前の音声ファイルを置く**（一覧は `Docs/SlotFx/音の差し替え方.md`）。
+- 流れ: ボタン → 開始音（0.85秒後に回り出す）→ 停止 → 枠 → 倍率 → 数え上げ → 仕上げ（BIG WIN 以上は一撃の音と曲）。調整は `SlotMachineController` の `celebration`（固定の余韻、音量、揺れ、コイン、`windowFrameDepth`＝窓の枠の出っ張り）。
+- 組み立ては `SlotWinEffects`、絵は `SlotPixelArt`、シェーダーは `Resources/Shaders/SlotPixel`・`SlotCoin`。他の人へは `GameplaySync` の `SlotBegin`・`SlotWin`(20)（全員同じビルドが必要）。
+- Unity の外での確認: `Docs/SlotFx/PreviewProgram.cs`（WAV と絵を書き出す。鳴る順は手で合わせているので `RunWin` を変えたら直す）、`preview_render.py`（台のモデルに重ねた画像）。出力は `Docs/SlotFx/sounds`・`*.png`。
+- 再生中の確認は台の `SlotMachineController` の ︙ メニュー「演出テスト」（お金は動かない）。この版はコンパイルと Unity 外の確認まで。Unity の再生・マルチでは未確認。
+- 気づいた点（未修正）: リールの UV と描き方から計算すると、目が横に約2倍伸びて表示される。

@@ -617,7 +617,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_Name
-      value: SlotMachine
+      value: SlotMachine-DEMO
       objectReference: {fileID: 0}
     - target: {fileID: 2587458309858178015, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
       propertyPath: m_Layer
@@ -733,7 +733,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SlotButtonInteractable
   slotMachine: {fileID: 5535605694506983897}
   customBetAmount: 5000
+  holdTime: 0.5
   buttonText: {fileID: 4599642384319270344}
+  availableTextColor: {r: 1, g: 1, b: 1, a: 1}
+  unavailableTextColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   pressLocalOffset: {x: 0, y: -0.05, z: 0}
   pressDuration: 0.25
 --- !u!1 &4618076110662692504 stripped
@@ -799,7 +802,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SlotButtonInteractable
   slotMachine: {fileID: 5535605694506983897}
   customBetAmount: 10000
+  holdTime: 0.5
   buttonText: {fileID: 1859223240291190212}
+  availableTextColor: {r: 1, g: 1, b: 1, a: 1}
+  unavailableTextColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   pressLocalOffset: {x: 0, y: -0.05, z: 0}
   pressDuration: 0.25
 --- !u!4 &6900892022996074422 stripped
@@ -889,8 +895,20 @@ MonoBehaviour:
     effectType: 1
     symbolMultiplier: 1
     winRate: 7.68
-  playerController: {fileID: 0}
-  playerMovement: {fileID: 0}
+  celebration:
+    enabled: 1
+    bigSymbolMultiplier: 3
+    bigTotalMultiplier: 6
+    jackpotSymbolMultiplier: 7
+    jackpotTotalMultiplier: 15
+    winLinger: 0.3
+    bigWinLinger: 0.8
+    jackpotLinger: 1.4
+    windowFrameDepth: 0.07
+    startJingle: 0
+    soundVolume: 0.7
+    cameraShake: 1
+    coinAmount: 1
 --- !u!1 &8418168277048237113 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 758103633405855082, guid: 39363c59b81e00b42994b7cc0c1e8b76, type: 3}
@@ -964,7 +982,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SlotButtonInteractable
   slotMachine: {fileID: 5535605694506983897}
   customBetAmount: 1000
+  holdTime: 0.5
   buttonText: {fileID: 6822763325586309000}
+  availableTextColor: {r: 1, g: 1, b: 1, a: 1}
+  unavailableTextColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   pressLocalOffset: {x: 0, y: -0.05, z: 0}
   pressDuration: 0.25
 --- !u!4 &9049571027581369610 stripped
