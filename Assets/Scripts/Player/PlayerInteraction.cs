@@ -37,6 +37,9 @@ public class PlayerInteraction : MonoBehaviour
     [Header("表示オフセット (テキスト用)")]
     [SerializeField] private Vector3 promptWorldOffset = new Vector3(0f, 0.75f, 0f);
 
+    [Header("落ちているアイテムの光り方")]
+    [SerializeField] private ItemGlowSettings itemGlow = new ItemGlowSettings();
+
     [Header("長押し時間設定（個別管理）")]
     [Tooltip("アイテム等のデフォルト長押し時間（秒）")]
     [SerializeField, Min(0.05f)] private float defaultRequiredHoldTime = 1.0f;
@@ -98,9 +101,23 @@ public class PlayerInteraction : MonoBehaviour
     {
         PlayerController owner = GetComponentInParent<PlayerController>();
         PlayerMovement stunnedCheck = owner != null ? owner.GetComponent<PlayerMovement>() : null;
-        if (PauseMenu.IsOpen || (owner != null && owner.IsSpectating) || (stunnedCheck != null && stunnedCheck.IsStunned)) return;
+        ItemHighlight.Apply(itemGlow);
+        if (owner != null && owner.IsSpectating)
+        {
+            ItemHighlight.SetFocus(null);
+            ShowSpectatedHud(); // 観戦中は、見ている相手の画面と同じ表示にする
+            return;
+        }
+        if (showingSpectatedHud)
+        {
+            // 復活した：観戦用の表示を片付ける
+            showingSpectatedHud = false;
+            HideSpectatedHud();
+        }
+        if (PauseMenu.IsOpen || (stunnedCheck != null && stunnedCheck.IsStunned)) return;
 
         CheckForInteractables();
+        ItemHighlight.SetFocus(currentInteractable as Item); // 照準が合っているアイテムは、より明るく
         HandleInteractionInput();
         HandleItemDropInput();
         UpdateActiveUIPositions();
@@ -130,12 +147,90 @@ public class PlayerInteraction : MonoBehaviour
                 }
 
                 bool canInteractNow = currentInteractable.CanInteract();
+                lastCanInteract = canInteractNow;
                 UpdateReticleColor(canInteractNow);
                 ShowPrompt(currentInteractable);
                 return;
             }
         }
 
+        UpdateReticleColor(false);
+        ClearPrompt();
+    }
+
+    // ───────── 観戦：画面の表示の同期 ─────────
+
+    private bool lastCanInteract;
+    private bool showingSpectatedHud;
+
+    /// <summary>自分の画面に出ている表示を、観戦している人へ送るためのデータに書き込む</summary>
+    public void WriteHud(ref RemotePlayerSync.PlayerStatus status)
+    {
+        // 対象が消えた（拾われた）あとは、表示なしとして扱う
+        if (currentInteractable == null || currentInteractableTransform == null) return;
+
+        status.lookTarget = true;
+        status.canInteract = lastCanInteract;
+        status.prompt = promptText != null ? promptText.text : "";
+        status.promptPos = currentInteractableTransform.position + promptWorldOffset;
+        status.holdPos = currentInteractableCollider != null
+            ? currentInteractableCollider.bounds.center
+            : currentInteractableTransform.position;
+        status.hold = isHolding ? Mathf.Clamp01(currentHoldTime / GetTargetHoldDuration(currentInteractable)) : -1f;
+    }
+
+    private void ShowSpectatedHud()
+    {
+        if (!showingSpectatedHud)
+        {
+            showingSpectatedHud = true;
+            ClearPrompt(); // 倒れる前の自分の表示を消す
+        }
+
+        long target = RemotePlayerSync.SpectatedClientId;
+        if (target < 0 || RemotePlayerSync.Instance == null || mainCamera == null ||
+            !RemotePlayerSync.Instance.TryGetStatus((ulong)target, out RemotePlayerSync.PlayerStatus status) ||
+            !status.lookTarget)
+        {
+            HideSpectatedHud();
+            return;
+        }
+
+        UpdateReticleColor(status.canInteract);
+
+        Vector3 promptScreen = mainCamera.WorldToScreenPoint(status.promptPos);
+        bool visible = promptScreen.z >= 0f;
+        if (promptCanvasObj != null && promptCanvasObj.activeSelf != visible) promptCanvasObj.SetActive(visible);
+        if (promptText != null) promptText.text = status.prompt;
+        if (promptRectTransform != null && visible) promptRectTransform.position = promptScreen;
+
+        bool holding = status.hold >= 0f;
+        if (holdUIObj != null && holdUIObj.activeSelf != holding) holdUIObj.SetActive(holding);
+        if (radialProgressBar != null)
+        {
+            if (holding && !radialProgressBar.gameObject.activeSelf) radialProgressBar.gameObject.SetActive(true);
+            // 届く間隔の間は、なめらかに伸ばす（戻ったときは、すぐ合わせる）
+            float fill = radialProgressBar.fillAmount;
+            radialProgressBar.fillAmount = !holding ? 0f
+                : status.hold < fill ? status.hold : Mathf.MoveTowards(fill, status.hold, Time.deltaTime * 5f);
+            if (!holding && holdUIObj == null) radialProgressBar.gameObject.SetActive(false);
+        }
+
+        if (holding && holdUIRectTransform != null && cameraTransform != null)
+        {
+            Vector3 holdScreen = mainCamera.WorldToScreenPoint(status.holdPos);
+            if (holdScreen.z >= 0f)
+            {
+                holdUIRectTransform.position = holdScreen;
+                float distance = Vector3.Distance(cameraTransform.position, status.holdPos);
+                float scale = distance <= scaleDistanceThreshold ? closeScale : farScale;
+                holdUIRectTransform.localScale = new Vector3(scale, scale, 1f);
+            }
+        }
+    }
+
+    private void HideSpectatedHud()
+    {
         UpdateReticleColor(false);
         ClearPrompt();
     }

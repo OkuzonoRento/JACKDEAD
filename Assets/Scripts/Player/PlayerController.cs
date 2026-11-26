@@ -11,10 +11,16 @@ public class PlayerController : MonoBehaviour
     public PlayerDataAsset PlayerData;
 
     [Header("投擲設定")]
-    [SerializeField, Tooltip("アイテムを投げる際の基準となる勢い（重さで割られます）")]
-    private float baseThrowForce = 3.5f;
-    [SerializeField, Tooltip("投げるときの速さの上限（m/s）。軽いアイテムが飛びすぎないようにする")]
+    [SerializeField, Tooltip("軽い物を投げる速さ（m/s）")]
     private float maxThrowSpeed = 11f;
+    [SerializeField, Tooltip("重い物を投げる速さ（m/s）")]
+    private float minThrowSpeed = 4.5f;
+    [SerializeField, Tooltip("この重さ（kg）以下は、軽い物の速さで投げる")]
+    private float lightThrowWeight = 0.3f;
+    [SerializeField, Tooltip("この重さ（kg）以上は、重い物の速さで投げる")]
+    private float heavyThrowWeight = 8f;
+    [SerializeField, Tooltip("投げたスクラップがぶつかったときの決まり")]
+    private ThrowImpactSettings throwImpact = new ThrowImpactSettings();
 
     [Header("正気度・クリア時回復設定")]
     [SerializeField, Tooltip("1秒あたりの基本正気度減少量")]
@@ -80,6 +86,27 @@ public class PlayerController : MonoBehaviour
     // インベントリに入れている時限爆弾（Box）の残り時間。スロットごとに管理する
     private readonly float[] heldFuse = new float[3];
     private readonly bool[] heldFuseActive = new bool[3];
+    // 持っている物の、1個ずつの売値（0 = 基準の価格）
+    private readonly int[] heldValue = new int[3];
+    private MapGenerator priceSource;
+
+    /// <summary>そのスロットの物の売値（持っていなければ 0）</summary>
+    public int GetHeldValue(int slot)
+    {
+        if (Inventory == null || slot < 0 || slot >= Inventory.Length || Inventory[slot] == null) return 0;
+        if (slot < heldValue.Length && heldValue[slot] > 0) return heldValue[slot];
+
+        if (priceSource == null) priceSource = FindAnyObjectByType<MapGenerator>();
+        return priceSource != null ? priceSource.GetScrapValue(Inventory[slot]) : Inventory[slot].Amount;
+    }
+
+    /// <summary>持っている物の売値の合計</summary>
+    public int GetInventoryValue()
+    {
+        int total = 0;
+        for (int i = 0; Inventory != null && i < Inventory.Length; i++) total += GetHeldValue(i);
+        return total;
+    }
 
     /// <summary>ローカルのプレイヤーが実際にダメージを受けたときに通知される（スロットの回転を中止するなど）</summary>
     public static event System.Action Damaged;
@@ -271,6 +298,8 @@ public class PlayerController : MonoBehaviour
                 for (int i = 0; i < 3; i++)
                 {
                     Inventory[i] = PlayerData.Inventory[i];
+                    bool saved = PlayerData.InventoryValues != null && i < PlayerData.InventoryValues.Length;
+                    heldValue[i] = saved && Inventory[i] != null ? PlayerData.InventoryValues[i] : 0;
                 }
             }
 
@@ -388,7 +417,8 @@ public class PlayerController : MonoBehaviour
         pauseSanityDrain = true;
 
         // 落下死の場合は、マップの外に体が残らないよう最後に立っていた場所へ戻す
-        if (transform.position.y < fallDeathHeight)
+        bool fell = transform.position.y < fallDeathHeight;
+        if (fell)
         {
             CharacterController cc = GetComponent<CharacterController>();
             if (cc != null) cc.enabled = false;
@@ -396,8 +426,9 @@ public class PlayerController : MonoBehaviour
             if (cc != null) cc.enabled = true;
         }
 
-        // 持っているアイテムはその場に落とす
-        DropAllItemsOnDeath();
+        // 落下死では、持っていたアイテムは壊れてなくなる。それ以外は、その場に落とす
+        if (fell) BreakAllItems();
+        else DropAllItemsOnDeath();
 
         PlayerMovement movement = GetComponent<PlayerMovement>();
         if (movement != null) movement.SetSpectating(true);
@@ -566,19 +597,21 @@ public class PlayerController : MonoBehaviour
             ? cameraTransform.position + cameraTransform.forward * 1.2f
             : transform.position + transform.forward * 1.5f + Vector3.up * 0.5f;
 
-        // 軽いアイテム（Box など）が飛びすぎないよう、投げる速さに上限を設ける
-        float throwForce = Mathf.Min(baseThrowForce / Mathf.Max(0.1f, itemDataToDrop.ItemWeight), maxThrowSpeed);
+        // 重い物ほど、遅く投げる（重くても、敵に届く速さは残す）
+        float heaviness = Mathf.InverseLerp(lightThrowWeight, heavyThrowWeight, itemDataToDrop.ItemWeight);
+        float throwSpeed = Mathf.Lerp(maxThrowSpeed, minThrowSpeed, heaviness);
         Vector3 throwDirection = cameraTransform != null
             ? (cameraTransform.forward + Vector3.up * 0.2f).normalized
             : (transform.forward + Vector3.up * 0.2f).normalized;
 
-        SpawnDroppedItem(selectedSlotIndex, spawnPosition, throwDirection * throwForce);
+        SpawnDroppedItem(selectedSlotIndex, spawnPosition, throwDirection * throwSpeed, true);
     }
 
     /// <summary>
     /// スロットのアイテムを、指定の位置・初速でワールドに出し、スロットを空にする（マルチプレイでは他の人にも同じ物が出る）
     /// </summary>
-    private void SpawnDroppedItem(int slotIndex, Vector3 spawnPosition, Vector3 velocity)
+    /// <param name="thrown">投げた（ぶつけると傷み、当てた相手に効く）。倒れて落としたときは false</param>
+    private void SpawnDroppedItem(int slotIndex, Vector3 spawnPosition, Vector3 velocity, bool thrown = false)
     {
         ItemDataAsset itemDataToDrop = Inventory[slotIndex];
         if (itemDataToDrop == null) return;
@@ -592,9 +625,12 @@ public class PlayerController : MonoBehaviour
             if (itemComp == null) itemComp = droppedObj.AddComponent<Item>();
             itemComp.SetItemData(itemDataToDrop);
             itemComp.NetId = GameplaySync.AllocateDropId();
+            int value = GetHeldValue(slotIndex);
+            itemComp.SetValue(value);
 
             Rigidbody rb = droppedObj.GetComponent<Rigidbody>();
             if (rb == null) rb = droppedObj.AddComponent<Rigidbody>();
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; // 速く投げても、壁や敵をすり抜けないように
 
             rb.linearVelocity = Vector3.zero;
             rb.AddForce(velocity, ForceMode.VelocityChange);
@@ -610,14 +646,31 @@ public class PlayerController : MonoBehaviour
                     bomb.SetRemaining(fuseToCarry);
                 }
             }
-            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity, fuseToCarry);
+            GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity, fuseToCarry, value);
             ItemImpactNoise.Attach(droppedObj); // 音は、ぶつかったときに、ぶつかった場所で出る
+            if (thrown && !itemDataToDrop.IsBomb) ScrapThrowImpact.Attach(droppedObj, this, throwImpact); // 爆弾は BombBox が処理する
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }
 
         Inventory[slotIndex] = null;
         heldFuseActive[slotIndex] = false;
+        heldValue[slotIndex] = 0;
+        SaveInventoryToData();
+    }
+
+    /// <summary>持っているアイテムを、ワールドに出さずにすべて壊す（落下死）</summary>
+    private void BreakAllItems()
+    {
+        if (Inventory == null) return;
+
+        for (int i = 0; i < Inventory.Length; i++)
+        {
+            if (Inventory[i] == null) continue;
+            Debug.Log($"[インベントリ] {Inventory[i].ItemName} は落下で壊れました。");
+            Inventory[i] = null;
+            if (i < heldFuseActive.Length) heldFuseActive[i] = false;
+        }
         SaveInventoryToData();
     }
 
@@ -667,13 +720,14 @@ public class PlayerController : MonoBehaviour
     }
 
     /// <param name="bombFuse">時限爆弾を拾うとき、その時点の導火線の残り（負なら満タンから）</param>
-    public bool TryAddItem(ItemDataAsset itemData, float bombFuse = -1f)
+    /// <param name="value">その1個の売値（負なら基準の価格）</param>
+    public bool TryAddItem(ItemDataAsset itemData, float bombFuse = -1f, int value = -1)
     {
         if (itemData == null || Inventory == null) return false;
 
         if (selectedSlotIndex >= 0 && selectedSlotIndex < Inventory.Length && Inventory[selectedSlotIndex] == null)
         {
-            StoreItem(selectedSlotIndex, itemData, bombFuse);
+            StoreItem(selectedSlotIndex, itemData, bombFuse, value);
             return true;
         }
 
@@ -681,7 +735,7 @@ public class PlayerController : MonoBehaviour
         {
             if (Inventory[i] == null)
             {
-                StoreItem(i, itemData, bombFuse);
+                StoreItem(i, itemData, bombFuse, value);
                 return true;
             }
         }
@@ -689,9 +743,10 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    private void StoreItem(int slot, ItemDataAsset itemData, float bombFuse)
+    private void StoreItem(int slot, ItemDataAsset itemData, float bombFuse, int value)
     {
         Inventory[slot] = itemData;
+        heldValue[slot] = Mathf.Max(0, value);
         heldFuseActive[slot] = itemData.IsBomb && bombFuse > 0f;
         if (heldFuseActive[slot]) heldFuse[slot] = bombFuse;
         SaveInventoryToData();
@@ -826,9 +881,15 @@ public class PlayerController : MonoBehaviour
             {
                 PlayerData.Inventory = new ItemDataAsset[3];
             }
+            if (PlayerData.InventoryValues == null || PlayerData.InventoryValues.Length < 3)
+            {
+                PlayerData.InventoryValues = new int[3];
+            }
             for (int i = 0; i < 3; i++)
             {
                 PlayerData.Inventory[i] = Inventory[i];
+                if (Inventory[i] == null) heldValue[i] = 0; // 空いたスロットに、前の値段を残さない
+                PlayerData.InventoryValues[i] = heldValue[i];
             }
         }
     }

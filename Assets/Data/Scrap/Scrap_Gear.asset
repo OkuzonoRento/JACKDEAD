@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9e60a0dda033594cbfa100b3e09b505, type: 3}
+  m_Name: Scrap_Gear
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDataAsset
+  amount: 150
+  itemName: "\u6B6F\u8ECA"
+  itemIcon: {fileID: 21300000, guid: 7d82489b1dd7454488d87d1267d671e9, type: 3}
+  itemWeight: 3
+  itemPrefab: {fileID: 7542531023276770886, guid: 7d65965981b44c645a70ffc34727a222, type: 3}
+  fragility: 0.3
+  playerStunSeconds: 0
+  enemyStunSeconds: 0
+  heldLightIntensity: 1
+  heldLightRange: 1
+  heldLightAngle: 1
+  requiredHoldTime: 0.8
+  isBomb: 0

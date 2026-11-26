@@ -47,6 +47,13 @@ public class SlotButtonInteractable : MonoBehaviour, IInteractable
         {
             if (player == null) player = FindAnyObjectByType<PlayerController>();
             float m = player != null ? player.BetPriceMultiplier : 1f;
+
+            // 観戦中は、見ている相手の画面と同じ金額を表示する（掛け金は正気度で変わる）
+            long target = RemotePlayerSync.SpectatedClientId;
+            if (target >= 0 && RemotePlayerSync.Instance != null &&
+                RemotePlayerSync.Instance.TryGetStatus((ulong)target, out RemotePlayerSync.PlayerStatus status) &&
+                status.betMultiplier > 0f) m = status.betMultiplier;
+
             return Mathf.RoundToInt(CurrentBetAmount * m);
         }
     }

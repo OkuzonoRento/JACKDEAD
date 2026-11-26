@@ -61,8 +61,14 @@ public class MapGenerator : MonoBehaviour
     [Tooltip("このレベル以降のマップにだけスロットマシンを配置する")]
     [SerializeField, Min(1)] private int slotStartLevel = 5;
     [SerializeField] private List<SlotSpawnCandidate> slotCandidates = new List<SlotSpawnCandidate>();
-    [SerializeField, Min(0)] private int minSlotCount = 2;
-    [SerializeField, Min(0)] private int maxSlotCount = 4;
+    [SerializeField, Min(0), Tooltip("配置を始めるレベル（Slot Start Level）での台数")]
+    private int minSlotCount = 2;
+    [SerializeField, Min(0), Tooltip("最大レベル（Max Stage Level）以降の台数。その間はレベルに応じて少しずつ増える")]
+    private int maxSlotCount = 8;
+
+    [Header("部屋の明かり")]
+    [SerializeField, Range(0f, 2f), Tooltip("部屋のプレハブに付いている明かりの強さに掛ける倍率")]
+    private float roomLightScale = 0.7f;
 
     [System.Serializable]
     public struct SlotRarityTier
@@ -120,6 +126,8 @@ public class MapGenerator : MonoBehaviour
 
     [Header("スクラップ自動配置設定")]
     [SerializeField] private List<ItemDataAsset> scrapDataList;
+    [SerializeField, Range(0f, 0.9f), Tooltip("生成するときの、1個ずつの金額の揺れ幅（0.2 なら基準の ±20%）")]
+    private float scrapPriceVariance = 0.2f;
 
     // --- 内部固定パラメータ（static不使用） ---
     private const float RoomChipBasePitch = -90f;
@@ -132,6 +140,8 @@ public class MapGenerator : MonoBehaviour
 
     private const int MaxSlotsPerRoom = 1;
     private const float RoomSlotSpawnChance = 0.9f;
+    private const int SlotPlacementPasses = 2;
+    private const float NarrowSlotClearance = 1.5f;
     private const int MinManhattanDistFromBusForSlot = 1;
     private const int MaxSlotPlacementAttemptsPerRoom = 60;
     private const float SlotSampleAreaRatio = 0.38f;
@@ -152,6 +162,7 @@ public class MapGenerator : MonoBehaviour
     private const float ScrapSpawnAreaRatio = 0.36f;
     private const float ScrapFootprintRadius = 0.35f;
     private const float ScrapSurfaceOffsetHeight = 0.02f;
+    private const float ScrapObstacleFloorGap = 0.05f;
     private const float FallbackCubeScale = 0.4f;
     private const int DefaultFallbackScrapValue = 50;
 
@@ -197,6 +208,7 @@ public class MapGenerator : MonoBehaviour
         public bool rightDoor;
         public float walkableFloorY;
         public bool hasBrightWalkableFloor;
+        public GameObject instance;
     }
 
     private Dictionary<Vector2Int, GeneratedRoom> generatedRooms = new Dictionary<Vector2Int, GeneratedRoom>();
@@ -460,7 +472,11 @@ public class MapGenerator : MonoBehaviour
                 spawnedRoomList.Add(newRoom);
 
                 Quaternion spawnRotation = Quaternion.Euler(RoomChipBasePitch, result.angle, 0f);
-                Instantiate(result.chip.chipPrefab, worldPos, spawnRotation, transform);
+                newRoom.instance = Instantiate(result.chip.chipPrefab, worldPos, spawnRotation, transform);
+                foreach (Light roomLight in newRoom.instance.GetComponentsInChildren<Light>(true))
+                {
+                    roomLight.intensity *= roomLightScale;
+                }
 
                 if (spawnedRoomList.Count >= currentTargetRoomCount) break;
             }
@@ -484,7 +500,8 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        if (spawnedRoomList.Count >= currentTargetRoomCount)
+        // 外へ開く出入口が1つも無いと、トラックから中へ入れないので、作り直す
+        if (spawnedRoomList.Count >= currentTargetRoomCount && HasUnconnectedDoor())
         {
             Physics.SyncTransforms();
 
@@ -492,6 +509,8 @@ public class MapGenerator : MonoBehaviour
 
             // 1. バス配置 ➔ 2. スロット配置 ➔ 3. スクラップ配置
             SpawnBusAtOuterDoor();
+            BlockUnconnectedDoors();
+            Physics.SyncTransforms();
             SpawnSlotMachines();
             Physics.SyncTransforms();
             SpawnRandomScraps();
@@ -503,6 +522,114 @@ public class MapGenerator : MonoBehaviour
         }
 
         return false;
+    }
+
+    // ───────── つながっていない出入口を塞ぐ ─────────
+
+    private const float DoorWidth = 4f;      // 部屋の出入口の枠の開口（m）
+    private const float DoorHeight = 3.4f;
+    private const float DoorBlockerThickness = 0.2f;
+    private static readonly Vector2Int[] DoorSteps = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+    private static readonly Vector3[] DoorDirections = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right };
+    private Mesh doorBlockerMesh;
+
+    // 向きの番号は、バスの向きと同じ（0=上、1=下、2=左、3=右）
+    private static bool HasDoor(GeneratedRoom room, int dir)
+    {
+        return dir == 0 ? room.topDoor : dir == 1 ? room.bottomDoor : dir == 2 ? room.leftDoor : room.rightDoor;
+    }
+
+    private bool HasUnconnectedDoor()
+    {
+        foreach (GeneratedRoom room in spawnedRoomList)
+        {
+            for (int dir = 0; dir < DoorSteps.Length; dir++)
+            {
+                if (HasDoor(room, dir) && !generatedRooms.ContainsKey(room.gridPos + DoorSteps[dir])) return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>先に部屋がない出入口へ壁を置く（外が見えて落ちるのを防ぐ）。トラックを置いた出入口は開けたままにする</summary>
+    private void BlockUnconnectedDoors()
+    {
+        foreach (GeneratedRoom room in spawnedRoomList)
+        {
+            for (int dir = 0; dir < DoorSteps.Length; dir++)
+            {
+                if (!HasDoor(room, dir) || generatedRooms.ContainsKey(room.gridPos + DoorSteps[dir])) continue;
+                if (spawnedBusGridPos.HasValue && spawnedBusGridPos.Value == room.gridPos && spawnedBusDirection == dir) continue;
+
+                CreateDoorBlocker(room, DoorDirections[dir]);
+            }
+        }
+    }
+
+    private void CreateDoorBlocker(GeneratedRoom room, Vector3 direction)
+    {
+        if (doorBlockerMesh == null) doorBlockerMesh = BuildDoorBlockerMesh();
+
+        GameObject blocker = new GameObject("DoorBlocker");
+        blocker.transform.SetParent(transform, false);
+        blocker.transform.SetPositionAndRotation(
+            room.worldPos + direction * (tileSize * 0.5f - DoorBlockerThickness * 0.5f),
+            Quaternion.LookRotation(direction));
+
+        blocker.AddComponent<MeshFilter>().sharedMesh = doorBlockerMesh;
+        blocker.AddComponent<MeshRenderer>().sharedMaterial = FindWallMaterial(room);
+
+        BoxCollider box = blocker.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, DoorHeight * 0.5f, 0f);
+        box.size = new Vector3(DoorWidth, DoorHeight, DoorBlockerThickness);
+    }
+
+    // その部屋の壁と同じマテリアル（名前に Plaster / WoodWall / TileWall を含むもの）。無ければ最初のもの
+    private static Material FindWallMaterial(GeneratedRoom room)
+    {
+        Material first = null;
+        if (room.instance == null) return null;
+
+        foreach (Renderer r in room.instance.GetComponentsInChildren<Renderer>(true))
+        {
+            foreach (Material m in r.sharedMaterials)
+            {
+                if (m == null) continue;
+                if (m.name.Contains("Plaster") || m.name.Contains("WoodWall") || m.name.Contains("TileWall")) return m;
+                if (first == null) first = m;
+            }
+        }
+        return first;
+    }
+
+    // 出入口を塞ぐ板。壁のテクスチャは横 6.67m・縦 6m で1枚なので、その比率で貼る
+    private static Mesh BuildDoorBlockerMesh()
+    {
+        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Mesh source = cube.GetComponent<MeshFilter>().sharedMesh;
+        Vector3[] vertices = source.vertices;
+        Vector3[] normals = source.normals;
+        Vector2[] uvs = new Vector2[vertices.Length];
+
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 v = Vector3.Scale(vertices[i], new Vector3(DoorWidth, DoorHeight, DoorBlockerThickness));
+            v.y += DoorHeight * 0.5f;
+            vertices[i] = v;
+            float u = Mathf.Abs(normals[i].x) > 0.5f ? v.z : v.x;
+            uvs[i] = new Vector2((u + DoorWidth * 0.5f) / (20f / 3f), v.y / 6f);
+        }
+
+        Mesh mesh = new Mesh { name = "DoorBlocker" };
+        mesh.vertices = vertices;
+        mesh.normals = normals;
+        mesh.uv = uvs;
+        mesh.triangles = source.triangles;
+        mesh.RecalculateBounds();
+
+        cube.SetActive(false);
+        Destroy(cube);
+        return mesh;
     }
 
     private void AnalyzeAllRoomsWalkableFloor()
@@ -570,7 +697,7 @@ public class MapGenerator : MonoBehaviour
         if (currentStageLevel < slotStartLevel) return;
         if (slotCandidates == null || slotCandidates.Count == 0) return;
 
-        int targetSlotCount = Random.Range(minSlotCount, Mathf.Max(minSlotCount, maxSlotCount) + 1);
+        int targetSlotCount = GetSlotCountForLevel(currentStageLevel);
         if (targetSlotCount <= 0) return;
 
         List<GeneratedRoom> deadEndRooms = new List<GeneratedRoom>();
@@ -593,10 +720,12 @@ public class MapGenerator : MonoBehaviour
 
         int spawnedCount = 0;
 
+        // 1周目は1部屋に1台まで。目標の台数に届かなければ、2周目で同じ部屋にもう1台まで置く
+        for (int pass = 0; pass < SlotPlacementPasses; pass++)
         foreach (var room in candidateRooms)
         {
             if (spawnedCount >= targetSlotCount) break;
-            if (Random.value > RoomSlotSpawnChance) continue;
+            if (pass == 0 && Random.value > RoomSlotSpawnChance) continue;
 
             int slotsInThisRoom = 0;
             while (slotsInThisRoom < MaxSlotsPerRoom && spawnedCount < targetSlotCount)
@@ -641,6 +770,19 @@ public class MapGenerator : MonoBehaviour
                 slotsInThisRoom++;
             }
         }
+
+        Debug.Log($"[MAP] スロット配置: STAGE {currentStageLevel} の目標 {targetSlotCount} 台 / 配置 {spawnedCount} 台");
+    }
+
+    /// <summary>
+    /// そのレベルで置くスロットの台数。slotStartLevel で minSlotCount、maxStageLevel 以降は maxSlotCount になるように、直線的に増やす
+    /// </summary>
+    private int GetSlotCountForLevel(int level)
+    {
+        float t = maxStageLevel > slotStartLevel
+            ? Mathf.InverseLerp(slotStartLevel, maxStageLevel, level)
+            : 1f;
+        return Mathf.RoundToInt(Mathf.Lerp(minSlotCount, maxSlotCount, t));
     }
 
     private bool IsRoomEligibleForSlot(GeneratedRoom room, out int doorCount)
@@ -669,6 +811,18 @@ public class MapGenerator : MonoBehaviour
         out Vector3 validBottomCenter,
         out Vector3 bestFrontDir)
     {
+        // まず設定どおりの余白で探し、置けなければ（家具の多い部屋）余白を狭めて探す
+        if (TryFindSlotPlacement(room, slotWallClearance, out validBottomCenter, out bestFrontDir)) return true;
+        if (slotWallClearance <= NarrowSlotClearance) return false;
+        return TryFindSlotPlacement(room, NarrowSlotClearance, out validBottomCenter, out bestFrontDir);
+    }
+
+    private bool TryFindSlotPlacement(
+        GeneratedRoom room,
+        float wallClearance,
+        out Vector3 validBottomCenter,
+        out Vector3 bestFrontDir)
+    {
         validBottomCenter = Vector3.zero;
         bestFrontDir = Vector3.forward;
 
@@ -687,7 +841,7 @@ public class MapGenerator : MonoBehaviour
             if (!HasSolidWalkableFootprint(room, candidateXZ, SlotFootprintRadius, out float floorY)) continue;
 
             // 3. 壁や障害物から slotWallClearance 以上離れているか確認
-            if (!HasClearanceFromWallsAndObstacles(candidateXZ, floorY, slotWallClearance)) continue;
+            if (!HasClearanceFromWallsAndObstacles(candidateXZ, floorY, wallClearance)) continue;
 
             // 4. ★ 4方向のうち「壁に最も近い側」を背面にし、反対側（開けた床側）を正面にする向きを決定
             if (!TrySelectWallBackedFacingDirection(room, candidateXZ, floorY, out bestFrontDir)) continue;
@@ -1072,6 +1226,17 @@ public class MapGenerator : MonoBehaviour
         obj.transform.position += (desiredBottomCenter - currentBottomCenter);
     }
 
+    /// <summary>スクラップの、真上から見た大きさの半分（どの向きに回しても収まる半径）</summary>
+    private float GetScrapRadius(ItemDataAsset item)
+    {
+        if (item == null || item.ItemPrefab == null) return 0f;
+        MeshFilter filter = item.ItemPrefab.GetComponentInChildren<MeshFilter>();
+        if (filter == null || filter.sharedMesh == null) return 0f;
+
+        Vector3 size = Vector3.Scale(filter.sharedMesh.bounds.size, filter.transform.lossyScale);
+        return Mathf.Max(Mathf.Abs(size.x), Mathf.Abs(size.z)) * 0.5f;
+    }
+
     private bool IsTooCloseToAnySlot(Vector3 candidateXZ, float minClearance)
     {
         float minSqDist = minClearance * minClearance;
@@ -1166,17 +1331,21 @@ public class MapGenerator : MonoBehaviour
 
             if (IsTooCloseToAnySlot(candidateXZ, SlotMinClearanceForScrap)) continue;
 
-            if (!HasSolidWalkableFootprint(targetRoom, candidateXZ, ScrapFootprintRadius, out float floorY)) continue;
+            // 先に何を置くかを決める（大きい物は、広い場所を探す。壁にめり込ませないため）
+            ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
+            float itemRadius = GetScrapRadius(randomScrapData);
 
-            Vector3 checkPos = new Vector3(candidateXZ.x, floorY + ClearanceCheckHeightLow, candidateXZ.z);
-            if (Physics.CheckSphere(checkPos, InsideObstacleSphereRadius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            if (!HasSolidWalkableFootprint(targetRoom, candidateXZ, Mathf.Max(ScrapFootprintRadius, itemRadius), out float floorY)) continue;
+
+            float checkRadius = Mathf.Max(InsideObstacleSphereRadius, itemRadius);
+            float checkHeight = Mathf.Max(ClearanceCheckHeightLow, checkRadius + ScrapObstacleFloorGap);
+            Vector3 checkPos = new Vector3(candidateXZ.x, floorY + checkHeight, candidateXZ.z);
+            if (Physics.CheckSphere(checkPos, checkRadius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
             {
                 continue;
             }
 
             Vector3 finalSpawnPos = new Vector3(candidateXZ.x, floorY + ScrapSurfaceOffsetHeight, candidateXZ.z);
-
-            ItemDataAsset randomScrapData = scrapDataList[Random.Range(0, scrapDataList.Count)];
 
             GameObject prefabToUse = randomScrapData.ItemPrefab;
             GameObject scrapObj;
@@ -1206,7 +1375,11 @@ public class MapGenerator : MonoBehaviour
             worldItem.SetItemData(randomScrapData);
             worldItem.NetId = currentStageLevel * 100000 + (++scrapNetId); // マルチプレイ同期用ID（ステージごとに重ならないよう、ステージ番号を含める）
 
-            int itemVal = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
+            // 基準の価格に、1個ずつの揺れを掛けて決める（共有シードで抽選するので、マルチでも全員同じ金額になる）
+            int baseValue = randomScrapData.Amount > 0 ? GetScrapValue(randomScrapData) : DefaultFallbackScrapValue;
+            float variation = 1f + Random.Range(-scrapPriceVariance, scrapPriceVariance);
+            int itemVal = Mathf.Max(1, Mathf.RoundToInt(baseValue * variation));
+            worldItem.SetValue(itemVal);
             currentTotalValue += itemVal;
         }
 

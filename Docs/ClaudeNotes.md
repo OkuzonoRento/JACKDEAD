@@ -79,3 +79,50 @@
 - 投げた／落とした物の音は、投げた瞬間ではなく、ぶつかった場所で出る（`Item/ItemImpactNoise`）。物理を動かす本人のPCだけに付け、2m/s以上の衝突で鳴り、物が止まったら外れる。Box は9m、ほかは10m。敵が投げた Box にも付く。
 - スロットは、回している間ずっと0.5秒ごとに音（30m）を出す（`SlotMachineController.Update`。他の人が回している台もホストで鳴る）。終了の通知が来ない場合は10秒で打ち切る。
 - 2026-11-25 物音を調べるときは走らず歩く（`patrolSpeed`）。歩きでは遠い音に届かないため、打ち切りは6秒から25秒（`investigateMaxSeconds`）へ。古い `noiseInvestigateSpeed` / `loseSightTime` は削除（prefab に値が残っていても無視される）。
+
+## 落下死の持ち物（2026-11-26、ユーザー指定の仕様）
+- 落下死した場合、持っていた物は回収できない。マップの落とし穴もこの仕様のまま作る。
+- 2026-11-26 追加の指定: 落下したアイテムは壊れて消える。落下死では持ち物をワールドに出さず削除（`PlayerController.BreakAllItems`）。y<-8 まで落ちたアイテムは `Item.Update` が削除（`Item.BreakHeight`）。
+
+## 旅館マップチップ（2026-11-26）
+- 24部屋（8形状×A/B/C、`_pit` は落とし穴あり）。Blender 版は `Docs/MapPrototype/Chips_v2`、取り込み元は `Assets/Models/Map/Ryokan`（fbx / textures / rooms.json）。
+- `Assets/Editor/RyokanMapImporter` が、マテリアル・プレハブ（当たり判定は本体だけ、影なしの点光源つき）・MapChipData を作り、SampleScene の `allMapChips` を24個へ差し替える。未作成なら読み込み時に一度だけ自動実行。作り直しは「JackDead/Map/旅館マップを取り込む」。元の仮置き8個は残っていて、`allMapChips` に戻せば元通り。
+- 当たり判定の決まり: 床以外に、高さ1m以下の上向きの面を当たり判定に入れない（床の高さを誤判定する）。天井は下向きの片面。
+- 部屋を作る Blender スクリプトは `Docs/MapPrototype/Chips_v2/scripts`。`core.py` + `rooms.py` + `tail.py` をこの順につないで実行する（引数: 出力先、元のFBXフォルダ、スクリプトの場所。開くファイルはユーザーの `JackDeadMapchips.blend`）。rooms.json は末尾を `dump.py` に替え、`Room.lantern` で位置を `self.lights` に記録して作った。
+- 2026-11-26 修正: へこんだ角で壁の内側の面が厚み（0.2m）ぶん足りず、外が見えていた。`core.py` の `build_walls` で内側の面を伸ばして解決し、FBX を差し替え（meta は維持）。壁は内外の片面だけなので、角や端を足すときは隙間に注意。
+
+## 2026-11-26 出入口・スロット・ライト・観戦（ユーザー指定）
+- 先に部屋がない出入口は `MapGenerator.BlockUnconnectedDoors` で塞ぐ（トラックの出入口は開ける）。外へ開く出入口が1つも無いマップは作り直す。
+- スロット: 置けないときは壁の余白を1.5mに狭め、2周目で1部屋2台まで（台数の決め方は下の節）。
+- ライト: 懐中電灯は `PlayerMovement.flashlightIntensityScale`(0.7)、部屋の明かりは `MapGenerator.roomLightScale`(0.7)。しゃがみ中は懐中電灯を消す（スタン・吹き飛び中は消さない）。
+- マルチ: 姿勢の送信に点灯状態を追加し、他の人の懐中電灯を表示（`RemotePlayerSync.UpdateRemoteFlashlight`）。状態の送信は20Hzにして、照準・説明文・長押しゲージ・掛け金の倍率も送り、観戦者の画面に出す（`PlayerInteraction.ShowSpectatedHud`、`SlotButtonInteractable`）。通信の形式が変わったので、全員が同じ版で遊ぶこと。
+- いずれも再生・マルチでは未確認。
+
+## スロットが2台しか出ない件（2026-11-26）
+- ユーザー指定の仕様: ステージ5で2台、ステージ20で8台まで少しずつ増える（抽選はしない。20以降は8台）。
+- `MapGenerator.GetSlotCountForLevel` が `slotStartLevel` の `minSlotCount` から `maxStageLevel` の `maxSlotCount` まで直線で増やす。抽選台数の倍率（`slotCountMultiplier`）は廃止した。
+- 部屋の当たり判定で配置を再現した限り、24部屋とも置ける。生成時に `[MAP] スロット配置: …` をログに出す。再生では未確認。
+
+## トラックと玄関前の通路（2026-11-26）
+- `Assets/Editor/TruckEntranceImporter` が `Assets/Prefabs/Truck.prefab` を書き換える（Approach が無ければ一度だけ自動実行。メニュー「JackDead/Map/トラックと玄関前の通路を作り直す」）。`Truck.blend` は変えない。
+- TruckMesh と Lever は同じ形のまま UV と材質を付けたメッシュ（`Assets/Models/TruckEntrance/Generated`）に差し替え、元のつなぎ部分 `Plane` は非表示。文字は黒なので、後ろの板は明るい材質にしている（板の場所は座標で指定しているので、トラックの形を変えたら直す）。
+- 通路は長さ10m・内幅6.5m・高さ6m。天井の当たり判定は全面（見た目の屋根は抜けている）。点光源4つ。モデルとテクスチャは `Docs/MapPrototype/Truck/build_truck.py`（`Chips_v2/MapChips_v2.blend` を開いて実行。引数: プロジェクトの場所、確認画像の出力先）。
+- Unity での取り込みと再生は未確認。
+
+## スクラップの取り込み（2026-11-26）
+- 下の提案値で決定。`Assets/Editor/ScrapImporter`（`Scrap_Screw.asset` のプレハブが無ければ一度だけ自動実行。メニュー「JackDead/Item/スクラップを取り込む」）が、`Assets/Models/Scrap` から `Assets/Prefabs/Scrap`・`Assets/Data/Scrap` を作り、`scrapDataList` を11種類に差し替える。作り直しても ItemDataAsset の数値は上書きしない。モデルの書き出しは `Docs/ScrapModels/export_unity.py`。
+- スタンガン: 当てるとスタンが長い（プレイヤー3.5秒・敵6秒、`ItemDataAsset` の `playerStunSeconds`/`enemyStunSeconds`）。
+- 懐中電灯: 持ち物欄で選んでいる間、自分のライトが強さ2.5倍・距離1.8倍・広さ1.2倍（`heldLight*`）。他の人の画面と観戦にも反映。しゃがみ中は消える。
+- 大きいスクラップは、その大きさに合う場所にだけ置く（`MapGenerator.GetScrapRadius`）。
+
+## 落ちているアイテムの光（2026-11-26）
+- 爆弾以外の `Item` に `ItemHighlight` が付き、`Resources/Shaders/ItemGlow`（足し算で重ねる、ふちの光と流れる光。周りは照らさない。10〜18mで薄くなる）を材質の後ろに足す。照準が合うと明るくする。調整は `PlayerInteraction` の `itemGlow`。取り込みは確認済みのスクラップに対して追加。シェーダーと見た目は Unity では未確認。
+
+## スクラップ（2026-11-26 の提案時の記録）
+- 元データはユーザーの `Downloads\JackDead-Scrap (1).blend`（11種類。変更しない）。`Docs/ScrapModels/build_scrap.py` が UV とテクスチャを付け、`textures/`、`JackDead-Scrap_textured.blend`、`preview.png` を出す。**Unity への取り込みは、金額・重さ・大きさが決まってから**（まだ Assets には入れていない）。
+- 提案中の値（レベル1基準の金額 / 重さkg / 一番長い辺m / 壊れやすさ）: スマホ 360/0.2/0.30/1.6、ゲーム機 400/0.4/0.40/1.4、スタンガン 300/0.5/0.35/1.0、バッテリー 260/6/0.45/0.7、大歯車 280/7/0.80/0.3、プロペラ 220/3.5/1.0/0.8、懐中電灯 160/0.6/0.40/1.0、歯車 150/3/0.50/0.3、チェーン 120/4/1.2/0.2、鉄板 110/8/0.80/0.3、ねじ 70/0.8/0.35/0.2。
+- 金額の揺れ: `MapGenerator.scrapPriceVariance`(±20%)。1個ごとの売値は `Item.SetValue` / `PlayerController.GetHeldValue` が持ち、拾う・落とす・マルチ同期で引き継ぐ。
+- 投げて当てる: `ScrapThrowImpact`（調整は `PlayerController.throwImpact`）。トラックの外でぶつかるたびに減額（0で壊れる）、直撃ならプレイヤーは短いスタン、敵はスタンとダメージ。投げる速さは重さで 11〜4.5m/s（`baseThrowForce` は廃止）。再生・マルチでは未確認。
+
+## ゲーム開始時のステージ表示（2026-11-26）
+- `ResultUIController.OpeningCardRoutine`: ゲームシーン開始時に、暗転したまま `STAGE n` / ノルマ / 借金を出してから明転する。表示中は `IsTransitioning` なので無敵で、ポーズは開けず、操作と正気度減少も止める。`showOpeningCard` でオフにできる。再生では未確認。

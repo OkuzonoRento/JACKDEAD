@@ -33,7 +33,10 @@ public class GameplaySync : MonoBehaviour
         EnemyPose = 13,   // id = 敵のNetId / v1 = 位置 / v2 = (向きY, 状態, 0)。ホスト → 参加者
         Explosion = 14,   // v1 = 爆発位置 / v2 = (半径, 最大ダメージ, 0)。所持中の爆弾が爆発したとき
         Voice = 15,       // v1 = 音が出た位置 / v2 = (音の大きさ, 0, 0)。参加者 → ホストだけ（敵が声やジャンプの音などに反応するため）
-        ItemPose = 16     // id = アイテムのID / v1 = 位置 / v2 = 回転（オイラー角）。落とした／投げた本人 → 全員。動いている間、短い間隔で送る
+        ItemPose = 16,    // id = アイテムのID / v1 = 位置 / v2 = 回転（オイラー角）。落とした／投げた本人 → 全員。動いている間、短い間隔で送る
+        ItemValue = 17,   // id = アイテムのID / text = ぶつけて変わった売値（0 = 壊れた）。投げた本人 → 全員
+        PlayerStun = 18,  // id = 当てられたプレイヤーの席番号 / v1.x = スタンする秒数。投げた本人 → 当てられた人
+        EnemyHit = 19     // id = 敵のNetId / v1 = (ダメージ, スタン秒数, 0)。参加者 → ホストだけ（敵を動かしているのはホスト）
     }
 
     private struct NetEvent
@@ -149,11 +152,14 @@ public class GameplaySync : MonoBehaviour
     }
 
     /// <param name="bombFuse">時限爆弾なら導火線の残り（秒）。負なら指定なし</param>
-    public static void NotifyItemDropped(Item item, ItemDataAsset data, Vector3 position, Vector3 velocity, float bombFuse = -1f)
+    /// <param name="value">その1個の売値。負なら基準の価格</param>
+    public static void NotifyItemDropped(Item item, ItemDataAsset data, Vector3 position, Vector3 velocity, float bombFuse = -1f, int value = -1)
     {
         if (Instance == null || item == null || item.NetId == 0 || data == null) return;
         Instance.claimedIds.Remove(item.NetId);
-        string text = bombFuse >= 0f ? $"{data.name}|{bombFuse:F2}" : data.name;
+        // "アセット名|導火線の残り|売値"
+        System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+        string text = $"{data.name}|{bombFuse.ToString("F2", invariant)}|{value.ToString(invariant)}";
         Instance.Send(new NetEvent
         {
             type = EventType.ItemDrop, id = item.NetId, text = text, v1 = position, v2 = velocity
@@ -174,6 +180,40 @@ public class GameplaySync : MonoBehaviour
     {
         if (Instance == null || item == null || item.NetId == 0) return;
         Instance.Send(new NetEvent { type = EventType.ItemPose, id = item.NetId, v1 = position, v2 = eulerAngles });
+    }
+
+    /// <summary>投げた本人：ぶつけて売値が変わった（0 = 壊れた）ことを全員へ伝える</summary>
+    public static void NotifyItemValue(Item item, int value)
+    {
+        if (Instance == null || item == null || item.NetId == 0) return;
+        Instance.Send(new NetEvent
+        {
+            type = EventType.ItemValue, id = item.NetId, text = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        });
+    }
+
+    /// <summary>投げた物を他のプレイヤーに当てた：当てられた人の画面でスタンさせる</summary>
+    public static void NotifyPlayerStun(ulong clientId, float seconds)
+    {
+        if (Instance == null) return;
+        Instance.Send(new NetEvent { type = EventType.PlayerStun, id = (int)clientId, v1 = new Vector3(seconds, 0f, 0f) });
+    }
+
+    /// <summary>投げた物を敵に当てた：ソロとホストはその場で、参加者はホストに頼んで、ダメージとスタンを与える</summary>
+    public static void HitEnemy(EnemyBrain enemy, float damage, float stunSeconds)
+    {
+        if (enemy == null) return;
+
+        if (Instance == null || Instance.networkManager == null || !Instance.networkManager.IsListening
+            || Instance.networkManager.IsHost)
+        {
+            enemy.TakeThrownHit(damage, stunSeconds);
+            return;
+        }
+
+        Instance.WriteAndSend(
+            new NetEvent { type = EventType.EnemyHit, id = enemy.NetId, v1 = new Vector3(damage, stunSeconds, 0f) },
+            NetworkManager.ServerClientId);
     }
 
     /// <summary>ホスト：敵の位置・向き・状態を全員へ配る（参加者側の敵は見た目だけ）</summary>
@@ -315,6 +355,14 @@ public class GameplaySync : MonoBehaviour
             return;
         }
 
+        // 参加者が敵に物を当てた：敵を動かしているホストだけが処理する（中継しない）
+        if (e.type == EventType.EnemyHit)
+        {
+            EnemyBrain enemy = networkManager.IsHost ? EnemyBrain.Find(e.id) : null;
+            if (enemy != null) enemy.TakeThrownHit(e.v1.x, e.v1.y);
+            return;
+        }
+
         // ホストは、送ってきた人以外の参加者へ中継する
         if (networkManager.IsHost) Relay(e, senderId);
         Apply(e);
@@ -388,6 +436,23 @@ public class GameplaySync : MonoBehaviour
                 follower.SetTarget(e.v1, Quaternion.Euler(e.v2));
                 break;
             }
+            case EventType.ItemValue:
+            {
+                Item item = FindItem(e.id);
+                if (item != null && int.TryParse(e.text, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out int value))
+                {
+                    item.ApplyDamagedValue(value);
+                }
+                break;
+            }
+            case EventType.PlayerStun:
+            {
+                if (networkManager == null || (ulong)e.id != networkManager.LocalClientId) break;
+                PlayerController pc = FindAnyObjectByType<PlayerController>();
+                if (pc != null) pc.Stun(e.v1.x);
+                break;
+            }
             case EventType.ItemSettle:
             {
                 Item item = FindItem(e.id);
@@ -439,7 +504,7 @@ public class GameplaySync : MonoBehaviour
         PlayerController pc = FindAnyObjectByType<PlayerController>();
         BombBox bomb = item.GetComponent<BombBox>();
         float fuse = bomb != null ? bomb.Remaining : -1f;
-        if (pc != null && item.ItemData != null && pc.TryAddItem(item.ItemData, fuse))
+        if (pc != null && item.ItemData != null && pc.TryAddItem(item.ItemData, fuse, item.CurrentValue))
         {
             Destroy(item.gameObject);
             return;
@@ -448,7 +513,7 @@ public class GameplaySync : MonoBehaviour
         // 許可を待つ間にインベントリが埋まった：その場に落とし直して、全員にもう一度見えるようにする
         if (item.ItemData != null)
         {
-            NotifyItemDropped(item, item.ItemData, item.transform.position, Vector3.zero, fuse);
+            NotifyItemDropped(item, item.ItemData, item.transform.position, Vector3.zero, fuse, item.CurrentValue);
         }
     }
 
@@ -532,16 +597,14 @@ public class GameplaySync : MonoBehaviour
     {
         if (FindItem(e.id) != null) return;
 
-        // 時限爆弾は "アセット名|導火線の残り" で届く
-        string assetName = e.text;
+        // "アセット名|導火線の残り|売値" で届く（導火線と売値は、負なら指定なし）
+        string[] parts = (e.text ?? "").Split('|');
+        string assetName = parts[0];
         float fuse = -1f;
-        int bar = assetName.IndexOf('|');
-        if (bar >= 0)
-        {
-            float.TryParse(assetName.Substring(bar + 1), System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out fuse);
-            assetName = assetName.Substring(0, bar);
-        }
+        int value = -1;
+        System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+        if (parts.Length > 1 && !float.TryParse(parts[1], System.Globalization.NumberStyles.Float, invariant, out fuse)) fuse = -1f;
+        if (parts.Length > 2 && !int.TryParse(parts[2], System.Globalization.NumberStyles.Integer, invariant, out value)) value = -1;
 
         ItemDataAsset data = ResolveItemData(assetName);
         if (data == null || data.ItemPrefab == null)
@@ -557,9 +620,11 @@ public class GameplaySync : MonoBehaviour
         if (item == null) item = obj.AddComponent<Item>();
         item.SetItemData(data);
         item.NetId = e.id;
+        item.SetValue(value);
 
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb == null) rb = obj.AddComponent<Rigidbody>();
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.linearVelocity = e.v2;
 
         BombBox bomb = obj.GetComponent<BombBox>();

@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9e60a0dda033594cbfa100b3e09b505, type: 3}
+  m_Name: Scrap_Flashlight
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDataAsset
+  amount: 160
+  itemName: "\u61D0\u4E2D\u96FB\u706F"
+  itemIcon: {fileID: 21300000, guid: 404d9f490874ee64881de2e8f44d400d, type: 3}
+  itemWeight: 0.6
+  itemPrefab: {fileID: 7016266085082741037, guid: 9e1c1ceb3a9eae24597a537f992b26bc, type: 3}
+  fragility: 1
+  playerStunSeconds: 0
+  enemyStunSeconds: 0
+  heldLightIntensity: 2.5
+  heldLightRange: 1.8
+  heldLightAngle: 1.2
+  requiredHoldTime: 0.8
+  isBomb: 0

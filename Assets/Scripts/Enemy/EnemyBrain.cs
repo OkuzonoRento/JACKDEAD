@@ -200,11 +200,29 @@ public class EnemyBrain : MonoBehaviour
     {
         if (immuneToBombs || isPuppet) return;
         health -= amount;
-        if (health > 0f) return;
+        if (health <= 0f) Die();
+    }
 
+    /// <summary>投げた物が当たった：ダメージを受けて、スタンする。判定するのはホストだけ</summary>
+    public void TakeThrownHit(float damage, float stunSeconds)
+    {
+        if (isPuppet) return;
+        health -= damage;
+        Debug.Log($"[敵] 投げた物が当たりました: ダメージ {damage:0.#} / 残り {Mathf.Max(0f, health):0}");
+        if (health <= 0f) Die();
+        else Stun(stunSeconds);
+    }
+
+    private void Die()
+    {
         // 倒された：全員の画面から消す
         GameplaySync.NotifyEnemyPose(NetId, transform.position, transform.eulerAngles.y, DeadState);
         Destroy(gameObject);
+    }
+
+    public static EnemyBrain Find(int netId)
+    {
+        return Registry.TryGetValue(netId, out EnemyBrain enemy) ? enemy : null;
     }
 
     public static void ApplyRemotePose(int netId, Vector3 position, float yaw, int state)

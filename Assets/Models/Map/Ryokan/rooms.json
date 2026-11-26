@@ -1,0 +1,700 @@
+{
+ "rooms": [
+  {
+   "name": "+_A",
+   "title": "荷物の十字廊下",
+   "chip": "+",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 0,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.5,
+     "y": -1.5,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": -1.5,
+     "y": -6.5,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "+_B_pit",
+   "title": "床が抜けた十字路",
+   "chip": "+",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 2.4,
+     "y": 2.4,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": -6.8,
+     "y": -1.2,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 0.0,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "+_C",
+   "title": "祭りの名残",
+   "chip": "+",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -8,
+     "y": 0,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": -5.5,
+     "y": 0,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 5.5,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 8,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 0,
+     "y": -7,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 0,
+     "y": 7,
+     "z": 2.75,
+     "kind": "red"
+    }
+   ]
+  },
+  {
+   "name": "-_A",
+   "title": "荷物の廊下",
+   "chip": "-",
+   "top": false,
+   "bottom": false,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -6,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "-_B_pit",
+   "title": "抜けた廊下",
+   "chip": "-",
+   "top": false,
+   "bottom": false,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.8,
+     "y": 0,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": -8,
+     "y": -1,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "-_C",
+   "title": "浴衣の廊下",
+   "chip": "-",
+   "top": false,
+   "bottom": false,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "-O_A",
+   "title": "宴会場",
+   "chip": "-O",
+   "top": false,
+   "bottom": false,
+   "left": false,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "-O_B",
+   "title": "客室",
+   "chip": "-O",
+   "top": false,
+   "bottom": false,
+   "left": false,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "-O_C_pit",
+   "title": "抜けた蔵",
+   "chip": "-O",
+   "top": false,
+   "bottom": false,
+   "left": false,
+   "right": true,
+   "lights": [
+    {
+     "x": 0,
+     "y": 0,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "=_A",
+   "title": "ロビー",
+   "chip": "=",
+   "top": false,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -3.8,
+     "y": 1.0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 3.8,
+     "y": 1.0,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "=_B",
+   "title": "ゲームコーナー",
+   "chip": "=",
+   "top": false,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -3.5,
+     "y": 5.5,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 6.667,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "=_C_pit",
+   "title": "抜けた厨房",
+   "chip": "=",
+   "top": false,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": -6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "__A",
+   "title": "曲がり廊下",
+   "chip": "_",
+   "top": true,
+   "bottom": false,
+   "left": true,
+   "right": false,
+   "lights": [
+    {
+     "x": 0,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.5,
+     "y": -1,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": -1,
+     "y": -6.5,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "__B",
+   "title": "納戸",
+   "chip": "_",
+   "top": true,
+   "bottom": false,
+   "left": true,
+   "right": false,
+   "lights": [
+    {
+     "x": 0.5,
+     "y": -0.5,
+     "z": 2.75,
+     "kind": "red"
+    }
+   ]
+  },
+  {
+   "name": "__C_pit",
+   "title": "角の落とし穴",
+   "chip": "_",
+   "top": true,
+   "bottom": false,
+   "left": true,
+   "right": false,
+   "lights": [
+    {
+     "x": -1.4,
+     "y": 1.4,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 0.0,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "f_A",
+   "title": "三叉路",
+   "chip": "f",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": false,
+   "lights": [
+    {
+     "x": 0,
+     "y": 0,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.5,
+     "y": -1.2,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "f_B",
+   "title": "洗面所",
+   "chip": "f",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": false,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "f_C_pit",
+   "title": "落ちた床板",
+   "chip": "f",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": false,
+   "lights": [
+    {
+     "x": 1.6,
+     "y": 1.6,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 0.0,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "G_A",
+   "title": "大浴場",
+   "chip": "G",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": -6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": -6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "G_B",
+   "title": "荒れた中庭",
+   "chip": "G",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": 0.0,
+     "y": 0.0,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": -6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": -6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 6.667,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "G_C_pit",
+   "title": "崩れた大広間",
+   "chip": "G",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -3,
+     "y": 0.8,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 3,
+     "y": 0.8,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 0,
+     "y": 6.5,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 0.0,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  },
+  {
+   "name": "O_A",
+   "title": "回廊",
+   "chip": "O",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -6.6,
+     "y": -6.6,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": -6.6,
+     "y": 6.6,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.6,
+     "y": -6.6,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.6,
+     "y": 6.6,
+     "z": 2.75,
+     "kind": "red"
+    }
+   ]
+  },
+  {
+   "name": "O_B_pit",
+   "title": "吹き抜けの回廊",
+   "chip": "O",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -6.6,
+     "y": -6.6,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": -6.6,
+     "y": 6.6,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.6,
+     "y": -6.6,
+     "z": 2.75,
+     "kind": "warm"
+    },
+    {
+     "x": 6.6,
+     "y": 6.6,
+     "z": 2.75,
+     "kind": "warm"
+    }
+   ]
+  },
+  {
+   "name": "O_C_pit",
+   "title": "崩れた回廊",
+   "chip": "O",
+   "top": true,
+   "bottom": true,
+   "left": true,
+   "right": true,
+   "lights": [
+    {
+     "x": -6.6,
+     "y": 0,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 6.6,
+     "y": 0,
+     "z": 2.75,
+     "kind": "red"
+    },
+    {
+     "x": 0.0,
+     "y": -6.667,
+     "z": 4.5,
+     "kind": "fill"
+    },
+    {
+     "x": 0.0,
+     "y": 6.667,
+     "z": 4.5,
+     "kind": "fill"
+    }
+   ]
+  }
+ ]
+}

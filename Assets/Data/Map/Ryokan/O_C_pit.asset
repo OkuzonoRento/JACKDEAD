@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d4d4a6306b45ff498b5b7010812ff31, type: 3}
+  m_Name: O_C_pit
+  m_EditorClassIdentifier: Assembly-CSharp::MapChipData
+  chipName: "\u5D29\u308C\u305F\u56DE\u5ECA"
+  chipPrefab: {fileID: 2739204335170747002, guid: 5d9877187e0d41042b3efba01e0b1b0f, type: 3}
+  hasTopDoor: 1
+  hasBottomDoor: 1
+  hasLeftDoor: 1
+  hasRightDoor: 1
+  allowRotation: 0

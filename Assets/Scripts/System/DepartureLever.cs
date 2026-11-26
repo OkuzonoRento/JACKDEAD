@@ -165,24 +165,11 @@ public class DepartureLever : MonoBehaviour, IInteractable
         inventoryItemsValue = 0;
 
         PlayerController player = FindAnyObjectByType<PlayerController>();
-        MapGenerator priceSource = FindAnyObjectByType<MapGenerator>();
         if (player != null)
         {
             playerMoney = player.PlayerMoney;
-
-            if (player.Inventory != null)
-            {
-                for (int i = 0; i < player.Inventory.Length; i++)
-                {
-                    if (player.Inventory[i] != null)
-                    {
-                        // 現在のレベルの価格補正を掛けた売値で精算する
-                        inventoryItemsValue += priceSource != null
-                            ? priceSource.GetScrapValue(player.Inventory[i])
-                            : player.Inventory[i].Amount;
-                    }
-                }
-            }
+            // 持っている物は、1個ずつの売値（生成時の揺れと、傷んだ分を含む）で精算する
+            inventoryItemsValue = player.GetInventoryValue();
         }
 
         if (displayTextManager == null)

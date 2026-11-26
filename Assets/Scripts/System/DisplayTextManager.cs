@@ -22,6 +22,8 @@ public class DisplayTextManager : MonoBehaviour
 
     public bool IsPlayerInBus => isPlayerInBus;
 
+    private BoxCollider area; // トラックの中を表すトリガー
+
     private void Start()
     {
         mapGenerator = FindAnyObjectByType<MapGenerator>();
@@ -115,6 +117,27 @@ public class DisplayTextManager : MonoBehaviour
         return total;
     }
 
+    /// <summary>この位置が、トラックの中（トリガーの範囲。床や壁の表面も含むよう少し広め）かどうか</summary>
+    public bool IsInsideTruck(Vector3 worldPoint)
+    {
+        const float Margin = 0.25f; // m
+
+        if (area == null)
+        {
+            foreach (BoxCollider box in GetComponents<BoxCollider>())
+            {
+                if (box.isTrigger) { area = box; break; }
+            }
+            if (area == null) return false;
+        }
+
+        Vector3 local = area.transform.InverseTransformPoint(worldPoint) - area.center;
+        Vector3 scale = area.transform.lossyScale;
+        return Mathf.Abs(local.x) <= area.size.x * 0.5f + Margin / Mathf.Max(0.001f, Mathf.Abs(scale.x))
+            && Mathf.Abs(local.y) <= area.size.y * 0.5f + Margin / Mathf.Max(0.001f, Mathf.Abs(scale.y))
+            && Mathf.Abs(local.z) <= area.size.z * 0.5f + Margin / Mathf.Max(0.001f, Mathf.Abs(scale.z));
+    }
+
     /// <summary>
     /// レベルクリア精算時にバス内の床置きスクラップをすべて消去する
     /// </summary>
@@ -168,17 +191,7 @@ public class DisplayTextManager : MonoBehaviour
         if (isPlayerInBus && playerController != null)
         {
             total += playerController.PlayerMoney;
-
-            if (playerController.Inventory != null)
-            {
-                foreach (var itemData in playerController.Inventory)
-                {
-                    if (itemData != null)
-                    {
-                        total += mapGenerator != null ? mapGenerator.GetScrapValue(itemData) : itemData.Amount;
-                    }
-                }
-            }
+            total += playerController.GetInventoryValue();
         }
 
         return total;

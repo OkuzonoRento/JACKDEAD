@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9e60a0dda033594cbfa100b3e09b505, type: 3}
+  m_Name: Scrap_StunGun
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDataAsset
+  amount: 300
+  itemName: "\u30B9\u30BF\u30F3\u30AC\u30F3"
+  itemIcon: {fileID: 21300000, guid: e67e7440559b1aa4cb1b2680a0e0072e, type: 3}
+  itemWeight: 0.5
+  itemPrefab: {fileID: 2075083811527264864, guid: b2f1208960567ae46bc8b3cdb1f7d561, type: 3}
+  fragility: 1
+  playerStunSeconds: 3.5
+  enemyStunSeconds: 6
+  heldLightIntensity: 1
+  heldLightRange: 1
+  heldLightAngle: 1
+  requiredHoldTime: 0.8
+  isBomb: 0

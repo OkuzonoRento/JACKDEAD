@@ -45,6 +45,53 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float lockedFOV = 42f;
     [SerializeField] private float fovChangeSpeed = 8f;
 
+    [Header("懐中電灯")]
+    [Tooltip("未設定なら、カメラの子にあるライトを使う")]
+    [SerializeField] private Light flashlight;
+    [SerializeField, Range(0f, 2f), Tooltip("ライトに設定されている強さに掛ける倍率（小さいほど控えめ）")]
+    private float flashlightIntensityScale = 0.7f;
+
+    private float flashlightBaseIntensity = -1f;
+    private float flashlightBaseRange, flashlightBaseAngle, flashlightBaseInnerAngle;
+
+    /// <summary>
+    /// ライトの明るさ・届く距離・広さを決める（手本は自分のライトの元の設定）。
+    /// held が懐中電灯などなら、その分だけ明るくする。他プレイヤーのライトにも使う
+    /// </summary>
+    public void ApplyFlashlightSettings(Light target, ItemDataAsset held)
+    {
+        if (target == null || flashlightBaseIntensity < 0f) return;
+
+        float intensity = held != null ? held.HeldLightIntensity : 1f;
+        float range = held != null ? held.HeldLightRange : 1f;
+        float angle = held != null ? held.HeldLightAngle : 1f;
+
+        target.intensity = flashlightBaseIntensity * flashlightIntensityScale * intensity;
+        target.range = flashlightBaseRange * range;
+        target.spotAngle = Mathf.Min(150f, flashlightBaseAngle * angle);
+        target.innerSpotAngle = Mathf.Min(target.spotAngle, flashlightBaseInnerAngle * angle);
+    }
+
+    /// <summary>画面に映している人（観戦中は相手）が、手に選んでいるアイテム</summary>
+    private ItemDataAsset ViewedHeldItem()
+    {
+        long spectated = RemotePlayerSync.SpectatedClientId;
+        if (spectated >= 0)
+        {
+            return RemotePlayerSync.Instance != null &&
+                   RemotePlayerSync.Instance.TryGetStatus((ulong)spectated, out RemotePlayerSync.PlayerStatus status)
+                ? GameplaySync.ResolveItemData(status.Held)
+                : null;
+        }
+
+        if (playerController == null || playerController.Inventory == null) return null;
+        int slot = playerController.SelectedSlotIndex;
+        return slot >= 0 && slot < playerController.Inventory.Length ? playerController.Inventory[slot] : null;
+    }
+
+    /// <summary>自分の懐中電灯（他プレイヤーの画面に出すライトの、手本にもする）</summary>
+    public Light Flashlight => flashlight;
+
     private CharacterController controller;
     private InputActionAsset playerInputActions;
     private InputAction moveAction;
@@ -355,6 +402,40 @@ public class PlayerMovement : MonoBehaviour
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
         CheckLanding();
+    }
+
+    // しゃがみの状態が決まったあとで、懐中電灯を点けたり消したりする
+    private void LateUpdate()
+    {
+        if (flashlight == null)
+        {
+            if (cameraTransform != null) flashlight = cameraTransform.GetComponentInChildren<Light>(true);
+            if (flashlight == null) return;
+        }
+        if (flashlightBaseIntensity < 0f)
+        {
+            flashlightBaseIntensity = flashlight.intensity;
+            flashlightBaseRange = flashlight.range;
+            flashlightBaseAngle = flashlight.spotAngle;
+            flashlightBaseInnerAngle = flashlight.innerSpotAngle;
+        }
+        ApplyFlashlightSettings(flashlight, ViewedHeldItem());
+
+        bool on;
+        if (isSpectating)
+        {
+            // 観戦中は、見ている相手のライトと同じ状態にする（同じ映像になる）
+            on = true;
+            long target = RemotePlayerSync.SpectatedClientId;
+            if (target >= 0 && RemotePlayerSync.Instance != null &&
+                RemotePlayerSync.Instance.TryGetAvatarLight((ulong)target, out bool targetOn)) on = targetOn;
+        }
+        else
+        {
+            // しゃがんでいる間は消す。スタン・吹き飛び中の「しゃがみと同じ姿勢」では消さない
+            on = !(IsCrouching && !IsStunned);
+        }
+        if (flashlight.enabled != on) flashlight.enabled = on;
     }
 
     private void Update()

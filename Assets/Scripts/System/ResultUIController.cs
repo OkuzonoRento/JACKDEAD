@@ -51,6 +51,8 @@ public class ResultUIController : MonoBehaviour
     [SerializeField, Min(0.5f)] private float cardHoldDuration = 2.5f;
     [Tooltip("タイトルカードの文字が浮かび上がる時間（秒）")]
     [SerializeField, Min(0.05f)] private float cardTextFadeDuration = 0.5f;
+    [Tooltip("ゲーム開始時にも、現在のステージ・ノルマ・借金のタイトルカードを見せる")]
+    [SerializeField] private bool showOpeningCard = true;
     [Tooltip("ゲームオーバー後に遷移するタイトルシーン名（Build Settings に登録が必要）")]
     [SerializeField] private string titleSceneName = "TitleScene";
 
@@ -74,6 +76,7 @@ public class ResultUIController : MonoBehaviour
     private TextMeshProUGUI debtStatusText;
 
     private readonly Color surplusFlashColor = new Color(0.3f, 1f, 0.4f, 1f);
+    private readonly Color stageCardColor = new Color(1f, 0.85f, 0.2f, 1f);
 
     private bool isResultShowing = false;
     private Coroutine resultSequenceCoroutine;
@@ -118,6 +121,53 @@ public class ResultUIController : MonoBehaviour
         {
             resultPanelObj.SetActive(false);
         }
+    }
+
+    private void Start()
+    {
+        if (showOpeningCard) StartCoroutine(OpeningCardRoutine());
+    }
+
+    // ------------------------------------------------------------------
+    // シーン推移：ゲーム開始時
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// ゲーム開始時：暗転したまま、現在のステージ・ノルマ・借金を見せてから明転する（見せている間は操作できず、無敵）
+    /// </summary>
+    private IEnumerator OpeningCardRoutine()
+    {
+        isTransitioning = true;
+        SetFadeAlpha(1f);
+        fadeImage.raycastTarget = true;
+
+        // マップ生成（ノルマの決定と、出現位置への移動）が終わるのを待つ
+        yield return null;
+
+        if (playerController != null) playerController.SetPauseSanityDrain(true);
+        if (playerMovement != null)
+        {
+            Vector3 spawned = playerMovement.transform.position;
+            Camera eye = Camera.main;
+            Vector3 lookFrom = eye != null ? eye.transform.position : spawned;
+            playerMovement.LockControlAndMoveTo(spawned, lookFrom + playerMovement.transform.forward * 5f, LockTransitionDuration);
+        }
+
+        float cardStart = Time.unscaledTime;
+        int stage = mapGenerator != null ? mapGenerator.CurrentStageLevel : 1;
+        string quotaLine = mapGenerator != null ? $"QUOTA  ${mapGenerator.CurrentMapQuota:N0}\n" : "";
+
+        yield return ShowCard($"STAGE {stage}", stageCardColor, $"{quotaLine}{BuildDebtStatus()}");
+
+        float remainingHold = cardHoldDuration - (Time.unscaledTime - cardStart);
+        if (remainingHold > 0f) yield return new WaitForSecondsRealtime(remainingHold);
+        HideCard();
+        if (playerMovement != null) playerMovement.UnlockControl();
+        if (playerController != null) playerController.SetPauseSanityDrain(false);
+
+        yield return FadeTo(0f, fadeDuration);
+
+        isTransitioning = false;
     }
 
     /// <summary>
@@ -461,7 +511,7 @@ public class ResultUIController : MonoBehaviour
         float cardStart = Time.unscaledTime;
         yield return ShowCard(
             $"STAGE {clearedStage + 1}",
-            new Color(1f, 0.85f, 0.2f, 1f),
+            stageCardColor,
             $"STAGE {clearedStage} CLEAR\n{debtStatus}");
 
         // 暗転中に次のマップを生成し、操作ロックと正気度減少を再開する

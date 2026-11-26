@@ -1156,15 +1156,6 @@ MonoBehaviour:
   m_Script: {fileID: 1390129831}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
-  bg: {fileID: 93502151}
-  normal: {r: 1, g: 1, b: 1, a: 0.06}
-  hover: {r: 1, g: 1, b: 1, a: 0.16}
-  descTarget: {fileID: 496578806}
-  descJa: "1\u79D2\u9593\u306B\u63CF\u304F\u56DE\u6570\u306E\u4E0A\u9650\u3092\u9078\u3073\u307E\u3059\uFF0830
-    / 60 / 120\uFF09\u3002"
-  descEn: 'CHOOSE THE FRAME RATE LIMIT: 30, 60 OR 120.'
-  defaultJa: "\u9805\u76EE\u306B\u30AB\u30FC\u30BD\u30EB\u3092\u5408\u308F\u305B\u308B\u3068\u3001\u8AAC\u660E\u304C\u8868\u793A\u3055\u308C\u307E\u3059"
-  defaultEn: HOVER OVER AN OPTION TO VIEW DETAILS
 --- !u!114 &93502151
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1527,14 +1518,6 @@ MonoBehaviour:
   m_Script: {fileID: 1390129831}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
-  bg: {fileID: 119731110}
-  normal: {r: 1, g: 1, b: 1, a: 0.06}
-  hover: {r: 1, g: 1, b: 1, a: 0.16}
-  descTarget: {fileID: 496578806}
-  descJa: "\u97F3\u697D\u306E\u97F3\u91CF\u3092\u8ABF\u6574\u3057\u307E\u3059\u3002"
-  descEn: ADJUST THE MUSIC VOLUME.
-  defaultJa: "\u9805\u76EE\u306B\u30AB\u30FC\u30BD\u30EB\u3092\u5408\u308F\u305B\u308B\u3068\u3001\u8AAC\u660E\u304C\u8868\u793A\u3055\u308C\u307E\u3059"
-  defaultEn: HOVER OVER AN OPTION TO VIEW DETAILS
 --- !u!114 &119731110
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5202,14 +5185,6 @@ MonoBehaviour:
   m_Script: {fileID: 1390129831}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
-  bg: {fileID: 400567062}
-  normal: {r: 1, g: 1, b: 1, a: 0.06}
-  hover: {r: 1, g: 1, b: 1, a: 0.16}
-  descTarget: {fileID: 496578806}
-  descJa: "\u30B2\u30FC\u30E0\u5168\u4F53\u306E\u97F3\u91CF\u3092\u8ABF\u6574\u3057\u307E\u3059\u3002"
-  descEn: ADJUST THE OVERALL VOLUME OF EVERYTHING.
-  defaultJa: "\u9805\u76EE\u306B\u30AB\u30FC\u30BD\u30EB\u3092\u5408\u308F\u305B\u308B\u3068\u3001\u8AAC\u660E\u304C\u8868\u793A\u3055\u308C\u307E\u3059"
-  defaultEn: HOVER OVER AN OPTION TO VIEW DETAILS
 --- !u!114 &400567062
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11296,14 +11271,6 @@ MonoBehaviour:
   m_Script: {fileID: 1390129831}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
-  bg: {fileID: 856725856}
-  normal: {r: 1, g: 1, b: 1, a: 0.06}
-  hover: {r: 1, g: 1, b: 1, a: 0.16}
-  descTarget: {fileID: 496578806}
-  descJa: "\u753B\u9762\u306E\u660E\u308B\u3055\u3092\u8ABF\u6574\u3057\u307E\u3059\u3002\u771F\u3093\u4E2D\u304C\u6A19\u6E96\u3067\u3059\u3002"
-  descEn: ADJUST THE SCREEN BRIGHTNESS. THE MIDDLE IS THE DEFAULT.
-  defaultJa: "\u9805\u76EE\u306B\u30AB\u30FC\u30BD\u30EB\u3092\u5408\u308F\u305B\u308B\u3068\u3001\u8AAC\u660E\u304C\u8868\u793A\u3055\u308C\u307E\u3059"
-  defaultEn: HOVER OVER AN OPTION TO VIEW DETAILS
 --- !u!114 &856725856
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14917,6 +14884,7 @@ MonoBehaviour:
   fadeDuration: 0.6
   cardHoldDuration: 2.5
   cardTextFadeDuration: 0.5
+  showOpeningCard: 1
   titleSceneName: TitleScene
   mapGenerator: {fileID: 1871857288}
   playerController: {fileID: 6134311109476015887}
@@ -16393,14 +16361,6 @@ MonoBehaviour:
   m_Script: {fileID: 1390129831}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
-  bg: {fileID: 1244937337}
-  normal: {r: 1, g: 1, b: 1, a: 0.06}
-  hover: {r: 1, g: 1, b: 1, a: 0.16}
-  descTarget: {fileID: 496578806}
-  descJa: "\u30DE\u30A6\u30B9\u3067\u8996\u70B9\u3092\u52D5\u304B\u3059\u901F\u3055\u3092\u8ABF\u6574\u3057\u307E\u3059\u3002"
-  descEn: ADJUST HOW FAST THE CAMERA TURNS WITH THE MOUSE.
-  defaultJa: "\u9805\u76EE\u306B\u30AB\u30FC\u30BD\u30EB\u3092\u5408\u308F\u305B\u308B\u3068\u3001\u8AAC\u660E\u304C\u8868\u793A\u3055\u308C\u307E\u3059"
-  defaultEn: HOVER OVER AN OPTION TO VIEW DETAILS
 --- !u!114 &1244937337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -24653,14 +24613,30 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MapGenerator
   allMapChips:
-  - {fileID: 11400000, guid: 42393c53edc427340a53bd94d8bce38b, type: 2}
-  - {fileID: 11400000, guid: 364f9d787dcc58549b694ebc7aa179db, type: 2}
-  - {fileID: 11400000, guid: 2c31fea1118b14a4b843e9f061f1f712, type: 2}
-  - {fileID: 11400000, guid: d956807ff7026dc458eedc45ef209864, type: 2}
-  - {fileID: 11400000, guid: 6a65c8859c68ab74098ba39077d3bf0b, type: 2}
-  - {fileID: 11400000, guid: 5fc47ae796a00c7419054a46959a94ba, type: 2}
-  - {fileID: 11400000, guid: 13bbf1f578dca804abf9b3eb86b2f1da, type: 2}
-  - {fileID: 11400000, guid: 7e6ef1e99e607374a9a10361ac8f945b, type: 2}
+  - {fileID: 11400000, guid: 7ff9f95c2004b334e9650ad4310b2888, type: 2}
+  - {fileID: 11400000, guid: 28b3659761e0a2345a1bccb00fe18f91, type: 2}
+  - {fileID: 11400000, guid: b36d9fde26d6eba45b9348ead8b40068, type: 2}
+  - {fileID: 11400000, guid: 7efa838d203cdca44b2dc596a2be1545, type: 2}
+  - {fileID: 11400000, guid: 2184181f208f8904cbf04105b2a0075c, type: 2}
+  - {fileID: 11400000, guid: 132aa4841c8adf44d946a79b3781d074, type: 2}
+  - {fileID: 11400000, guid: 674ad3cc33bd594448d3f458edbc9f03, type: 2}
+  - {fileID: 11400000, guid: dc1b067e43ed14648bfb6782d5312f8e, type: 2}
+  - {fileID: 11400000, guid: 1a04d213dd1ec9d44a76d945c85f3a77, type: 2}
+  - {fileID: 11400000, guid: 022936fedde6d4d4d8290461591c4e83, type: 2}
+  - {fileID: 11400000, guid: e165c71d664ce6b40a88bfbba5837ef8, type: 2}
+  - {fileID: 11400000, guid: 8d69687bcab615e488298716ba1b399f, type: 2}
+  - {fileID: 11400000, guid: da16a6337aed3814ca0ec4f87f2e1fc4, type: 2}
+  - {fileID: 11400000, guid: ba9794c0d8880a14e86c795c58160bf2, type: 2}
+  - {fileID: 11400000, guid: 1accd3ac98040d049a18ab5922c2ecc3, type: 2}
+  - {fileID: 11400000, guid: 844ba1cbddf6d054395c5d0295072185, type: 2}
+  - {fileID: 11400000, guid: 25df6a9d25baa454ca83aa6ef216f66a, type: 2}
+  - {fileID: 11400000, guid: 90f1051c0f00b8d4c82d20c4a0c2055a, type: 2}
+  - {fileID: 11400000, guid: f398fb21c9317464082e9d19dbc6432b, type: 2}
+  - {fileID: 11400000, guid: a95ebd0a8c76347489d8587604aed7ad, type: 2}
+  - {fileID: 11400000, guid: 97696d51ee0efa84fa6f7db2c4255f62, type: 2}
+  - {fileID: 11400000, guid: a757f9ae40b50a84780ee1cf42c47ee6, type: 2}
+  - {fileID: 11400000, guid: 5cfb2aab7cbf4c24ab2384bc2d545ed1, type: 2}
+  - {fileID: 11400000, guid: bfb0a36ea4b9b6d41a05ad00aec69567, type: 2}
   tileSize: 20
   maxRetryCount: 50
   busPrefab: {fileID: 1492566407503128558, guid: 7ec228188afd7b6448696607b58225ec, type: 3}
@@ -24682,7 +24658,8 @@ MonoBehaviour:
     slotPrefab: {fileID: 8257188973034071042, guid: 0a7c909b45789e344998e09b37c16ed2, type: 3}
     spawnWeight: 1
   minSlotCount: 2
-  maxSlotCount: 4
+  maxSlotCount: 8
+  roomLightScale: 0.7
   slotRarityTiers:
   - multiplier: 0.8
     minLevel: 1
@@ -24708,10 +24685,18 @@ MonoBehaviour:
   slotWallClearance: 2.2
   slotRotationYawOffset: 0
   scrapDataList:
-  - {fileID: 11400000, guid: 93646bb0b9c2d11439a92105631b8bc9, type: 2}
-  - {fileID: 11400000, guid: 4d9678a17f274644295f374a64e3dbc2, type: 2}
-  - {fileID: 11400000, guid: a3325ec62e6163d4b9526020461c23e7, type: 2}
-  - {fileID: 11400000, guid: a325a75c90b37024784e621478d59c3e, type: 2}
+  - {fileID: 11400000, guid: 19c3bd22f5780c14ab26527569462928, type: 2}
+  - {fileID: 11400000, guid: b42b5ee15867c044b873a4d374cdd839, type: 2}
+  - {fileID: 11400000, guid: f3e744d474fa7d648b27e6a173a5f95d, type: 2}
+  - {fileID: 11400000, guid: c566b16cd0ca96c4fb58019fd49c1c5d, type: 2}
+  - {fileID: 11400000, guid: 1f180273fdd2fd646b870a8513d4122b, type: 2}
+  - {fileID: 11400000, guid: 31e28450265b7db41b17cb6334a9ca24, type: 2}
+  - {fileID: 11400000, guid: 9c7a61987d36bc64b89fcf4163d26f26, type: 2}
+  - {fileID: 11400000, guid: 5ef1c55f17b926e48b2c9b9d0698a5bc, type: 2}
+  - {fileID: 11400000, guid: 71b936026ba9dcb41a2918c00364c6a7, type: 2}
+  - {fileID: 11400000, guid: a33fc9fc5a0274347935448814e5705a, type: 2}
+  - {fileID: 11400000, guid: 423290a6b8a85834e814fb99df7e872a, type: 2}
+  scrapPriceVariance: 0.2
 --- !u!4 &1871857289
 Transform:
   m_ObjectHideFlags: 0
@@ -28191,8 +28176,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   playerInputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   PlayerData: {fileID: 11400000, guid: 8a9f50bd145435d4a90377754a23a04e, type: 2}
-  baseThrowForce: 1
   maxThrowSpeed: 11
+  minThrowSpeed: 4.5
+  lightThrowWeight: 0.3
+  heavyThrowWeight: 8
+  throwImpact:
+    minImpactSpeed: 3
+    fullImpactSpeed: 11
+    minLossRate: 0.08
+    maxLossRate: 0.3
+    lossInterval: 0.25
+    loseValueOnCharacterHit: 1
+    playerStunSeconds: 0.6
+    enemyStunSeconds: 1.5
+    enemyBaseDamage: 4
+    enemyDamagePerKg: 4
+    enemyMaxDamage: 50
   sanityDrainPerSecond: 0.15
   sanityRecoveryOnClear: 20
   fallDeathHeight: -30
@@ -28298,6 +28297,8 @@ MonoBehaviour:
   sprintFOV: 85
   lockedFOV: 40
   fovChangeSpeed: 8
+  flashlight: {fileID: 0}
+  flashlightIntensityScale: 0.7
   gamepadLookSpeed: 170
 --- !u!114 &6510030111815441597
 MonoBehaviour:
