@@ -124,6 +124,14 @@
 - 金額の揺れ: `MapGenerator.scrapPriceVariance`(±20%)。1個ごとの売値は `Item.SetValue` / `PlayerController.GetHeldValue` が持ち、拾う・落とす・マルチ同期で引き継ぐ。
 - 投げて当てる: `ScrapThrowImpact`（調整は `PlayerController.throwImpact`）。トラックの外でぶつかるたびに減額（0で壊れる）、直撃ならプレイヤーは短いスタン、敵はスタンとダメージ。投げる速さは重さで 11〜4.5m/s（`baseThrowForce` は廃止）。再生・マルチでは未確認。
 
+## PV（紹介映像）（2026-11-27）
+- `Assets/Editor/PV/` が、約60秒の PV を Editor 内で描いて MP4 に書き出す（再生はしない）。メニュー JackDead/PV/PVを書き出す → `Recordings/JACKDEAD_PV.mp4`（git には入らない）。静止画の確認は「静止画で確認する」→ `Recordings/preview/sheet.png`。
+- 場面とテロップは `PVDirector.cs`、音は `PVAudio.cs`（スロットはゲームの `SlotWinSounds`、ほかは計算で作る）、重ねる文字と右下の注意書きは `PVComposer.cs`、JACKPOT の演出は `PVSlotWin.cs`（`SlotWinEffects` の時間と動きを組み直したもの。あちらを変えたら見直す）。
+- 新しい旅館マップ・トラック・スクラップを使う。カメラは `FindClearSection` が見通しのよい区間を選ぶ。場面の秒数を変えたら、音の時刻もそろえる。
+- 映すのは実装済みの要素だけ（ルーレットなどの他の台、人体賭博、病院は入れていない）。
+- 注意: 全コマを1回の更新で描くと GPU メモリ不足でエディタが落ちる（`d3d12 8007000e`）。数コマずつ描く形にしてある。URP の距離の霧は、この描き方では画面が真っ黒になるので使わない。
+- 書き出し中は SampleScene を一時的に組み替える（保存はしない）。未保存のシーンがあると実行しない。
+
 ## ゲーム開始時のステージ表示（2026-11-26）
 - `ResultUIController.OpeningCardRoutine`: ゲームシーン開始時に、暗転したまま `STAGE n` / ノルマ / 借金を出してから明転する。表示中は `IsTransitioning` なので無敵で、ポーズは開けず、操作と正気度減少も止める。`showOpeningCard` でオフにできる。再生では未確認。
 
