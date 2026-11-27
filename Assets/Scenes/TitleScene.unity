@@ -1372,7 +1372,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 93502147}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1390129831}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 93502151}
@@ -3729,21 +3729,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 153697525}
   m_CullTransparentMesh: 1
---- !u!115 &153927120
-MonoScript:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 7
-  m_DefaultReferences: {}
-  m_Icon: {fileID: 0}
-  m_Type: 0
-  m_ExecutionOrder: 0
-  m_ClassName: UiHover
-  m_Namespace: 
-  m_AssemblyName: Assembly-CSharp
 --- !u!1 &171319095
 GameObject:
   m_ObjectHideFlags: 0
@@ -14384,7 +14369,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 735556047}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 735556050}
@@ -24497,21 +24482,6 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!115 &1390129831
-MonoScript:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 7
-  m_DefaultReferences: {}
-  m_Icon: {fileID: 0}
-  m_Type: 0
-  m_ExecutionOrder: 0
-  m_ClassName: UiHover
-  m_Namespace: 
-  m_AssemblyName: Assembly-CSharp
 --- !u!1 &1396360114
 GameObject:
   m_ObjectHideFlags: 0
@@ -26372,7 +26342,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1461504150}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1461504153}
@@ -28082,7 +28052,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1563003067}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1563003070}
@@ -29567,7 +29537,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1617543421}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1617543424}
@@ -29667,7 +29637,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1619609543}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1619609546}
@@ -30377,7 +30347,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1648644807}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1648644810}
@@ -39997,7 +39967,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 2122430913}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 153927120}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 2122430916}

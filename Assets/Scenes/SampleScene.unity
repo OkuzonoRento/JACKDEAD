@@ -1384,7 +1384,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 93502147}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1390129831}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
 --- !u!114 &93502151
@@ -1875,7 +1875,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 119731107}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1390129831}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
 --- !u!114 &119731110
@@ -5705,7 +5705,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 400567059}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1390129831}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
 --- !u!114 &400567062
@@ -12487,7 +12487,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 856725853}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1390129831}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
 --- !u!114 &856725856
@@ -18091,7 +18091,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1244937334}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1390129831}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
 --- !u!114 &1244937337
@@ -19170,21 +19170,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1352467673}
   m_CullTransparentMesh: 1
---- !u!115 &1362178870
-MonoScript:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 7
-  m_DefaultReferences: {}
-  m_Icon: {fileID: 0}
-  m_Type: 0
-  m_ExecutionOrder: 0
-  m_ClassName: UiHover
-  m_Namespace: 
-  m_AssemblyName: Assembly-CSharp
 --- !u!1 &1367046468
 GameObject:
   m_ObjectHideFlags: 0
@@ -19819,21 +19804,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1374801636}
   m_CullTransparentMesh: 1
---- !u!115 &1390129831
-MonoScript:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 7
-  m_DefaultReferences: {}
-  m_Icon: {fileID: 0}
-  m_Type: 0
-  m_ExecutionOrder: 0
-  m_ClassName: UiHover
-  m_Namespace: 
-  m_AssemblyName: Assembly-CSharp
 --- !u!1 &1390822635
 GameObject:
   m_ObjectHideFlags: 0
@@ -28146,7 +28116,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1886504629}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1362178870}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1886504632}
@@ -28245,7 +28215,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1904725350}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1362178870}
+  m_Script: {fileID: 11500000, guid: 7c2df6d7cb9a3c81d9b560604f320aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UiHover
   bg: {fileID: 1904725353}

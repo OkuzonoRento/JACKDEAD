@@ -172,3 +172,9 @@
 - Unity の外での確認: `Docs/SlotFx/PreviewProgram.cs`（WAV と絵を書き出す。鳴る順は手で合わせているので `RunWin` を変えたら直す）、`preview_render.py`（台のモデルに重ねた画像）。出力は `Docs/SlotFx/sounds`・`*.png`。
 - 再生中の確認は台の `SlotMachineController` の ︙ メニュー「演出テスト」（お金は動かない）。この版はコンパイルと Unity 外の確認まで。Unity の再生・マルチでは未確認。
 - 気づいた点（未修正）: リールの UV と描き方から計算すると、目が横に約2倍伸びて表示される。
+
+## ビルドしたゲームが起動直後に落ちる（2026-11-27 に修正）
+- 症状: `Player.log`（`%USERPROFILE%\AppData\LocalLow\JackDead-Project\JACKDEAD-α`）に `level0 is corrupted! [Position out of bounds!]`。ビルド自体は成功する。
+- 原因: `UiHover` が `MultiLobbyUI.cs` の中に書かれたままシーンに保存され、シーン内に埋め込みの MonoScript ができていた。`Scripts/Network/UiHover.cs` に分け、両シーンの参照を付け替えた。
+- **シーンやプレハブに置く MonoBehaviour は、必ずクラス名と同じ名前のファイルに書く。** `ExplosionFx`・`TumbleBodyProxy`・`HoverNotifier` は別名ファイルだが、実行中に付けるだけ（シーンに保存しないこと）。
+- 確認: ビルドのコピーから `UiHover` を外すと起動することと、修正後のコンパイルまで。直したあとの再ビルドと起動は未確認。
