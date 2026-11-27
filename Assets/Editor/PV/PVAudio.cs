@@ -9,6 +9,9 @@ public static class PVAudio
 {
     public const int SampleRate = 48000;
 
+    /// <summary>全体の音量（0.5 で約 -6dB）</summary>
+    private const float Master = 0.45f;
+
     private static float[] mix;
     private static System.Random random;
 
@@ -70,10 +73,13 @@ public static class PVAudio
         Noise(36.45f, 0.25f, 0.18f, 0.35f);
         Riser(37.2f, 38.5f, 0.28f);
 
-        // 38.5–46秒：追跡と爆発
+        // 38.5–46秒：追跡と爆発（42.4 でサンタが立ち止まり、42.55 から振りかぶって、43.25 に投げる）
         Stinger(38.5f, 0.35f);
         for (float t = 38.5f; t < 44.1f; t += 0.375f) Impact(t, 0.38f, 60f);
-        for (float t = 38.7f; t < 44.1f; t += 0.31f) Step(t, 0.22f);
+        for (float t = 38.7f; t < 42.4f; t += 0.31f) Step(t, 0.22f);
+        for (float t = 42.6f; t < 44.1f; t += 0.5f) Step(t, 0.16f);
+        Riser(42.55f, 43.25f, 0.2f);
+        Whoosh(43.2f, 0.45f);
         for (float t = 38.5f; t < 44.1f; t += 0.75f) Bass(t, t < 41.5f ? 73.4f : 77.8f, 0.2f);
         for (float t = 39.0f; t < 44.1f; t += 0.55f) Heart(t, 0.28f);
         Riser(42.6f, 44.1f, 0.25f);
@@ -84,6 +90,8 @@ public static class PVAudio
         for (float t = 46.1f; t < 49.7f; t += 0.36f) Impact(t, 0.25f, 65f);
         for (float t = 46.2f; t < 49.7f; t += 0.23f) Step(t, 0.14f);
         for (float t = 46f; t < 49.7f; t += 0.72f) Bass(t, 65.4f, 0.18f);
+        Whoosh(48.4f, 0.4f);
+        foreach (float t in new[] { 48.5f, 48.85f, 49.12f, 49.33f, 49.49f, 49.61f }) Blip(t, 1320f, 0.14f); // 箱の点滅
         Explosion(49.7f, 0.7f);
 
         // 51.5–55秒：静けさ → 捕まる
@@ -211,6 +219,19 @@ public static class PVAudio
         Add(start, seconds, t => volume * n(t) * (random.NextDouble() < 0.7 ? 1f : 0f));
     }
 
+    /// <summary>物が風を切る音</summary>
+    private static void Whoosh(float start, float volume)
+    {
+        const float length = 0.45f;
+        float last = 0f;
+        Add(start, length, t =>
+        {
+            float swell = Mathf.Sin(Mathf.PI * t / length);
+            last += (White() - last) * Mathf.Lerp(0.03f, 0.3f, swell);
+            return volume * swell * swell * last * 2.2f;
+        });
+    }
+
     private static void Bass(float start, float f, float volume)
     {
         Add(start, 0.6f, t => volume * Mathf.Min(1f, t * 80f) * Mathf.Exp(-t * 5f) * (Sin(f, t) + 0.4f * Sin(f * 2f, t) + 0.2f * Sin(f * 3f, t)));
@@ -283,7 +304,7 @@ public static class PVAudio
         {
             float t = (i / 2) / (float)SampleRate;
             float fade = Mathf.Clamp01((length - t) / 0.8f) * Mathf.Clamp01(t / 0.2f);
-            mix[i] = (float)Math.Tanh(mix[i] * 1.1f) * 0.92f * fade;
+            mix[i] = (float)Math.Tanh(mix[i] * 1.1f) * 0.92f * Master * fade;
         }
     }
 }

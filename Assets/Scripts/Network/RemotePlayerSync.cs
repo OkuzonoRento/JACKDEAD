@@ -686,6 +686,7 @@ public class RemotePlayerSync : MonoBehaviour
     {
         GameObject root = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         root.name = $"RemotePlayer_{clientId}";
+        root.AddComponent<FootstepAudio>(); // 仲間の足音
 
         // プレイヤー同士がぶつかるよう、カプセルの当たり判定は残す。
         // Ignore Raycast レイヤーにして、視線（インタラクト用のレイキャスト）や床判定の邪魔にならないようにする

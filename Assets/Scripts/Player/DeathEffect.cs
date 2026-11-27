@@ -72,6 +72,7 @@ public class DeathEffect : MonoBehaviour
     public void Play(string deathReason, bool final, System.Action onComplete)
     {
         if (routine != null) StopCoroutine(routine);
+        GameAudio.Play(GameSound.Death);
         routine = StartCoroutine(PlayRoutine(deathReason, final, onComplete));
     }
 

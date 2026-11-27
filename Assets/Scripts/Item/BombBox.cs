@@ -44,6 +44,7 @@ public class BombBox : MonoBehaviour
     private MaterialPropertyBlock block;
     private float nextHitTime;
     private bool exploded;
+    private bool blinkOn;
     private PlayerController localPlayer;
     private CharacterController localController;
 
@@ -161,6 +162,10 @@ public class BombBox : MonoBehaviour
         float frequency = Mathf.Lerp(1.5f, 12f, urgency * urgency);
         bool on = Mathf.Sin(Time.time * frequency * Mathf.PI * 2f) > 0f && Remaining < fuseTime * 0.85f;
 
+        // 赤く光るたびに鳴る。爆発が近いほど高い
+        if (on && !blinkOn) GameAudio.PlayAt(GameSound.BoxBeep, transform.position, Mathf.Lerp(0.5f, 1f, urgency), Mathf.Lerp(0.9f, 1.4f, urgency), 18f);
+        blinkOn = on;
+
         Color c = on ? new Color(1f, 0.15f, 0.1f) : Color.white;
         block.SetColor("_BaseColor", c);
         block.SetColor("_Color", c);
@@ -255,6 +260,7 @@ public class BombBox : MonoBehaviour
     public static void ExplodeAt(Vector3 position, float radius, float maxDamage)
     {
         SpawnExplosionEffect(position, radius);
+        GameAudio.PlayAt(GameSound.Explosion, position, 1f, Random.Range(0.92f, 1.06f), 70f);
         EnemyNoise.Emit(position, EnemyNoise.Explosion);
 
         // 敵へのダメージ（敵ごとに無効かどうかを持つ。判定するのはホストだけ）

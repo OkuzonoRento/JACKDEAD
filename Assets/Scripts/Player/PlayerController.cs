@@ -53,8 +53,8 @@ public class PlayerController : MonoBehaviour
     private float betPenaltyAtZeroSanity = 1f;
     [SerializeField, Min(0f), Tooltip("正気度が 0 のときの、スタミナの消費の上乗せ（1 = 2倍）")]
     private float staminaPenaltyAtZeroSanity = 1f;
-    [SerializeField, Min(0f), Tooltip("ギャンブルに勝ったときに増えるドーパミン")]
-    private float dopamineOnWin = 15f;
+    [SerializeField, Min(0f), Tooltip("ギャンブルに勝ったときに増えるドーパミン（出目の倍率 1 につき）。例：6 なら、×7 の目で 42、×1.5 の目で 9")]
+    private float dopaminePerSymbolMultiplier = 6f;
     [SerializeField, Min(0f), Tooltip("ギャンブルに負けたときに減るドーパミン")]
     private float dopamineOnLose = 5f;
     [SerializeField, Range(0f, 1f), Tooltip("ドーパミンがこの割合以上のとき、ギャンブルの獲得額が増える")]
@@ -581,6 +581,7 @@ public class PlayerController : MonoBehaviour
     {
         if (index >= 0 && index < Inventory.Length)
         {
+            if (index != selectedSlotIndex) GameAudio.Play(GameSound.SlotSwitch, 0.7f);
             selectedSlotIndex = index;
             Debug.Log($"[インベントリ] スロット [{selectedSlotIndex + 1}] を選択しました。");
         }
@@ -649,6 +650,7 @@ public class PlayerController : MonoBehaviour
             GameplaySync.NotifyItemDropped(itemComp, itemDataToDrop, spawnPosition, velocity, fuseToCarry, value);
             ItemImpactNoise.Attach(droppedObj); // 音は、ぶつかったときに、ぶつかった場所で出る
             if (thrown && !itemDataToDrop.IsBomb) ScrapThrowImpact.Attach(droppedObj, this, throwImpact); // 爆弾は BombBox が処理する
+            if (thrown) GameAudio.Play(GameSound.Throw, 0.7f);
 
             Debug.Log($"[インベントリ] {itemDataToDrop.ItemName} を投げました（重さ: {itemDataToDrop.ItemWeight}）。");
         }
@@ -750,6 +752,7 @@ public class PlayerController : MonoBehaviour
         heldFuseActive[slot] = itemData.IsBomb && bombFuse > 0f;
         if (heldFuseActive[slot]) heldFuse[slot] = bombFuse;
         SaveInventoryToData();
+        GameAudio.Play(GameSound.Pickup, 0.8f);
     }
 
     public float GetTotalInventoryWeight()
@@ -788,11 +791,13 @@ public class PlayerController : MonoBehaviour
     public float GamblePayoutMultiplier =>
         _maxDopamine > 0f && _dopamine / _maxDopamine >= dopamineBuffThreshold ? dopamineBuffPayoutMultiplier : 1f;
 
-    /// <summary>ギャンブルの結果。勝つとドーパミンが増え、負けると減る</summary>
-    public void OnGambleResult(bool won)
+    /// <summary>ギャンブルの結果。勝つと出目の倍率に応じてドーパミンが増え、負けると減る</summary>
+    /// <param name="symbolMultiplier">そろった目の倍率（負けたときは使わない）</param>
+    public void OnGambleResult(bool won, float symbolMultiplier = 0f)
     {
-        if (won) _dopamine = Mathf.Clamp(_dopamine + dopamineOnWin, 0f, _maxDopamine);
-        else _dopamine = Mathf.Clamp(_dopamine - dopamineOnLose, 0f, _maxDopamine);
+        float change = won ? dopaminePerSymbolMultiplier * Mathf.Max(0f, symbolMultiplier) : -dopamineOnLose;
+        _dopamine = Mathf.Clamp(_dopamine + change, 0f, _maxDopamine);
+        if (won) Debug.Log($"[ドーパミン] 出目の倍率 x{symbolMultiplier:0.#} → +{change:0} （{_dopamine:0}/{_maxDopamine:0}）");
     }
 
     public void ConsumeSanity(float amount)

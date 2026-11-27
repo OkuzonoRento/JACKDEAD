@@ -38,6 +38,7 @@ public class ItemImpactNoise : MonoBehaviour
         lastNoiseTime = Time.time;
         Vector3 point = collision.contactCount > 0 ? collision.GetContact(0).point : transform.position;
         GameplaySync.NotifyNoise(point, loudness);
+        GameAudio.PlayImpact(gameObject, point, collision.relativeVelocity.magnitude);
     }
 
     private void Update()

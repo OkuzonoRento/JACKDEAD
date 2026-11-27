@@ -19,8 +19,10 @@ public class EnemyBrain : MonoBehaviour
 
     [Header("移動")]
     [SerializeField] private float patrolSpeed = 2.0f;
-    [SerializeField] private float chaseSpeed = 4.5f;
+    [SerializeField, Tooltip("追うときの速さ。プレイヤーは歩き5・走り10（シーンの値）")] private float chaseSpeed = 6.2f;
     [SerializeField, Tooltip("向きを変える速さ（度/秒）")] private float turnSpeed = 300f;
+    [SerializeField, Tooltip("追っているときの、向きを変える速さ（度/秒）")] private float chaseTurnSpeed = 540f;
+    [SerializeField, Min(0.1f), Tooltip("走るアニメーションの再生の速さ（足の滑りを抑える）")] private float runAnimSpeed = 1.3f;
     [SerializeField, Tooltip("徘徊の目的地を探す範囲（m）")] private float patrolRadius = 25f;
     [SerializeField] private Vector2 patrolWaitRange = new Vector2(1f, 3f);
 
@@ -57,9 +59,15 @@ public class EnemyBrain : MonoBehaviour
     [SerializeField, Tooltip("見失った場所の周りを、歩いて探す時間（秒）")] private float seekSeconds = 5f;
     [SerializeField, Tooltip("探し回る範囲（m）")] private float seekRadius = 6f;
 
+    [Header("追尾の強さ（追っている相手に対して）")]
+    [SerializeField, Tooltip("見えなくなった直後、この時間（秒）は、相手の動きを追い続ける（角を曲がっても付いていく）。机の下に潜った相手には効かない")] private float trackMemorySeconds = 1.5f;
+    [SerializeField, Tooltip("追っている・探している間の、視界の左右の広さ（度）")] private float alertSightHalfAngle = 120f;
+    [SerializeField, Tooltip("追っている・探している間の、視界の上下の広さ（度）")] private float alertSightVerticalHalfAngle = 75f;
+    [SerializeField, Tooltip("追っている・探している間は、この距離（m）以内なら向きに関係なく見つける（壁越しは除く）")] private float alertSenseRange = 4f;
+
     [Header("攻撃")]
-    [SerializeField, Tooltip("これより近いと距離を取る")] private float attackMinRange = 5f;
-    [SerializeField, Tooltip("これより遠いと近づく。この範囲の間で投げる")] private float attackMaxRange = 15f;
+    [SerializeField, Tooltip("追いながら、この距離（m）まで詰める（勢いで、もう少し近づくことがある）")] private float holdDistance = 4.5f;
+    [SerializeField, Tooltip("この距離（m）以内なら投げる")] private float attackMaxRange = 15f;
     [SerializeField] private float throwCooldown = 4f;
     [SerializeField, Tooltip("構えてから投げるまでの時間（秒）。この間にプレイヤーは動ける")] private float throwWindup = 0.7f;
     [SerializeField, Tooltip("Box を投げる速さ（m/s）")] private float throwSpeed = 16f;
@@ -113,6 +121,9 @@ public class EnemyBrain : MonoBehaviour
     private Vector3 chaseStartPos;   // 見失ったときに自分がいた場所
     private bool predicting;         // 逃げた先を予測して走っている最中
     private float predictTimer;
+    private bool hasChaseTarget;     // 追った相手がいて、まだ覚えている（追跡・探索の間）
+    private Vector3 chaseTargetNowPos; // 追っている相手の、今の実際の位置（見えていなくても分かる。使うのは見失った直後だけ）
+    private bool chaseTargetPresent;   // このフレームに、その相手が（生きて）いた
     private Vector3 seekPoint;
     private bool hasSeekPoint;
     private float seekPointTime;
@@ -183,18 +194,29 @@ public class EnemyBrain : MonoBehaviour
     /// </summary>
     public static bool IsChasedNear(Vector3 position, float radius)
     {
+        return NearestChaserDistance(position, radius) >= 0f;
+    }
+
+    /// <summary>範囲内で追ってきている敵のうち、一番近いものまでの距離（m）。いなければ -1（追跡中の曲にも使う）</summary>
+    public static float NearestChaserDistance(Vector3 position, float radius)
+    {
+        float best = -1f;
         foreach (EnemyBrain enemy in Registry.Values)
         {
             if (enemy == null) continue;
-            if ((enemy.transform.position - position).sqrMagnitude > radius * radius) continue;
+            float distance = Vector3.Distance(enemy.transform.position, position);
+            if (distance > radius || (best >= 0f && distance >= best)) continue;
 
             bool chasing = enemy.isPuppet
                 ? (enemy.animState == AnimState.Run || enemy.animState == AnimState.Throw)
                 : (enemy.IsHunting && enemy.stunTimer <= 0f);
-            if (chasing) return true;
+            if (chasing) best = distance;
         }
-        return false;
+        return best;
     }
+
+    /// <summary>いまの動き（0 = 立ち, 1 = 歩き, 2 = 走り, 3 = 投げの構え）。足音や声に使う</summary>
+    public int MotionState => (int)animState;
 
     private void TakeBombDamage(float amount)
     {
@@ -271,6 +293,8 @@ public class EnemyBrain : MonoBehaviour
             col.center = new Vector3(0f, colliderHeight * 0.5f, 0f);
         }
 
+        if (GetComponent<EnemyAudio>() == null) gameObject.AddComponent<EnemyAudio>(); // 足音・鈴・声
+
         if (!isPuppet)
         {
             agent = GetComponent<NavMeshAgent>();
@@ -325,7 +349,17 @@ public class EnemyBrain : MonoBehaviour
         guess.y = source.y;
         if (!NavMesh.SamplePosition(guess, out NavMeshHit hit, 4f, NavMesh.AllAreas)) return;
 
-        if (IsHunting) return; // プレイヤーを追っている最中は、そちらを優先
+        if (IsHunting)
+        {
+            // 追っていて見失っている最中に、行き先の近くや先で音がしたら、そちらへ向かい直す
+            if (lostTime > 0f && Vector3.Distance(hit.position, lastKnownPos) < predictDistance * 2f)
+            {
+                lastKnownPos = hit.position;
+                predicting = false;
+                lostTime = Mathf.Min(lostTime, trackMemorySeconds);
+            }
+            return;
+        }
 
         // すでに別の音を調べているときは、より近い音を優先する
         if (state == AiState.Investigate
@@ -455,6 +489,9 @@ public class EnemyBrain : MonoBehaviour
                 break;
         }
 
+        // 追跡中は、目的地の手前で減速しない
+        agent.autoBraking = state != AiState.Chase;
+
         UpdateFacing(dt);
         animState = ChooseAnimState();
     }
@@ -469,8 +506,10 @@ public class EnemyBrain : MonoBehaviour
         hasPatrolDest = false;
         predicting = false;
 
+        if (next == AiState.Chase) hasChaseTarget = true;
         if (next == AiState.Roam)
         {
+            hasChaseTarget = false;
             patrolWaitTimer = Random.Range(patrolWaitRange.x, patrolWaitRange.y);
         }
     }
@@ -530,12 +569,23 @@ public class EnemyBrain : MonoBehaviour
 
         CancelWindup();
 
+        // 見失った直後は、相手の動きに付いていく（角を曲がっただけでは、振り切れない）
+        if (lostTime <= trackMemorySeconds && chaseTargetPresent && !hiddenIds.Contains(chaseTargetId)
+            && NavMesh.SamplePosition(chaseTargetNowPos, out NavMeshHit now, 2.5f, NavMesh.AllAreas))
+        {
+            predicting = false;
+            lastKnownPos = now.position;
+            MoveTo(lastKnownPos, chaseSpeed);
+            return;
+        }
+
         if (!predicting)
         {
-            // まず、最後に見た場所まで走る
+            // まず、最後に分かった場所まで走る
             MoveTo(lastKnownPos, chaseSpeed);
+            float giveUp = trackMemorySeconds + chaseMemorySeconds;
             bool arrived = lostTime > 0.3f && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f;
-            if (arrived && lostTime <= chaseMemorySeconds)
+            if (arrived && lostTime <= giveUp)
             {
                 // 時間内に着いた：相手が逃げた先を予測して、そこへ走る
                 lastKnownPos = PredictEscapePoint();
@@ -543,7 +593,7 @@ public class EnemyBrain : MonoBehaviour
                 predictTimer = 0f;
                 MoveTo(lastKnownPos, chaseSpeed);
             }
-            else if (lostTime > chaseMemorySeconds)
+            else if (lostTime > giveUp)
             {
                 EnterState(AiState.Seek);
             }
@@ -624,35 +674,15 @@ public class EnemyBrain : MonoBehaviour
             return;
         }
 
-        if (dist > attackMaxRange)
+        // 投げられるなら構える。立ち止まるのは構えの間だけで、次に投げるまでは追い続ける
+        if (dist <= attackMaxRange && cooldownTimer <= 0f)
         {
-            // 遠い：近づく
-            agent.isStopped = false;
-            agent.speed = chaseSpeed;
-            agent.SetDestination(visibleTargetPos);
-        }
-        else if (dist < attackMinRange)
-        {
-            // 近すぎる：距離を取りながら投げる機会をうかがう
-            Vector3 away = -toTarget.normalized * 4f;
-            if (NavMesh.SamplePosition(transform.position + away, out NavMeshHit hit, 3f, NavMesh.AllAreas))
-            {
-                agent.isStopped = false;
-                agent.speed = chaseSpeed;
-                agent.SetDestination(hit.position);
-            }
-            else
-            {
-                agent.isStopped = true;
-            }
             TryBeginWindup();
+            return;
         }
-        else
-        {
-            // ちょうどよい距離：立ち止まって狙う
-            agent.isStopped = true;
-            TryBeginWindup();
-        }
+
+        if (dist > holdDistance) MoveTo(visibleTargetPos, chaseSpeed);
+        else agent.isStopped = true; // すぐ近くまで詰めたら、向き合う
     }
 
     private void TryBeginWindup()
@@ -724,7 +754,8 @@ public class EnemyBrain : MonoBehaviour
         look.y = 0f;
         if (look.sqrMagnitude < 0.0001f) return;
         Quaternion target = Quaternion.LookRotation(look.normalized, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeed * dt);
+        float speed = state == AiState.Chase ? chaseTurnSpeed : turnSpeed;
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, speed * dt);
     }
 
     private AnimState ChooseAnimState()
@@ -745,6 +776,7 @@ public class EnemyBrain : MonoBehaviour
         targetVisible = false;
         suspicious = false;
         suspectLevelNow = 0f;
+        chaseTargetPresent = false;
 #if UNITY_EDITOR
         DebugRays.Clear();
 #endif
@@ -811,14 +843,20 @@ public class EnemyBrain : MonoBehaviour
         return Quaternion.LookRotation(transform.forward, Vector3.up) * Quaternion.Euler(sightDownTilt, 0f, 0f);
     }
 
+    /// <summary>相手を追っている・探している（視界が広がる）</summary>
+    private bool IsAlert => hasChaseTarget && (state == AiState.Chase || state == AiState.Seek);
+
     /// <summary>目から前へ広がるコーン（左右と上下で広さが違う）の中にあるか。距離と遮るものは別に調べる</summary>
     private bool IsInViewCone(Vector3 eye, Vector3 point)
     {
+        // 追っている・探している間は、すぐ近くなら向きに関係なく気づく
+        if (IsAlert && (point - eye).sqrMagnitude <= alertSenseRange * alertSenseRange) return true;
+
         Vector3 local = Quaternion.Inverse(ViewRotation()) * (point - eye);
         float yaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
         float pitch = Mathf.Atan2(local.y, new Vector2(local.x, local.z).magnitude) * Mathf.Rad2Deg;
-        float h = yaw / Mathf.Max(1f, sightHalfAngle);
-        float v = pitch / Mathf.Max(1f, sightVerticalHalfAngle);
+        float h = yaw / Mathf.Max(1f, IsAlert ? alertSightHalfAngle : sightHalfAngle);
+        float v = pitch / Mathf.Max(1f, IsAlert ? alertSightVerticalHalfAngle : sightVerticalHalfAngle);
         return h * h + v * v <= 1f;
     }
 
@@ -861,7 +899,14 @@ public class EnemyBrain : MonoBehaviour
     private void ConsiderTarget(ulong id, Vector3 eye, Vector3 head, Vector3 chest, Vector3 waist, bool crouching, ref float bestDist)
     {
         awareness.TryGetValue(id, out float level);
-        bool remembered = level > RememberLevel;
+        // 追っていた相手は覚えているので、また見えたら、すぐ気づく
+        bool isChaseTarget = hasChaseTarget && id == chaseTargetId;
+        if (isChaseTarget)
+        {
+            chaseTargetPresent = true;
+            chaseTargetNowPos = waist;
+        }
+        bool remembered = level > RememberLevel || (isChaseTarget && IsAlert);
 
         // 机や椅子の下に潜っている（しゃがんでいて、頭のすぐ上に何かある）ときは、さらに気づかれにくい
         bool hidden = crouching && IsUnderCover(head);
@@ -989,8 +1034,8 @@ public class EnemyBrain : MonoBehaviour
     public bool DebugIsPuppet => isPuppet;
     public Vector3 DebugEye => EyePosition();
     public Quaternion DebugViewRotation => ViewRotation();
-    public float DebugSightVerticalHalfAngle => sightVerticalHalfAngle;
-    public float DebugSightHalfAngle => sightHalfAngle;
+    public float DebugSightVerticalHalfAngle => IsAlert ? alertSightVerticalHalfAngle : sightVerticalHalfAngle;
+    public float DebugSightHalfAngle => IsAlert ? alertSightHalfAngle : sightHalfAngle;
     public float DebugSightRange => sightRange;
     public float DebugCrouchSightRange => crouchSightRange;
     public float DebugInstantRange => instantNoticeRange;
@@ -1189,6 +1234,8 @@ public class EnemyBrain : MonoBehaviour
         {
             if (clipList[i] == null) continue;
             mixer.SetInputWeight(i, total > 0.0001f ? weights[i] / total : 0f);
+
+            if (i == (int)AnimState.Run) clipPlayables[i].SetSpeed(runAnimSpeed);
 
             // 再生が終わりまで来たら先頭へ戻す（ループ）。構えのクリップは構えが始まるたびに頭から
             double length = clipList[i].length;

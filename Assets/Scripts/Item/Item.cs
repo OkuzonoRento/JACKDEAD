@@ -57,7 +57,11 @@ public class Item : MonoBehaviour, IInteractable
     public void ApplyDamagedValue(int value)
     {
         int loss = CurrentValue - Mathf.Max(0, value);
-        if (loss > 0) ItemValuePopup.Spawn(transform.position, loss);
+        if (loss > 0)
+        {
+            ItemValuePopup.Spawn(transform.position, loss);
+            GameAudio.PlayAt(GameSound.ScrapDamage, transform.position, value > 0 ? 0.75f : 1f, Random.Range(0.9f, 1.15f), 22f);
+        }
 
         if (value > 0)
         {

@@ -19,19 +19,28 @@ public class SettingsManager : MonoBehaviour // 部品としては使わない�
     public const int DefaultFrameRate = 60;
     public static readonly int[] FrameRates = { 30, 60, 120 };
 
-    /// <summary>マウス感度の標準値。この値のとき、視点操作の速さは PlayerMovement の設定どおりになる</summary>
+    // ───── 初めて遊ぶとき（まだ設定を保存していないとき）の値。つまみは真ん中、マウス感度だけ 0.8 ─────
+
+    /// <summary>全体・BGM・SE の音量（0〜1 の真ん中）</summary>
+    public const float InitialVolume = 0.5f;
+    /// <summary>ボイスチャットの音量（0〜2 の真ん中）</summary>
+    public const float InitialVoiceVolume = 1f;
+    /// <summary>マウス感度</summary>
+    public const float InitialSensitivity = 0.8f;
+
+    /// <summary>マウス感度の基準。この値のとき、視点操作の速さは PlayerMovement の設定どおりになる（初めの値は InitialSensitivity）</summary>
     public const float DefaultSensitivity = 1f;
 
     /// <summary>明るさの標準値（0.5 のとき補正なし）</summary>
     public const float DefaultBrightness = 0.5f;
 
-    public static float MasterVolume => PlayerPrefs.GetFloat(KEY_VOLUME, 1f);
-    public static float BgmVolume => PlayerPrefs.GetFloat(KEY_BGM, 1f);
-    public static float SeVolume => PlayerPrefs.GetFloat(KEY_SE, 1f);
-    public static float VoiceVolume => PlayerPrefs.GetFloat(KEY_VOICE, 1f);
+    public static float MasterVolume => PlayerPrefs.GetFloat(KEY_VOLUME, InitialVolume);
+    public static float BgmVolume => PlayerPrefs.GetFloat(KEY_BGM, InitialVolume);
+    public static float SeVolume => PlayerPrefs.GetFloat(KEY_SE, InitialVolume);
+    public static float VoiceVolume => PlayerPrefs.GetFloat(KEY_VOICE, InitialVoiceVolume);
     public static int FrameRate => PlayerPrefs.GetInt(KEY_FRAME_RATE, DefaultFrameRate);
     /// <summary>マイクの使い方。false = 声を自動で拾う、true = 押している間だけ話す（プッシュトゥトーク）</summary>
     public static bool PushToTalk => PlayerPrefs.GetInt(KEY_MIC_MODE, 0) == 1;
-    public static float MouseSensitivity => PlayerPrefs.GetFloat(KEY_SENSITIVITY, DefaultSensitivity);
+    public static float MouseSensitivity => PlayerPrefs.GetFloat(KEY_SENSITIVITY, InitialSensitivity);
     public static float Brightness => PlayerPrefs.GetFloat(KEY_BRIGHTNESS, DefaultBrightness);
 }

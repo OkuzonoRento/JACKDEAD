@@ -45,6 +45,7 @@ public class PVDirector : IDisposable
     private float exploreStart, pickAt, silenceStart, chaseStart, crewStart, caughtStart;
     private PVActor santa;
     private GameObject box;
+    private Vector3 boxCenter;       // 原点から見た目の中心まで（回転していないとき）
     private GameObject loot;
     private Vector3 lootPosition;
     private readonly List<Transform> crew = new List<Transform>();
@@ -82,7 +83,7 @@ public class PVDirector : IDisposable
         BuildPath();
         BuildSlotWin();
         SetPlaceholderTexts();
-        Summary = $"rooms={rooms.Count} slots={generator.GetSpawnedSlots().Count} path={path.Total:F1}m bounds={mapBounds.size} spawn={generator.PlayerSpawnPoint} truck={(truck != null ? truck.position + " bounds=" + BoundsOf(truck.gameObject) + " renderers=" + truck.GetComponentsInChildren<Renderer>(false).Length : "なし")}\nloot={lootPosition} p0={path.At(path.Total * 0.42f)} truckTexts: {truckTexts}";
+        Summary = $"rooms={rooms.Count} slots={generator.GetSpawnedSlots().Count} path={path.Total:F1}m bounds={mapBounds.size} spawn={generator.PlayerSpawnPoint} truck={(truck != null ? truck.position + " bounds=" + BoundsOf(truck.gameObject) + " renderers=" + truck.GetComponentsInChildren<Renderer>(false).Length : "なし")}\nloot={lootPosition} p0={path.At(path.Total * 0.42f)} truckTexts: {truckTexts}\nsantaArm={santa.HasArm}";
     }
 
     /// <summary>プレハブの仮の文字（再生中にゲームが書き換える所）を、映像用の値にする</summary>
@@ -284,6 +285,8 @@ public class PVDirector : IDisposable
 
         GameObject boxPrefab = Load<GameObject>("Assets/Prefabs/Box.prefab");
         box = (GameObject)Object.Instantiate(boxPrefab);
+        box.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        boxCenter = BoundsOf(box).center;
 
         ItemDataAsset item = Load<ItemDataAsset>("Assets/Data/Scrap/Scrap_GameConsole.asset");
         loot = (GameObject)Object.Instantiate(item.ItemPrefab);
@@ -585,7 +588,7 @@ public class PVDirector : IDisposable
         Torch(1f);
         PathLamps(d);
         ui.Fade(1f - Smooth(s / 0.35f));
-        ui.Caption("暗闇を探れ。", t, 16.0f, 19.0f);
+        ui.Caption("暗闇の中を探れ。", t, 16.0f, 19.0f);
     }
 
     // 21.5–25秒：スクラップを拾う
@@ -670,39 +673,56 @@ public class PVDirector : IDisposable
         ui.Caption("音を立てるな。", t, 35.7f, 38.0f);
     }
 
-    // 38.5–46秒：追われる → 箱が爆発して吹っ飛ぶ
+    // 38.5–46秒：追われる → サンタが立ち止まって箱を投げる → 爆発して吹っ飛ぶ
     private void Chase(float t)
     {
         float s = t - 38.5f;
+        const float stop = 3.9f;      // サンタが立ち止まる
+        const float windup = 4.05f;   // 腕を振りかぶり始める
+        const float release = windup + ThrowWindup; // 投げる（箱が手を離れる）
         const float hit = 5.6f;
+        const float runSpeed = 4.2f, slowSpeed = 1.3f;
+
+        // 逃げる側は、投げられる所で足がゆるむ（投げる動きが見える距離に保つ）
         float run = Mathf.Min(s, hit);
-        float d = chaseStart + run * 4.2f;
-        float gap = Mathf.Lerp(5.8f, 2.4f, run / hit);
+        float d = chaseStart + Mathf.Min(run, stop) * runSpeed + Mathf.Max(0f, run - stop) * slowSpeed;
+        float santaD = chaseStart + Mathf.Min(run, stop) * runSpeed - Mathf.Lerp(5.8f, 3.6f, run / stop);
+        float slowing = Smooth((run - stop) / 0.4f);
 
-        Vector3 eye = path.Point(d) + Vector3.up * (1.55f + Mathf.Abs(Mathf.Sin(run * 9.5f)) * 0.12f);
-        Vector3 sp = path.Point(d - gap);
-        Vector3 forward = path.Point(d - gap + 1.2f) - sp;
+        float step = Mathf.Min(run, stop) * 9.5f + Mathf.Max(0f, run - stop) * 3.5f;
+        Vector3 eye = path.Point(d) + Vector3.up * (1.55f + Mathf.Abs(Mathf.Sin(step)) * Mathf.Lerp(0.12f, 0.03f, slowing));
+        Vector3 sp = path.Point(santaD);
+        Vector3 toEye = eye - sp;
+        toEye.y = 0f;
+        Vector3 forward = path.Point(santaD + 1.2f) - sp;
         forward.y = 0f;
-        if (forward.sqrMagnitude < 0.01f) forward = eye - sp;
-        santa.Show(sp, Quaternion.LookRotation(forward.normalized), PVActor.Run, s * 1.15f);
+        if (forward.sqrMagnitude < 0.01f) forward = toEye;
+        Quaternion facing = Quaternion.Slerp(Quaternion.LookRotation(forward.normalized), Quaternion.LookRotation(toEye.normalized), slowing);
 
-        Vector3 aim = sp + Vector3.up * 1.15f;
-        Look(eye + Shake(t, 0.045f), aim, 58f);
+        // 構えの間は体を少しひねって、投げる腕が見えるようにする
+        float twist = Smooth((s - windup) / 0.35f) * (1f - Smooth((s - release) / 0.2f));
+        facing *= Quaternion.Euler(0f, -38f * twist, 0f);
 
-        // 箱を投げる
-        const float thrown = 4.7f;
-        if (s > thrown && s < hit)
+        // ゲームと同じ：走る → 立ち止まる（待機の姿勢）→ 右腕を振りかぶって、振り抜く
+        santa.Show(sp, facing, PVActor.Run, s * 1.15f, PVActor.Idle, s, Mathf.Clamp01((s - stop) * 8f));
+        santa.RotateThrowArm(ThrowArmAngle(s - windup));
+
+        Vector3 aim = sp + Vector3.up * 1.25f;
+        Look(eye + Shake(t, Mathf.Lerp(0.045f, 0.012f, slowing)), aim, Mathf.Lerp(58f, 46f, slowing));
+
+        // 箱を投げる（出る位置は、ゲームと同じ「頭の高さの少し前」）
+        if (s >= release && s < hit)
         {
-            float k = (s - thrown) / (hit - thrown);
-            box.SetActive(true);
-            Vector3 from = sp + Vector3.up * 2.1f;
+            float k = (s - release) / (hit - release);
+            Vector3 from = sp + Vector3.up * 1.7f + facing * Vector3.forward * 0.5f;
             Vector3 to = eye + (aim - eye).normalized * 0.7f - Vector3.up * 0.25f;
-            box.transform.position = Vector3.Lerp(from, to, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.5f;
-            box.transform.rotation = Quaternion.Euler(s * 520f, s * 300f, 0f);
+            ShowBox(Vector3.Lerp(from, to, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.7f,
+                Quaternion.Euler(s * 520f, s * 300f, 0f), Mathf.Sin(s * 40f) > 0f);
+            Point(lampB, box.transform.position + (eye - sp).normalized * 0.5f + Vector3.up * 0.4f, new Color(1f, 0.6f, 0.35f), 3f, 4f);
         }
 
         Torch(0.9f);
-        Point(lampA, sp + Vector3.up * 2.8f, new Color(1f, 0.05f, 0.03f), 16f * (0.65f + 0.35f * Mathf.Sin(t * 13f)), 10f);
+        Point(lampA, sp + Vector3.up * 2.8f + facing * Vector3.forward * 0.6f, new Color(1f, 0.05f, 0.03f), 16f * (0.65f + 0.35f * Mathf.Sin(t * 13f)), 10f);
         PathLamps(d, true);
 
         if (s >= hit)
@@ -728,6 +748,8 @@ public class PVDirector : IDisposable
         float s = t - 46f;
         float d = crewStart + s * 2.3f;
         const float boom = 3.7f;
+        const float thrown = 2.4f; // 後ろから箱が飛んできて、3人目の背中で爆発する
+
         for (int i = 0; i < crew.Count; i++)
         {
             float di = d + 4.5f + (i == 1 ? 1.4f : 0f) - i * 0.35f;
@@ -766,10 +788,30 @@ public class PVDirector : IDisposable
         Look(eye + Shake(t, 0.015f + kick), path.Point(d + 5.5f) + Vector3.up * 0.95f, 66f);
         Point(lampA, eye + Vector3.up * 0.6f, new Color(0.35f, 0.4f, 0.8f), 9f, 12f);
         Point(lampC, path.Point(d + 7f) + Vector3.up * 3f, new Color(1f, 0.15f, 0.1f), 22f, 14f);
-        if (s > boom)
+
+        // 爆発の位置は、そのとき3人目がいる所の手前（毎コマ、同じ道の上で求める）
+        float targetD = crewStart + Mathf.Min(s, boom) * 2.3f + 4.5f - 2 * 0.35f;
+        Vector3 targetForward = path.Point(targetD + 1f) - path.Point(targetD);
+        targetForward.y = 0f;
+        if (targetForward.sqrMagnitude < 0.01f) targetForward = Vector3.forward;
+        targetForward.Normalize();
+        Vector3 boxTarget = path.Point(targetD) + Vector3.Cross(Vector3.up, targetForward) * 0.8f - targetForward * 0.6f + Vector3.up * 1.0f;
+
+        if (s >= thrown && s < boom)
+        {
+            // カメラの右上を抜けて、放物線で飛んでいく。近づくほど、速く赤く点滅する（ゲームの BombBox と同じ）
+            float k = (s - thrown) / (boom - thrown);
+            Vector3 from = eye + cam.transform.forward * 1.0f + cam.transform.right * 0.9f + Vector3.up * 0.1f;
+            Vector3 position = Vector3.Lerp(from, boxTarget, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.65f;
+            bool red = Mathf.Sin((s - thrown) * Mathf.Lerp(3f, 11f, k) * Mathf.PI * 2f) > 0f;
+            ShowBox(position, Quaternion.Euler(s * 300f, s * 210f, 15f), red);
+            Point(lampB, position + Vector3.up * 0.5f - targetForward * 0.5f,
+                red ? new Color(1f, 0.1f, 0.05f) : new Color(1f, 0.85f, 0.65f), red ? 5f : 2.5f, 3.5f);
+        }
+        if (s >= boom)
         {
             float w = s - boom;
-            Point(lampB, path.Point(d + 4f) + Vector3.up, new Color(1f, 0.5f, 0.12f), 100f * Mathf.Clamp01(1f - w / 0.6f), 14f);
+            Point(lampB, boxTarget, new Color(1f, 0.5f, 0.12f), 100f * Mathf.Clamp01(1f - w / 0.6f), 14f);
             ui.Flash(new Color(1f, 0.75f, 0.4f), 0.6f * Mathf.Clamp01(1f - w / 0.3f));
         }
         ui.Fade(1f - Smooth(s / 0.25f));
@@ -847,6 +889,33 @@ public class PVDirector : IDisposable
     }
 
     // ═════════ 道具 ═════════
+
+    // EnemyBrain の投げ方と同じ値（構え 0.7秒で腕を140度振りかぶり、0.2秒で-70度まで振り抜いて、0.5秒で戻す）
+    private const float ThrowWindup = 0.7f;
+
+    /// <summary>構え始めてからの時刻での、投げる腕の角度（EnemyBrain.UpdateThrowArm と同じ動き）</summary>
+    private static float ThrowArmAngle(float time)
+    {
+        const float raised = 140f, followed = -70f, swing = 0.2f, back = 0.5f;
+        if (time <= 0f) return 0f;
+        if (time < ThrowWindup) return raised * Mathf.SmoothStep(0f, 1f, time / ThrowWindup);
+        float follow = time - ThrowWindup;
+        if (follow < swing) return Mathf.Lerp(raised, followed, follow / swing);
+        return Mathf.Lerp(followed, 0f, (follow - swing) / back);
+    }
+
+    /// <summary>箱の見た目の中心が center になるように置く（モデルの原点がずれていても合う）。red で赤く点滅させる</summary>
+    private void ShowBox(Vector3 center, Quaternion rotation, bool red)
+    {
+        box.SetActive(true);
+        box.transform.rotation = rotation;
+        box.transform.position = center - rotation * boxCenter;
+        MaterialPropertyBlock block = new MaterialPropertyBlock();
+        Color color = red ? new Color(1f, 0.15f, 0.1f) : Color.white;
+        block.SetColor("_BaseColor", color);
+        block.SetColor("_Color", color);
+        foreach (Renderer r in box.GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(block);
+    }
 
     private void Look(Vector3 from, Vector3 to, float fov)
     {
@@ -1085,10 +1154,14 @@ public class PVSlot
         foreach (Material m in materials) m.mainTextureOffset = new Vector2(0f, stopOffset);
     }
 
+    /// <summary>回す前に見せておく目（3列ともばらばら。当たりの目が先に見えないように）</summary>
+    private static readonly int[] BeforeSpin = { 3, 1, 2 };
+
     /// <summary>start に回り始めて、左から順に止まり、end で最後の列が止まる</summary>
     public void Spin(float time, float start, float end, int[] results)
     {
-        Strips(results);
+        // 止まる目の絵は、回り始めてから入れる
+        Strips(time < start ? BeforeSpin : results);
         const float speed = 2.6f;
         for (int i = 0; i < reels.Length; i++)
         {
@@ -1129,6 +1202,9 @@ public class PVActor : IDisposable
     /// <summary>足元から顔までの高さ</summary>
     public float HeadHeight { get; } = 1.55f;
 
+    private readonly Transform arm; // 投げる腕（右の上腕）
+    public bool HasArm => arm != null;
+
     public PVActor(GameObject prefab)
     {
         body = (GameObject)Object.Instantiate(prefab);
@@ -1158,6 +1234,8 @@ public class PVActor : IDisposable
         }
         output.SetSourcePlayable(mixer);
 
+        if (animator.isHuman) arm = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+
         Transform head = animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
         if (head != null)
         {
@@ -1166,19 +1244,29 @@ public class PVActor : IDisposable
         }
     }
 
-    public void Show(Vector3 position, Quaternion rotation, int clip, float time)
+    /// <summary>next を指定すると、blend（0〜1）の割合で次の動きへ混ぜる</summary>
+    public void Show(Vector3 position, Quaternion rotation, int clip, float time, int next = -1, float nextTime = 0f, float blend = 0f)
     {
         body.SetActive(true);
         body.transform.SetPositionAndRotation(position, rotation);
         if (!graph.IsValid() || clips[clip] == null) return;
+        if (next < 0 || clips[next] == null) blend = 0f;
         for (int i = 0; i < clips.Length; i++)
         {
             if (clips[i] == null) continue;
-            mixer.SetInputWeight(i, i == clip ? 1f : 0f);
+            mixer.SetInputWeight(i, i == clip ? 1f - blend : i == next ? blend : 0f);
         }
         playables[clip].SetTime(Mathf.Repeat(time, Mathf.Max(0.01f, clips[clip].length)));
+        if (blend > 0f) playables[next].SetTime(Mathf.Repeat(nextTime, Mathf.Max(0.01f, clips[next].length)));
         graph.Evaluate(0f);
         body.transform.SetPositionAndRotation(position, rotation);
+    }
+
+    /// <summary>Show のあとに呼ぶ。投げる腕の骨へ、回転を上乗せする（ゲームの敵と同じ動かし方）</summary>
+    public void RotateThrowArm(float angle)
+    {
+        if (arm == null || Mathf.Abs(angle) < 0.01f) return;
+        arm.rotation = Quaternion.AngleAxis(angle, body.transform.right) * arm.rotation;
     }
 
     public void Hide() { body.SetActive(false); }

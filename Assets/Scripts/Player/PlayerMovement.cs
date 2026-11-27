@@ -252,7 +252,7 @@ public class PlayerMovement : MonoBehaviour
         Vector2 raw = lookAction.ReadValue<Vector2>();
         lookInput = raw;
 
-        float sensScale = PlayerPrefs.GetFloat(SettingsManager.KEY_SENSITIVITY, SettingsManager.DefaultSensitivity) / SettingsManager.DefaultSensitivity;
+        float sensScale = SettingsManager.MouseSensitivity / SettingsManager.DefaultSensitivity;
 
         InputControl active = lookAction.activeControl;
         if (active != null && active.device is Gamepad)
@@ -596,17 +596,38 @@ public class PlayerMovement : MonoBehaviour
         }
 
         Vector3 moveDir = transform.right * moveInput.x + transform.forward * moveInput.y;
+        Vector3 before = transform.position;
         controller.Move(moveDir * currentSpeed * Time.deltaTime);
+        UpdateStepSound(transform.position - before, isGrounded && isMoving, isSprinting, isCrouching);
 
         if (jumpAction != null && jumpAction.triggered && isGrounded && !isCrouching)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             GameplaySync.NotifyNoise(transform.position, EnemyNoise.Jump); // 踏み切る音（敵に聞こえる）
+            GameAudio.Play(GameSound.Jump, 0.6f);
         }
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
         CheckLanding();
+    }
+
+    // ---- 自分の足音（耳で聞く音。敵に聞こえる大きさは EnemyNoise で別に決める）----
+    private float stepTravelled = 1.2f; // 歩き出してすぐ、1歩目が鳴る
+
+    private void UpdateStepSound(Vector3 moved, bool walking, bool sprinting, bool crouching)
+    {
+        if (!walking)
+        {
+            stepTravelled = 1.2f;
+            return;
+        }
+        moved.y = 0f;
+        stepTravelled += moved.magnitude; // 壁に当たって進めないときは、鳴らない
+        float stride = sprinting ? 2.4f : (crouching ? 1.5f : 2f);
+        if (stepTravelled < stride) return;
+        stepTravelled = 0f;
+        GameAudio.PlayStep(sprinting ? 0.7f : (crouching ? 0.15f : 0.42f));
     }
 
     // ---- 着地の音（高い所から落ちるほど大きく、遠くの敵まで聞こえる）----
@@ -628,7 +649,9 @@ public class PlayerMovement : MonoBehaviour
         wasAirborne = false;
 
         float impact = -velocity.y;
-        if (impact < LandNoiseMinSpeed || Time.time < noLandNoiseUntil || Time.timeSinceLevelLoad < LandNoiseGrace) return;
+        if (Time.time < noLandNoiseUntil || Time.timeSinceLevelLoad < LandNoiseGrace) return;
+        if (impact >= 3f) GameAudio.Play(GameSound.Land, Mathf.Lerp(0.35f, 1f, Mathf.InverseLerp(3f, LandNoiseMaxSpeed, impact)));
+        if (impact < LandNoiseMinSpeed) return;
 
         float k = Mathf.InverseLerp(LandNoiseMinSpeed, LandNoiseMaxSpeed, impact);
         GameplaySync.NotifyNoise(transform.position, Mathf.Lerp(EnemyNoise.LandMin, EnemyNoise.LandMax, k));

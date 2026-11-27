@@ -890,7 +890,7 @@ public class SlotMachineController : MonoBehaviour
                     // ドーパミンが多いと、獲得額が増える。勝ちはドーパミンを増やす
                     float buff = playerController != null ? playerController.GamblePayoutMultiplier : 1f;
                     int reward = Mathf.RoundToInt(betAmount * slotRarityMultiplier * winSymbol.symbolMultiplier * buff);
-                    if (playerController != null) playerController.OnGambleResult(true);
+                    if (playerController != null) playerController.OnGambleResult(true, winSymbol.symbolMultiplier);
                     if (reward > 0 && playerController != null)
                     {
                         playerController.AddMoney(reward);

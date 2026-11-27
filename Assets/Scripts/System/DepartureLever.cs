@@ -106,6 +106,7 @@ public class DepartureLever : MonoBehaviour, IInteractable
 
         // 2. ノルマ達成の場合
         isActivated = true;
+        GameAudio.PlayAt(GameSound.Lever, transform.position, 1f, 1f, 40f);
 
         // 所持金は全員共通。精算はレバーを引いた人が行い、結果の所持金を他の参加者へ配る
         // （強制クリア時に所持金がマイナスにならないよう、余剰は0以上にする）

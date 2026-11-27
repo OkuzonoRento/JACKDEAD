@@ -157,6 +157,7 @@ public class ResultUIController : MonoBehaviour
         int stage = mapGenerator != null ? mapGenerator.CurrentStageLevel : 1;
         string quotaLine = mapGenerator != null ? $"QUOTA  ${mapGenerator.CurrentMapQuota:N0}\n" : "";
 
+        GameAudio.Play(GameSound.StageStart);
         yield return ShowCard($"STAGE {stage}", stageCardColor, $"{quotaLine}{BuildDebtStatus()}");
 
         float remainingHold = cardHoldDuration - (Time.unscaledTime - cardStart);
@@ -247,6 +248,7 @@ public class ResultUIController : MonoBehaviour
     {
         isResultShowing = true;
         skipRequested = false;
+        GameAudio.Play(GameSound.StageClear);
 
         if (resultPanelObj != null)
         {
@@ -416,6 +418,7 @@ public class ResultUIController : MonoBehaviour
         RectTransform rect = targetText.rectTransform;
         Color baseColor = targetText.color;
         float elapsed = 0f;
+        float nextTick = 0f;
 
         while (elapsed < duration && !skipRequested)
         {
@@ -425,6 +428,12 @@ public class ResultUIController : MonoBehaviour
 
             int currentVal = Mathf.RoundToInt(Mathf.Lerp(startValue, endValue, easeOut));
             targetText.text = $"$ {currentVal:N0}";
+
+            if (startValue != endValue && elapsed >= nextTick)
+            {
+                nextTick = elapsed + Mathf.Lerp(0.05f, 0.14f, t); // 終わりに近いほど、ゆっくり
+                GameAudio.Play(GameSound.CountTick, 0.8f, Mathf.Lerp(0.9f, 1.35f, easeOut));
+            }
 
             float bounce = Mathf.Sin(t * Mathf.PI);
             rect.localScale = baseScale * Mathf.Lerp(1f, PopPunchScale, bounce);
@@ -509,6 +518,8 @@ public class ResultUIController : MonoBehaviour
         if (debtStatusText != null) debtStatusText.gameObject.SetActive(false);
 
         float cardStart = Time.unscaledTime;
+        GameAudio.Play(GameSound.TruckStart, 0.8f); // 次の現場へ向かう
+        GameAudio.Play(GameSound.StageStart, 0.8f);
         yield return ShowCard(
             $"STAGE {clearedStage + 1}",
             stageCardColor,
@@ -592,6 +603,7 @@ public class ResultUIController : MonoBehaviour
         // クリアと同じ流れ：暗転 → タイトルカード（同じ時間）→ 次の場所へ
         yield return FadeTo(1f, fadeDuration);
 
+        GameAudio.Play(GameSound.GameOver);
         yield return ShowCard(
             "GAME OVER",
             new Color(0.85f, 0.05f, 0.05f, 1f),

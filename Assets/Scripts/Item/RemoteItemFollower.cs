@@ -19,9 +19,20 @@ public class RemoteItemFollower : MonoBehaviour
     private float lastReceived;
     private bool hasTarget;
 
+    private float lastImpactSound = -10f;
+
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
+    }
+
+    // ぶつかる音は、持ち主の画面では ItemImpactNoise が、ほかの人の画面ではここで鳴らす
+    private void OnCollisionEnter(Collision collision)
+    {
+        float speed = collision.relativeVelocity.magnitude;
+        if (speed < 2f || Time.time - lastImpactSound < 0.25f) return;
+        lastImpactSound = Time.time;
+        GameAudio.PlayImpact(gameObject, collision.contactCount > 0 ? collision.GetContact(0).point : transform.position, speed);
     }
 
     public void SetTarget(Vector3 position, Quaternion rotation)
