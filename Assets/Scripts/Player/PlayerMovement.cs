@@ -118,6 +118,8 @@ public class PlayerMovement : MonoBehaviour
     private float lockTransitionDuration = 0.4f;
     private float lockTransitionElapsed = 0f;
 
+    /// <summary>立っているときの本体の高さ（吹き飛びから起き上がるときに使う）</summary>
+    public float StandingHeight => standingHeight;
     public float CurrentStamina => currentStamina;
     public bool IsControlLocked => isControlLocked;
     /// <summary>しゃがみ中か（マルチプレイで他プレイヤーに見せるために公開）</summary>
@@ -383,6 +385,25 @@ public class PlayerMovement : MonoBehaviour
         velocity = Vector3.zero;
         knockVelocity = Vector3.zero;
         knockTimer = 0f;
+    }
+
+    /// <summary>この点の方をすぐに向く（体は左右、カメラは上下）。出現したときに掲示板を見せるのに使う</summary>
+    public void FaceTowards(Vector3 worldPoint)
+    {
+        Vector3 toTarget = worldPoint - (transform.position + Vector3.up * standingCameraY);
+        float horizontal = new Vector2(toTarget.x, toTarget.z).magnitude;
+        if (horizontal < 0.01f) return;
+
+        transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(toTarget.x, toTarget.z) * Mathf.Rad2Deg, 0f);
+        ResetLook(-Mathf.Atan2(toTarget.y, horizontal) * Mathf.Rad2Deg);
+        if (cameraTransform != null) cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
+    }
+
+    /// <summary>復活したときに、吹き飛び・スタン・落ちる勢いを残さない</summary>
+    public void ClearImpairments()
+    {
+        ResetMotion();
+        stunTimer = 0f;
     }
 
     public void Stun(float seconds)

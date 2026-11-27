@@ -150,7 +150,8 @@ public class ResultUIController : MonoBehaviour
             Vector3 spawned = playerMovement.transform.position;
             Camera eye = Camera.main;
             Vector3 lookFrom = eye != null ? eye.transform.position : spawned;
-            playerMovement.LockControlAndMoveTo(spawned, lookFrom + playerMovement.transform.forward * 5f, LockTransitionDuration);
+            playerMovement.LockControlAndMoveTo(spawned,
+                SpawnLookTarget(lookFrom + playerMovement.transform.forward * 5f), LockTransitionDuration);
         }
 
         float cardStart = Time.unscaledTime;
@@ -169,6 +170,12 @@ public class ResultUIController : MonoBehaviour
         yield return FadeTo(0f, fadeDuration);
 
         isTransitioning = false;
+    }
+
+    /// <summary>ステージの開始時に向く点。トラック内の掲示板があればそこ、なければ fallback</summary>
+    private Vector3 SpawnLookTarget(Vector3 fallback)
+    {
+        return mapGenerator != null && mapGenerator.HasSpawnLookPoint ? mapGenerator.SpawnLookPoint : fallback;
     }
 
     /// <summary>
@@ -536,7 +543,8 @@ public class ResultUIController : MonoBehaviour
         if (playerMovement != null)
         {
             Vector3 spawned = playerMovement.transform.position;
-            playerMovement.LockControlAndMoveTo(spawned, spawned + playerMovement.transform.forward, LockTransitionDuration);
+            playerMovement.LockControlAndMoveTo(spawned,
+                SpawnLookTarget(spawned + playerMovement.transform.forward), LockTransitionDuration);
         }
         // カードを見せる時間は、マップの生成にかかった時間も含めて、いつも同じ長さにする
         float remainingHold = cardHoldDuration - (Time.unscaledTime - cardStart);

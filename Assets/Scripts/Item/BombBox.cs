@@ -330,16 +330,7 @@ public class BombBox : MonoBehaviour
         fx.transform.position = position;
         fx.transform.localScale = Vector3.one * 0.5f;
 
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null) shader = Shader.Find("Sprites/Default");
-        Renderer r = fx.GetComponent<Renderer>();
-        if (shader != null)
-        {
-            Material m = new Material(shader);
-            m.SetColor("_BaseColor", new Color(1f, 0.55f, 0.1f));
-            m.color = new Color(1f, 0.55f, 0.1f);
-            r.material = m;
-        }
+        RuntimeMaterials.ApplyUnlit(fx.GetComponent<Renderer>(), new Color(1f, 0.55f, 0.1f));
 
         Light light = fx.AddComponent<Light>();
         light.color = new Color(1f, 0.6f, 0.2f);

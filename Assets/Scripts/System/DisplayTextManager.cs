@@ -99,6 +99,23 @@ public class DisplayTextManager : MonoBehaviour
         }
     }
 
+    /// <summary>掲示板（ノルマ・収入・残りの数字）の中央。ステージの開始時に、プレイヤーはここを向く</summary>
+    public bool TryGetBoardCenter(out Vector3 center)
+    {
+        center = Vector3.zero;
+        int count = 0;
+        foreach (TextMeshPro text in new[] { quotaText, incomeText, remainingText })
+        {
+            if (text == null) continue;
+            center += text.rectTransform.TransformPoint(text.rectTransform.rect.center);
+            count++;
+        }
+        if (count == 0) return false;
+
+        center /= count;
+        return true;
+    }
+
     /// <summary>
     /// トラック（バス）のトリガー内にある床置きスクラップの合計金額を返す（DepartureLeverと共通利用）
     /// </summary>

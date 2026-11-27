@@ -411,6 +411,7 @@ public class MapGenerator : MonoBehaviour
         spawnedSlotList.Clear();
         spawnedBusGridPos = null;
         spawnedBusDirection = -1;
+        HasSpawnLookPoint = false;
         if (gizmoDrawer != null) gizmoDrawer.Clear();
 
         Stack<Vector2Int> stack = new Stack<Vector2Int>();
@@ -1358,6 +1359,7 @@ public class MapGenerator : MonoBehaviour
             else
             {
                 scrapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                RuntimeMaterials.ApplyLit(scrapObj.GetComponent<Renderer>(), new Color(0.6f, 0.5f, 0.35f));
                 scrapObj.transform.position = finalSpawnPos;
                 scrapObj.transform.localScale = Vector3.one * FallbackCubeScale;
                 scrapObj.AddComponent<Rigidbody>();
@@ -1499,6 +1501,10 @@ public class MapGenerator : MonoBehaviour
     public Vector3 PlayerSpawnPoint { get; private set; }
     public bool HasPlayerSpawnPoint { get; private set; }
 
+    /// <summary>出現したときに向く点（トラック内の掲示板の中央）</summary>
+    public Vector3 SpawnLookPoint { get; private set; }
+    public bool HasSpawnLookPoint { get; private set; }
+
     private void SpawnPlayerAtPosition(Vector3 targetPosition)
     {
         PlayerController player = FindAnyObjectByType<PlayerController>();
@@ -1532,6 +1538,9 @@ public class MapGenerator : MonoBehaviour
         {
             player.transform.position = targetPosition;
         }
+
+        PlayerMovement movement = player.GetComponent<PlayerMovement>();
+        if (movement != null && HasSpawnLookPoint) movement.FaceTowards(SpawnLookPoint);
     }
 
     private void UpdateGizmoDrawer()
@@ -1638,10 +1647,16 @@ public class MapGenerator : MonoBehaviour
                 }
             }
 
-            Instantiate(busPrefab, bestCandidate.pos, bestCandidate.rot, transform);
+            GameObject bus = Instantiate(busPrefab, bestCandidate.pos, bestCandidate.rot, transform);
 
             spawnedBusGridPos = bestCandidate.room.gridPos;
             spawnedBusDirection = bestCandidate.dir;
+
+            // 出現したときに、トラック内の掲示板（ノルマ）が最初に目に入るようにする
+            DisplayTextManager board = bus.GetComponentInChildren<DisplayTextManager>();
+            Vector3 boardCenter = Vector3.zero;
+            HasSpawnLookPoint = board != null && board.TryGetBoardCenter(out boardCenter);
+            SpawnLookPoint = boardCenter;
 
             SpawnPlayerAtPosition(bestCandidate.pos + Vector3.up * PlayerSpawnHeightOffset);
         }

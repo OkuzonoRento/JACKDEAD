@@ -692,11 +692,8 @@ public class RemotePlayerSync : MonoBehaviour
         // Ignore Raycast レイヤーにして、視線（インタラクト用のレイキャスト）や床判定の邪魔にならないようにする
         root.layer = 2;
 
-        Renderer rend = root.GetComponent<Renderer>();
-        if (rend != null)
-        {
-            rend.material.color = Color.HSVToRGB((clientId * 0.27f) % 1f, 0.6f, 0.95f);
-        }
+        // 図形の標準の材質は、ビルドしたゲームではマゼンタになるので、付け替える
+        RuntimeMaterials.ApplyLit(root.GetComponent<Renderer>(), Color.HSVToRGB((clientId * 0.27f) % 1f, 0.6f, 0.95f));
 
         // 向きが分かるよう、前方に小さな目印を付ける
         GameObject nose = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -708,6 +705,7 @@ public class RemotePlayerSync : MonoBehaviour
         nose.transform.localScale = new Vector3(0.25f, 0.15f, 0.25f);
         // 目印は目のすぐ前にあるので、本人の懐中電灯をさえぎらないよう、影を落とさない
         nose.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        RuntimeMaterials.ApplyLit(nose.GetComponent<Renderer>(), new Color(0.85f, 0.85f, 0.85f));
 
         // 手に持つアイテムを飾る位置（体の右前）
         GameObject hand = new GameObject("HandAnchor");

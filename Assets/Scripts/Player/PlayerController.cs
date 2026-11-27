@@ -363,6 +363,9 @@ public class PlayerController : MonoBehaviour
         // 原因の確認用（体力・正気度・位置）。何も食らっていないのに終了した、というときはこのログで原因が分かる
         Debug.Log($"[死亡判定] {deathReason} / 体力 {_health:0} / 正気度 {_sanity:0} / 位置 {transform.position}");
 
+        // 吹き飛ばされて転がっている最中に倒れたら、転がりをやめる
+        CancelTumble();
+
         // ゲームオーバーの条件は体力 0（と落下）だけ。正気度が 0 でも死なず、デバフ（掛け金・スタミナ）が強くなるだけ。
         // マルチプレイで他に生きている人がいれば、ゲームオーバーにはならず観戦に回る（次のステージで復活）。全員が倒れたときだけゲームオーバー
         if (TryBeginSpectating(deathReason)) return;
@@ -465,11 +468,37 @@ public class PlayerController : MonoBehaviour
         isSpectating = false;
         pauseSanityDrain = false;
 
+        // 転がりや吹き飛びを残さず、新しいマップの出現位置（トラック）へ置き直してから、操作を戻す
+        CancelTumble();
         PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null) movement.ClearImpairments();
+        MoveToSpawnPoint();
         if (movement != null) movement.SetSpectating(false);
 
         GameplaySync.NotifyLocalDead(false);
         Debug.Log($"[観戦] 復活しました。体力 {_health:0}/{_maxHealth:0} / 正気度 {_sanity:0}/{_maxSanity:0}");
+    }
+
+    private void CancelTumble()
+    {
+        PlayerTumble tumble = GetComponent<PlayerTumble>();
+        if (tumble != null) tumble.Cancel();
+    }
+
+    /// <summary>今のマップの出現位置へ移す</summary>
+    private void MoveToSpawnPoint()
+    {
+        MapGenerator map = FindAnyObjectByType<MapGenerator>();
+        if (map == null || !map.HasPlayerSpawnPoint) return;
+
+        CharacterController body = GetComponent<CharacterController>();
+        if (body != null) body.enabled = false;
+        transform.position = map.PlayerSpawnPoint;
+        if (body != null) body.enabled = true;
+        lastSafePosition = transform.position;
+
+        PlayerMovement movement = GetComponent<PlayerMovement>();
+        if (movement != null && map.HasSpawnLookPoint) movement.FaceTowards(map.SpawnLookPoint);
     }
 
     /// <summary>観戦中に、生きている仲間が全員いなくなった（全滅）ときに SpectatorController から呼ばれる</summary>

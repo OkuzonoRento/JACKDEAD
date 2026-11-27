@@ -53,6 +53,11 @@ public class PlayerTumble : MonoBehaviour
     private Quaternion standFromRot;
     private float lastImpactTime = -10f;
 
+    private Vector3 launchPosition;  // 吹き飛ぶ前に立っていた位置（立てる場所が見つからないときに戻る）
+    private Vector3 clearCenter;     // 壁をすり抜けていないと分かっている、最後の体の位置
+    private float stuckTimer;        // 空中で止まったまま（何かに挟まった）の時間
+    private const float StuckSeconds = 1.5f;
+
     public bool IsTumbling => phase != Phase.None;
 
     /// <summary>指定の速度で吹き飛ばして、転がり始める。すでに転がっている最中なら、その勢いを足す</summary>
@@ -80,7 +85,10 @@ public class PlayerTumble : MonoBehaviour
         normalCamLocalPos = cam.transform.localPosition;
         normalPitch = NormalizeAngle(cam.transform.localEulerAngles.x);
 
-        CreateBody(transform.TransformPoint(cc.center));
+        launchPosition = transform.position;
+        clearCenter = transform.TransformPoint(cc.center);
+        stuckTimer = 0f;
+        CreateBody(clearCenter);
         body.linearVelocity = v;
         Debug.Log($"[タンブル] 開始 位置={body.position} 初速={v}");
         body.angularVelocity = Random.onUnitSphere * spinSpeed;
@@ -131,6 +139,17 @@ public class PlayerTumble : MonoBehaviour
 
         Vector3 v = body.linearVelocity;
         if (v.magnitude > MaxBodySpeed) body.linearVelocity = v.normalized * MaxBodySpeed;
+
+        // 体の中心が、前の位置との間にある壁や床を通り抜けていたら、通り抜ける前の位置へ戻す
+        if (IsBlocked(clearCenter, body.position))
+        {
+            body.position = clearCenter;
+            body.linearVelocity = -v * 0.2f;
+        }
+        else
+        {
+            clearCenter = body.position;
+        }
     }
 
     /// <summary>体の下に床があるか（空中かどうか）</summary>
@@ -154,7 +173,10 @@ public class PlayerTumble : MonoBehaviour
         // 空中では解除しない（床に着いて、止まったときだけ起き上がる）
         bool grounded = IsBodyGrounded();
         if (!grounded) settleTimer = 0f;
-        if (grounded && (timer >= maxTumbleSeconds || (timer >= minTumbleSeconds && settleTimer >= settleHold)))
+        // ただし、床に着かないまま止まっている（壁や物に挟まった）ときは、抜け出させる。落下中は速いので、ここには入らない
+        stuckTimer = !grounded && slow ? stuckTimer + dt : 0f;
+        if (stuckTimer >= StuckSeconds ||
+            (grounded && (timer >= maxTumbleSeconds || (timer >= minTumbleSeconds && settleTimer >= settleHold))))
             BeginStandUp();
     }
 
@@ -191,11 +213,10 @@ public class PlayerTumble : MonoBehaviour
     /// <summary>止まった：地面の上に立たせて、視点をゆっくり立て直す</summary>
     private void BeginStandUp()
     {
-        Vector3 center = body.position;
-        Vector3 feet = center - Vector3.up * cc.center.y;
-        int mask = ~((1 << 2) | (LayerMask.NameToLayer("Items") >= 0 ? 1 << LayerMask.NameToLayer("Items") : 0));
-        if (Physics.Raycast(center + Vector3.up * 0.3f, Vector3.down, out RaycastHit hit, 3f, mask, QueryTriggerInteraction.Ignore))
-            feet = hit.point + Vector3.up * 0.05f;
+        // 体の当たり判定は、立つ場所を調べる前に消す（消えるのは次のフレームなので、先に無効にする）
+        bodyCollider.enabled = false;
+        cc.height = movement.StandingHeight;
+        Vector3 standAt = FindStandPosition(clearCenter);
 
         // 向きは、いまカメラが向いている方角（水平）にそろえる（視点はマウスで動かしていたので、そのまま）
         Vector3 fwd = cam.transform.forward;
@@ -206,12 +227,97 @@ public class PlayerTumble : MonoBehaviour
         standFromRot = cam.transform.rotation;
 
         DestroyBody();
-        transform.position = feet;
+        transform.position = standAt;
         transform.rotation = Quaternion.LookRotation(fwd.normalized, Vector3.up);
         cc.enabled = true;
 
         standTimer = 0f;
         phase = Phase.StandUp;
+    }
+
+    // 立てる場所を探すときの、まわりへずらす距離（m）と向きの数
+    private static readonly float[] SearchRadii = { 0f, 0.25f, 0.5f, 0.8f, 1.2f, 1.7f, 2.4f };
+    private const int SearchDirections = 16;
+
+    /// <summary>
+    /// 体が止まった位置の近くで、壁や床にめり込まずに立てる場所を返す（返すのはプレイヤー本体の位置）。
+    /// 壁の向こう側は選ばない。見つからなければ、吹き飛ぶ前の位置に戻る
+    /// </summary>
+    private Vector3 FindStandPosition(Vector3 from)
+    {
+        float half = Mathf.Max(cc.height * 0.5f, cc.radius);
+        int mask = SolidMask();
+
+        foreach (float distance in SearchRadii)
+        {
+            int count = distance <= 0f ? 1 : SearchDirections;
+            for (int i = 0; i < count; i++)
+            {
+                float angle = Mathf.PI * 2f * i / count;
+                Vector3 probe = from + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
+                if (IsBlocked(from, probe)) continue;
+
+                // 真下の床（急な面は除く）。足元の少し上に、本体の中心が来る
+                if (!Physics.Raycast(probe + Vector3.up * 0.3f, Vector3.down, out RaycastHit hit, 4f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (hit.normal.y < 0.6f) continue;
+
+                Vector3 position = hit.point + Vector3.up * (half + cc.skinWidth + 0.02f) - cc.center;
+                if (IsFree(position) && !IsBlocked(from, position + cc.center)) return position;
+            }
+        }
+
+        Debug.LogWarning($"[タンブル] 近くに立てる場所がないので、吹き飛ぶ前の位置へ戻します（止まった位置 {from}）。");
+        if (!IsFree(launchPosition))
+        {
+            MapGenerator map = FindAnyObjectByType<MapGenerator>();
+            if (map != null && map.HasPlayerSpawnPoint) return map.PlayerSpawnPoint;
+        }
+        return launchPosition;
+    }
+
+    /// <summary>この位置に本体を置いて、何にも重ならないか</summary>
+    private bool IsFree(Vector3 position)
+    {
+        float half = Mathf.Max(cc.height * 0.5f, cc.radius);
+        Vector3 middle = position + cc.center;
+        float reach = half - cc.radius;
+        Collider[] hits = Physics.OverlapCapsule(middle - Vector3.up * reach, middle + Vector3.up * reach,
+            cc.radius, SolidMask(), QueryTriggerInteraction.Ignore);
+        foreach (Collider c in hits)
+        {
+            if (IsSolid(c)) return false;
+        }
+        return true;
+    }
+
+    /// <summary>2 点の間に壁や床があるか</summary>
+    private static bool IsBlocked(Vector3 from, Vector3 to)
+    {
+        Vector3 delta = to - from;
+        float length = delta.magnitude;
+        if (length < 0.001f) return false;
+
+        foreach (RaycastHit hit in Physics.RaycastAll(from, delta / length, length, SolidMask(), QueryTriggerInteraction.Ignore))
+        {
+            if (IsSolid(hit.collider)) return true;
+        }
+        return false;
+    }
+
+    // 他のプレイヤー（Ignore Raycast レイヤー）と落ちているアイテムは、壁とは見なさない
+    private static int SolidMask()
+    {
+        int items = LayerMask.NameToLayer("Items");
+        return ~((1 << 2) | (items >= 0 ? 1 << items : 0));
+    }
+
+    /// <summary>動かない地形か（自分の体、敵、アイテムは除く）</summary>
+    private static bool IsSolid(Collider c)
+    {
+        return c.GetComponentInParent<PlayerController>() == null
+            && c.GetComponentInParent<TumbleBodyProxy>() == null
+            && c.GetComponentInParent<EnemyBrain>() == null
+            && c.GetComponentInParent<Item>() == null;
     }
 
     private void FinishStandUp()
@@ -227,6 +333,19 @@ public class PlayerTumble : MonoBehaviour
             movement.ResetMotion();
             movement.SetTumbling(false);
         }
+    }
+
+    /// <summary>
+    /// 倒れた・復活したときに、転がりをその場でやめる（体を消して、カメラと当たり判定を元に戻す）。
+    /// やめないと、マップの外へ落ち続ける体にプレイヤー本体が引っ張られ、次のステージで復活した直後に落下死する
+    /// </summary>
+    public void Cancel()
+    {
+        if (phase == Phase.None) return;
+
+        DestroyBody();
+        if (cc != null) cc.enabled = true;
+        FinishStandUp();
     }
 
     private void DestroyBody()
